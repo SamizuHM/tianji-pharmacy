@@ -5,10 +5,11 @@ import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getStatsSummary, getTrendData } from "@/lib/services/stats";
+import { getPendingTicketCounts } from "@/lib/services/tickets";
 
 export default async function AdminStatsPage() {
   const user = await requireUser();
-  const [summary, trends, messages, tickets] = await Promise.all([
+  const [summary, trends, messages, tickets, pendingCounts] = await Promise.all([
     getStatsSummary(),
     getTrendData(),
     prisma.chatMessage.findMany({
@@ -22,7 +23,8 @@ export default async function AdminStatsPage() {
       include: { createdBy: true, closedBy: true },
       orderBy: { createdAt: "desc" },
       take: 50
-    })
+    }),
+    getPendingTicketCounts()
   ]);
 
   const statCards = [
@@ -37,7 +39,13 @@ export default async function AdminStatsPage() {
   ];
 
   return (
-    <AppShell role={user.role} displayName={user.displayName} title="统计与历史记录" description="查看问答命中、工单闭环和最近 7 天趋势。">
+    <AppShell
+      role={user.role}
+      displayName={user.displayName}
+      title="统计与历史记录"
+      description="查看问答命中、工单闭环和最近 7 天趋势。"
+      initialPendingCounts={pendingCounts}
+    >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {statCards.map((item) => (
           <Card key={item.label}>
@@ -118,4 +126,3 @@ export default async function AdminStatsPage() {
     </AppShell>
   );
 }
-

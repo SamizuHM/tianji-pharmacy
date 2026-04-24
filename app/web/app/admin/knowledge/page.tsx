@@ -7,10 +7,11 @@ import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { getPendingTicketCounts } from "@/lib/services/tickets";
 
 export default async function AdminKnowledgePage() {
   const user = await requireUser();
-  const [items, jobs] = await Promise.all([
+  const [items, jobs, pendingCounts] = await Promise.all([
     prisma.knowledgeItem.findMany({
       orderBy: { createdAt: "desc" },
       take: 100
@@ -18,7 +19,8 @@ export default async function AdminKnowledgePage() {
     prisma.importJob.findMany({
       orderBy: { createdAt: "desc" },
       take: 20
-    })
+    }),
+    getPendingTicketCounts()
   ]);
 
   const serializedItems = items.map((item) => ({
@@ -34,7 +36,13 @@ export default async function AdminKnowledgePage() {
   }));
 
   return (
-    <AppShell role={user.role} displayName={user.displayName} title="知识库管理" description="导入知识文档、手动新增知识条目、查看和管理已有知识。">
+    <AppShell
+      role={user.role}
+      displayName={user.displayName}
+      title="知识库管理"
+      description="导入知识文档、手动新增知识条目、查看和管理已有知识。"
+      initialPendingCounts={pendingCounts}
+    >
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>

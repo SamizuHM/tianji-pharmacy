@@ -1,6 +1,7 @@
 import { MessageRole, Prisma, TicketStatus, UserRole } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { broadcastTicketNotification, getPendingTicketCounts } from "@/lib/notifications/server";
 import { writeTicketResolutionToKnowledge } from "@/lib/services/knowledge";
 import { buildTicketNo, truncateText } from "@/lib/utils";
 
@@ -61,6 +62,15 @@ export async function createTicketFromConversation(input: {
     ]
   });
 
+  await broadcastTicketNotification({
+    type: "ticket_created",
+    title: "收到新的人工工单",
+    message: `工单 ${ticket.ticketNo} 已进入人工处理1待办：${ticket.title}`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetRoles: ["human_l1"]
+  });
+
   return ticket;
 }
 
@@ -112,7 +122,7 @@ export async function replyTicket(input: {
   content: string;
   attachments?: string;
 }) {
-  return prisma.ticketMessage.create({
+  const message = await prisma.ticketMessage.create({
     data: {
       ticketId: input.ticketId,
       senderRole: input.senderRole,
@@ -122,6 +132,26 @@ export async function replyTicket(input: {
       attachments: input.attachments
     }
   });
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+  if (ticket) {
+    await broadcastTicketNotification({
+      type: "ticket_replied",
+      title: "工单有新回复",
+      message:
+        input.senderRole === "user"
+          ? `工单 ${ticket.ticketNo} 有新的门店补充说明`
+          : `工单 ${ticket.ticketNo} 有新的人工处理回复`,
+      ticketId: ticket.id,
+      ticketNo: ticket.ticketNo,
+      targetRoles: input.senderRole === "user" ? [ticket.currentAssigneeRole] : undefined,
+      targetUserIds: input.senderRole === "user" ? undefined : [ticket.createdByUserId]
+    });
+  }
+
+  return message;
 }
 
 export async function escalateTicket(input: {
@@ -143,6 +173,15 @@ export async function escalateTicket(input: {
       messageType: "system",
       content: "系统已将工单升级至人工处理2。"
     }
+  });
+
+  await broadcastTicketNotification({
+    type: "ticket_escalated_l2",
+    title: "工单已升级到人工2",
+    message: `工单 ${ticket.ticketNo} 已升级到人工处理2：${ticket.title}`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetRoles: ["human_l2"]
   });
 
   return ticket;
@@ -200,5 +239,17 @@ export async function closeTicket(input: {
     resolution: input.resolutionText
   });
 
+  await broadcastTicketNotification({
+    type: "ticket_closed",
+    title: "工单已关闭",
+    message: `工单 ${ticket.ticketNo} 已完成处理并关闭`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetRoles: ["human_l1", "human_l2"],
+    targetUserIds: [ticket.createdByUserId]
+  });
+
   return ticket;
 }
+
+export { getPendingTicketCounts };

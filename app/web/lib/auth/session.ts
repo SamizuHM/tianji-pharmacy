@@ -9,6 +9,8 @@ import { prisma } from "@/lib/db";
 
 const COOKIE_NAME = "pharmacy_demo_session";
 
+export const SESSION_COOKIE_NAME = COOKIE_NAME;
+
 export async function createSession(userId: string) {
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000);
@@ -72,6 +74,11 @@ export async function getCurrentUser() {
   return session.user;
 }
 
+export async function getSessionToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get(COOKIE_NAME)?.value ?? null;
+}
+
 export async function requireUser(roles?: UserRole[]) {
   const user = await getCurrentUser();
 
@@ -98,4 +105,3 @@ export function roleHome(role: UserRole) {
       return "/login";
   }
 }
-
