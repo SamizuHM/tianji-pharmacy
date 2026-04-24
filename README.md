@@ -6,9 +6,13 @@
 - 固定 3 角色登录
 - 纯文字 / 纯图片 / 图文混合提问
 - 先检索知识库，未命中再走大模型兜底
+- 检索阶段与最终回答阶段都支持多模态图片输入
+- 聊天回答以流式打字机效果输出
 - 一键转人工工单
+- 人工1 / 人工2 实时待办提醒与浏览器通知
 - 人工1回复、升级人工2、关闭工单
 - 关闭工单后真实写回知识库并立即可检索
+- 历史会话支持软删除
 - 统计指标、历史问答、历史工单、近 7 天趋势
 - 从 `seed_knowledge/` 和根目录 Word 文档导入知识
 
@@ -37,9 +41,9 @@ tianji-pharmacy/
 - 业务数据库：SQLite + Prisma ORM
 - 向量库：Qdrant
 - 模型接入：
-  - 多模态问答与图片理解：OpenAI-compatible `Qwen3.5`
-  - Embedding：`BAAI/bge-m3`
-  - Rerank：`BAAI/bge-reranker-v2-m3`
+  - 多模态问答与图片理解：OpenAI-compatible `qwen3.5-27b`
+  - Embedding：DashScope 多模态 `qwen3-vl-embedding`
+  - Rerank：DashScope 多模态 `qwen3-vl-rerank`
 
 ## 环境要求
 
@@ -67,12 +71,14 @@ cp .env.example .env
 DATABASE_URL="file:./dev.db"
 OPENAI_BASE_URL="https://your-openai-compatible-endpoint/v1"
 OPENAI_API_KEY="your_api_key"
-OPENAI_MODEL="qwen3.5-vl"
+OPENAI_MODEL="qwen3.5-27b"
 RETRIEVAL_TOP_K="8"
 RERANK_TOP_N="5"
 KB_HIT_THRESHOLD="0.72"
 MAX_CONTEXT_TURNS="6"
 UPLOAD_DIR="./uploads"
+SERVICE_HOTLINE="027-xxxx"
+NOTIFICATION_WS_PORT="3001"
 QDRANT_URL="http://127.0.0.1:6333"
 EMBEDDING_SERVICE_URL="http://127.0.0.1:8001/embed"
 RERANK_SERVICE_URL="http://127.0.0.1:8001/rerank"
@@ -114,7 +120,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-首次启动时，`bge-m3` 与 `bge-reranker-v2-m3` 会自动下载，速度取决于网络环境。
+首次启动时会按当前配置调用 DashScope 多模态 embedding / rerank 与 OpenAI-compatible 的 `qwen3.5-27b`。
+
+说明：
+
+- 检索改写使用多模态输入生成查询文本
+- 最终回答在用户上传图片时，会通过 Python ML Service 转发到 DashScope `MultiModalConversation` 流式接口
+- 前端接收到的仍然是统一的 SSE 打字机流
 
 ### 3. 启动 Next.js
 
@@ -187,6 +199,19 @@ pnpm kb:import
 - 统计页：`/admin/stats`
 - 知识库管理页：`/admin/knowledge`
 
+## 当前实现说明
+
+聊天问答当前是两段式：
+
+1. 检索阶段  
+   会把“当前文本 + 最近上下文 + 图片”一起送入多模态检索链路，完成 query rewrite、embedding、Qdrant 检索和 rerank。
+
+2. 回答阶段  
+   - 无图片：直接走文本流式回答
+   - 有图片：走 Python ML Service 的 `MultiModalConversation` 流式接口，让最终回答也真正参考图片内容
+
+这意味着当前版本已经修复了“检索能看图，但最终回答看不到图”的问题。
+
 ## 验证路径
 
 ### 场景 1：纯文字命中知识库
@@ -226,6 +251,7 @@ pnpm kb:import
 
 - 系统能完成图片上传
 - 检索 query 会结合图片和文字
+- 最终回答也会参考图片内容，不再只说“无法查看图片”
 - 正常进入知识检索或 LLM 兜底
 
 ### 场景 4：点击人工服务生成工单
@@ -277,6 +303,15 @@ pnpm kb:import
 - 历史工单表
 - 最近 7 天趋势图
 
+### 场景 10：实时提醒与会话管理
+
+预期：
+
+- 人工1 / 人工2 页面左侧能看到待处理工单数量
+- 新建工单或升级工单后，人工侧无需刷新即可看到数量变化和站内提醒
+- 浏览器授权通知后，可收到系统通知
+- 药店工作人员可删除历史会话，删除后会话从列表消失，但工单与统计不受影响
+
 ## 常用命令
 
 ```bash
@@ -298,9 +333,15 @@ pnpm dev
 原因通常是本机没有安装能处理旧版 `.doc` 的工具。  
 建议安装 `LibreOffice`，确保命令行可用 `soffice` 或 `libreoffice`。
 
-### 2. Python 模型下载很慢
+### 2. 模型接口调用失败
 
-首次加载 `bge-m3` 和 reranker 会下载模型文件，可提前配置镜像或手工缓存。
+先确认 `OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL` 与 DashScope 的 embedding / rerank 配置可用。
+
+如果你启用了图片问答最终回答，还需要确认：
+
+- Python ML Service 已启动
+- `OPENAI_MODEL` 指向支持多模态输入的模型，例如 `qwen3.5-27b`
+- DashScope Key 可同时用于 `MultiModalConversation`
 
 ### 3. Qdrant 启动了但检索报错
 
@@ -314,3 +355,19 @@ curl http://127.0.0.1:6333/collections
 
 多模态图片解析、检索改写和 LLM 兜底都会失败。  
 等你配置好后，我再继续做完整联调与功能验收。
+
+### 5. 检索分数很高但仍然没有走知识库
+
+优先检查 SQLite 与 Qdrant 是否同步。
+
+如果你更换过数据库、重建过表、但没有同步重建向量索引，可能出现：
+
+- Qdrant 命中了旧的 `knowledgeItemId`
+- SQLite 里查不到该条知识
+- 最终退回到 LLM 兜底
+
+建议直接执行一次全量重导入：
+
+```bash
+pnpm kb:import
+```

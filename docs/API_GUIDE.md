@@ -21,8 +21,10 @@
 1. **AI 智能问答** — 基于知识库的 RAG 检索 + 大模型兜底回答
 2. **人工工单流转** — AI 无法解决时转人工，支持 L1/L2 两级流转
 3. **知识库闭环** — 工单处理结果自动写入知识库，持续提升 AI 命中率
-4. **图片理解** — 支持上传图片，AI 自动提取信息用于检索
-5. **数据统计** — 问答量、知识库命中率、工单处理情况
+4. **图片理解** — 支持上传图片，AI 自动提取信息用于检索与最终回答
+5. **流式聊天输出** — 聊天回答采用 SSE 打字机效果
+6. **实时通知** — 人工1 / 人工2 支持待办数量、站内通知、浏览器通知
+7. **数据统计** — 问答量、知识库命中率、工单处理情况
 
 **技术栈**：Next.js 15 + TypeScript + Prisma/SQLite + Python FastAPI + Qdrant + 阿里云 DashScope
 
@@ -38,12 +40,14 @@
 DATABASE_URL="file:./dev.db"
 OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
 OPENAI_API_KEY="sk-your-dashscope-api-key"
-OPENAI_MODEL="qwen-plus-latest"
+OPENAI_MODEL="qwen3.5-27b"
 RETRIEVAL_TOP_K="8"
 RERANK_TOP_N="5"
 KB_HIT_THRESHOLD="0.72"
 MAX_CONTEXT_TURNS="6"
 UPLOAD_DIR="./uploads"
+SERVICE_HOTLINE="027-xxxx"
+NOTIFICATION_WS_PORT="3001"
 QDRANT_URL="http://127.0.0.1:6333"
 EMBEDDING_SERVICE_URL="http://127.0.0.1:8001/embed"
 RERANK_SERVICE_URL="http://127.0.0.1:8001/rerank"
@@ -74,9 +78,7 @@ pip install -r requirements.txt -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web
 # 启动
 OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1" \
 OPENAI_API_KEY="sk-your-key" \
-OPENAI_MODEL="qwen-plus-latest" \
-EMBEDDING_MODEL_NAME="text-embedding-v3" \
-RERANK_MODEL_NAME="qwen3-rerank" \
+OPENAI_MODEL="qwen3.5-27b" \
 UPLOAD_DIR="./uploads" \
 uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
@@ -112,10 +114,11 @@ curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
                               ▼
                     ┌──────────────────┐     ┌─────────────────┐
                     │ ML Service (8001) │────▶│  DashScope API  │
-                    │                  │     │  - qwen-plus     │
-                    │ /embed           │     │  - text-emb-v3   │
-                    │ /rerank          │     │  - qwen3-rerank  │
-                    │ /parse-document  │     └─────────────────┘
+                    │                  │     │  - qwen3.5-27b   │
+                    │ /embed           │     │  - qwen3-vl-embedding │
+                    │ /rerank          │     │  - qwen3-vl-rerank    │
+                    │ /parse-document  │     │  - MultiModalConversation │
+                    │ /chat-multimodal-stream │└─────────────────┘
                     └──────────────────┘
 ```
 
@@ -150,6 +153,7 @@ curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
 | POST | /embed | 文本向量化 |
 | POST | /rerank | 重排序 |
 | POST | /parse-document | 文档解析 |
+| POST | /chat-multimodal-stream | 多模态流式回答 |
 
 ### Web API（端口 3000）
 
@@ -161,8 +165,10 @@ curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
 | POST | /api/uploads | 文件上传 | 已登录 |
 | GET | /api/conversations | 会话列表 | staff |
 | POST | /api/conversations | 创建会话 | staff |
+| DELETE | /api/conversations/[id] | 软删除会话 | staff |
 | GET | /api/conversations/[id]/messages | 消息历史 | staff |
 | POST | /api/conversations/[id]/messages | 发送消息 | staff |
+| GET | /api/notifications/session | 获取通知 WebSocket 会话信息 | 已登录 |
 | GET | /api/tickets | 工单列表 | 已登录 |
 | POST | /api/tickets | 创建工单 | staff |
 | GET | /api/tickets/[id] | 工单详情 | 已登录 |
@@ -191,7 +197,7 @@ curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
 
 ### POST /embed
 
-将文本列表转换为向量，使用 DashScope `text-embedding-v3` 模型。
+将文本列表转换为向量，兼容现有文本调用，底层仍走多模态 embedding 模型 `qwen3-vl-embedding`。
 
 **请求**：
 ```json
@@ -218,7 +224,7 @@ curl -s -X POST http://127.0.0.1:8001/embed \
 
 ### POST /rerank
 
-对候选文档按与 query 的相关性重新排序，使用 DashScope `qwen3-rerank` 模型。
+对候选文档按与 query 的相关性重新排序，兼容现有文本调用，底层仍走多模态 rerank 模型 `qwen3-vl-rerank`。
 
 **请求**：
 ```json
@@ -292,6 +298,43 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 curl -s -X POST http://127.0.0.1:8001/parse-document \
   -H "Content-Type: application/json" \
   -d '{"file_path": "/tmp/knowledge.txt"}'
+```
+
+### POST /chat-multimodal-stream
+
+调用 DashScope `MultiModalConversation` 生成最终多模态流式回答。
+
+说明：
+
+- 当聊天请求包含图片时，Web 端会调用这个接口
+- 检索阶段仍然先走 embedding / rerank
+- 本接口只负责“最终回答生成”
+
+**请求**：
+```json
+{
+  "system_prompt": "你是药店门店信息化支持助手...",
+  "user_text": "用户当前问题：请根据图片判断设备问题",
+  "image_paths": ["uploads/1776967973973-GhhKNm.png"],
+  "model": "qwen3.5-27b"
+}
+```
+
+**响应**：
+
+- `text/plain` 流式输出
+- 每个 chunk 是一段模型生成文本
+
+**示例**：
+```bash
+curl -N -X POST http://127.0.0.1:8001/chat-multimodal-stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "system_prompt":"你是药店门店信息化支持助手",
+    "user_text":"请根据图片给出保守建议",
+    "image_paths":["uploads/example.png"],
+    "model":"qwen3.5-27b"
+  }'
 ```
 
 ---
@@ -421,6 +464,21 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 }
 ```
 
+### DELETE /api/conversations/[id]
+
+软删除当前会话。
+
+说明：
+
+- 只从默认会话列表中隐藏
+- 不删除会话消息对应的工单快照
+- 不影响统计和知识回写结果
+
+**响应**：
+```json
+{"success": true}
+```
+
 ### GET /api/conversations/[id]/messages
 
 获取会话的消息历史。
@@ -457,8 +515,10 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 2. 文本向量化（DashScope Embedding）
 3. Qdrant 向量检索 top-K 候选
 4. Rerank 重排序（DashScope Rerank）
-5. 如果最高分 >= 阈值(0.72)，返回知识库答案
-6. 否则调用 DashScope Chat 生成保守建议
+5. 如果最高分 >= 阈值(0.72)，命中知识库
+6. 无图片时，直接生成文本流式回答
+7. 有图片时，再调用 ML Service 的 `/chat-multimodal-stream`，让最终回答也参考图片内容
+8. 统一以 SSE 事件流返回前端
 
 **请求**：
 ```json
@@ -469,28 +529,52 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 ```
 
 **响应**：
-```json
-{
-  "conversationId": "cmobs2y8...",
-  "assistantMessageId": "cmobs4kx...",
-  "answer": "根据知识库：\n...",
-  "sourceType": "kb",
-  "sourceLabel": "知识库",
-  "retrievalDebug": [
-    {
-      "knowledgeItemId": "cmobs52u...",
-      "chunkId": "uuid-...",
-      "question": "药店收银系统怎么操作？",
-      "answer": "...",
-      "sourceFile": null,
-      "rerankScore": 0.878,
-      "vectorScore": 0.72
-    }
-  ]
-}
+
+该接口返回 `text/event-stream`，事件类型如下：
+
+- `meta`：来源信息
+- `debug`：命中来源和图片路径
+- `delta`：增量文本
+- `done`：结束事件
+- `error`：错误事件
+
+**SSE 示例**：
+```text
+event: meta
+data: {"conversationId":"cmobs2y8...","sourceType":"kb","sourceLabel":"知识库"}
+
+event: debug
+data: {"retrievalDebug":[{"knowledgeItemId":"cmobs52u...","rerankScore":0.878}],"imagePaths":[]}
+
+event: delta
+data: {"text":"根据知识库："}
+
+event: delta
+data: {"text":"直接退出 ERP 程序，重新登录即可。"}
+
+event: done
+data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 ```
 
 > `sourceType` 取值：`kb`（知识库命中）| `llm`（大模型兜底）
+> 有图片时，最终回答也会进入多模态模型，不再只是检索阶段看图。
+
+### GET /api/notifications/session
+
+获取当前用户的实时通知 WebSocket 连接信息。
+
+**响应**：
+```json
+{
+  "wsUrl": "ws://127.0.0.1:3001?token=...",
+  "role": "human_l1"
+}
+```
+
+说明：
+
+- 前端拿到 `wsUrl` 后建立 WebSocket 连接
+- 人工1 / 人工2 的待办数量、站内提醒和浏览器通知都依赖这个连接
 
 ### POST /api/tickets
 
@@ -737,12 +821,11 @@ curl -s -b staff.txt -c staff.txt -X POST http://127.0.0.1:3000/api/conversation
   -d '{"title":"收银系统问题"}'
 # → {"conversation":{"id":"conv-001",...}}
 
-# 3. 发送问题
-curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-001/messages \
+# 3. 发送问题（流式 SSE）
+curl -N -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-001/messages \
   -H "Content-Type: application/json" \
   -d '{"text":"药店收银系统怎么操作？"}'
-# → {"answer":"以下为通用建议：...","sourceType":"llm","sourceLabel":"大模型"}
-# （首次提问，知识库为空，走大模型兜底）
+# → event: meta / event: delta / event: done
 ```
 
 ### 第二步：转人工处理
@@ -793,11 +876,11 @@ curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/conversations \
   -d '{"title":"再次提问"}'
 # → {"conversation":{"id":"conv-002",...}}
 
-curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-002/messages \
+curl -N -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-002/messages \
   -H "Content-Type: application/json" \
   -d '{"text":"药店收银系统怎么操作？"}'
-# → {"answer":"根据知识库：已确认为智云系统...","sourceType":"kb","sourceLabel":"知识库"}
-# 第二次提问，知识库命中！（rerankScore: 0.878 > 阈值 0.72）
+# → event: meta 中 sourceType = kb
+# 第二次提问，知识库命中
 ```
 
 ### 第五步：查看统计
@@ -819,7 +902,7 @@ curl -s -b staff.txt http://127.0.0.1:3000/api/knowledge
 ### ML Service 启动失败
 
 ```bash
-# 检查 Python 版本（需要 3.12）
+# 检查 Python 版本（建议 3.11 / 3.12）
 python3.12 --version
 
 # 重新安装依赖
@@ -849,6 +932,7 @@ docker restart qdrant
 
 - 确保 Qdrant collection 存在（首次导入知识后自动创建）
 - 确保 ML Service 的 embed 和 rerank 端点正常
+- 如果是图文消息，还要确保 `/chat-multimodal-stream` 可用
 - 检查 Next.js 控制台日志
 
 ### 知识库导入失败
@@ -856,3 +940,13 @@ docker restart qdrant
 - 确保文档文件路径正确
 - 检查 `seed_knowledge/` 目录是否存在文档
 - PDF 需要可提取文本（扫描件不支持）
+
+### 检索命中分数很高但仍然回退到 LLM
+
+通常是 SQLite 与 Qdrant 索引不同步。建议直接执行：
+
+```bash
+pnpm kb:import
+```
+
+这样可以把知识表和向量索引重新对齐。
