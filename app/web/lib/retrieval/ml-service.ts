@@ -34,6 +34,7 @@ export async function embedTexts(texts: string[]) {
 export type MultimodalEmbedInput = {
   text: string;
   image_path?: string;
+  image_paths?: string[];
 };
 
 export async function embedMultimodal(items: MultimodalEmbedInput[]) {
@@ -72,11 +73,12 @@ export async function rerank(query: string, documents: string[]) {
 export type MultimodalRerankDocument = {
   text: string;
   image_path?: string;
+  image_paths?: string[];
 };
 
 export async function rerankMultimodal(
   query: string,
-  queryImagePath: string | null,
+  queryImagePaths: string[],
   documents: MultimodalRerankDocument[]
 ) {
   const response = await fetch(`${env.ML_SERVICE_URL}/rerank-multimodal`, {
@@ -84,7 +86,7 @@ export async function rerankMultimodal(
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ query, query_image_path: queryImagePath, documents })
+    body: JSON.stringify({ query, query_image_paths: queryImagePaths, documents })
   });
 
   if (!response.ok) {
@@ -112,3 +114,29 @@ export async function parseDocument(filePath: string) {
   return (await response.json()) as { items: ParsedKnowledgeItem[] };
 }
 
+export async function streamMultimodalChat(input: {
+  systemPrompt: string;
+  userText: string;
+  imagePaths: string[];
+  model?: string;
+}) {
+  const response = await fetch(`${env.ML_SERVICE_URL}/chat-multimodal-stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      system_prompt: input.systemPrompt,
+      user_text: input.userText,
+      image_paths: input.imagePaths,
+      model: input.model
+    })
+  });
+
+  if (!response.ok || !response.body) {
+    const message = await response.text();
+    throw new Error(`多模态聊天流式服务调用失败：${response.status} ${message}`);
+  }
+
+  return response;
+}

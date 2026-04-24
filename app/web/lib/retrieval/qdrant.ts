@@ -5,7 +5,8 @@ import { env } from "@/lib/env";
 export const COLLECTION_NAME = "pharmacy_kb";
 
 export const qdrant = new QdrantClient({
-  url: env.QDRANT_URL
+  url: env.QDRANT_URL,
+  checkCompatibility: false
 });
 
 export async function ensureCollection(vectorSize: number) {
@@ -21,4 +22,3 @@ export async function ensureCollection(vectorSize: number) {
     });
   }
 }
-

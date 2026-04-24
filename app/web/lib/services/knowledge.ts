@@ -71,7 +71,8 @@ export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
   // 使用多模态 embedding（文本+图片融合向量）
   const embedInputs = input.chunkTexts.map((text) => ({
     text,
-    image_path: input.imagePaths?.[0] ?? undefined
+    image_path: input.imagePaths?.[0] ?? undefined,
+    image_paths: input.imagePaths ?? []
   }));
   const vectors = await embedMultimodal(embedInputs);
   await ensureCollection(vectors.vectors[0]?.length ?? 1024);

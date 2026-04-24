@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/db";
-import { buildMultimodalQueryText, generateConservativeAnswer } from "@/lib/openai";
+import { buildMultimodalQueryText } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
 import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
 import { getRuntimeSettings } from "@/lib/services/settings";
-import { safeJsonParse } from "@/lib/utils";
 
 export async function summarizeContext(conversationId: string, maxTurns: number) {
   const messages = await prisma.chatMessage.findMany({
@@ -18,7 +17,39 @@ export async function summarizeContext(conversationId: string, maxTurns: number)
     .join("\n");
 }
 
-export async function retrieveAnswer(input: { conversationId: string; question: string; imagePaths: string[] }) {
+type RetrievalDebugRecord = {
+  knowledgeItemId: string;
+  chunkId: string;
+  question: string;
+  answer: string;
+  sourceFile: string | null;
+  rerankScore: number;
+  vectorScore: number;
+};
+
+export type RetrievalDecision =
+  | {
+      sourceType: "kb";
+      contextSummary: string;
+      queryText: string;
+      retrievalDebug: RetrievalDebugRecord[];
+      knowledgeItem: {
+        id: string;
+        question: string;
+        answer: string;
+        imagePaths: string[];
+      };
+      referenceSnippets: string[];
+    }
+  | {
+      sourceType: "llm";
+      contextSummary: string;
+      queryText: string;
+      retrievalDebug: RetrievalDebugRecord[];
+      retrievalHints: string[];
+    };
+
+export async function retrieveAnswer(input: { conversationId: string; question: string; imagePaths: string[] }): Promise<RetrievalDecision> {
   const settings = await getRuntimeSettings();
   const contextSummary = await summarizeContext(input.conversationId, settings.maxContextTurns);
   const queryText = await buildMultimodalQueryText({
@@ -27,10 +58,12 @@ export async function retrieveAnswer(input: { conversationId: string; question: 
     imagePaths: input.imagePaths
   });
 
-  // 使用多模态 embedding（支持用户上传图片）
-  const queryImagePath = input.imagePaths?.[0] ?? null;
   const embedResults = await embedMultimodal([
-    { text: queryText, image_path: queryImagePath ?? undefined }
+    {
+      text: queryText,
+      image_path: input.imagePaths[0] ?? undefined,
+      image_paths: input.imagePaths
+    }
   ]);
   const searchResult = await qdrant.search(COLLECTION_NAME, {
     vector: embedResults.vectors[0],
@@ -38,16 +71,17 @@ export async function retrieveAnswer(input: { conversationId: string; question: 
     limit: settings.retrievalTopK
   });
 
-  // 多模态 rerank：候选文档带上图片路径
   const rerankDocs = searchResult.map((item) => {
-    const imagePaths = Array.isArray(item.payload?.imagePaths) ? item.payload.imagePaths as string[] : [];
+    const imagePaths = Array.isArray(item.payload?.imagePaths) ? (item.payload.imagePaths as string[]) : [];
     return {
       text: String(item.payload?.chunkText ?? ""),
-      image_path: imagePaths[0] ?? undefined
+      image_path: imagePaths[0] ?? undefined,
+      image_paths: imagePaths
     };
   });
+
   const rerankResult = rerankDocs.length
-    ? await rerankMultimodal(queryText, queryImagePath, rerankDocs)
+    ? await rerankMultimodal(queryText, input.imagePaths, rerankDocs)
     : { scores: [] };
 
   const ranked = searchResult
@@ -60,26 +94,24 @@ export async function retrieveAnswer(input: { conversationId: string; question: 
     .sort((a, b) => b.rerankScore - a.rerankScore)
     .slice(0, settings.rerankTopN);
 
-  const top = ranked[0];
+  const retrievalDebug = ranked.map((item) => ({
+    knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
+    chunkId: item.pointId,
+    question: String(item.payload.question ?? ""),
+    answer: String(item.payload.answer ?? ""),
+    sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
+    rerankScore: item.rerankScore,
+    vectorScore: item.vectorScore
+  }));
 
+  const top = ranked[0];
   if (top && top.rerankScore >= settings.kbHitThreshold) {
     const knowledgeItem = await prisma.knowledgeItem.findUnique({
       where: { id: String(top.payload.knowledgeItemId) },
-      include: { chunks: true }
+      include: { chunks: { orderBy: { chunkIndex: "asc" } } }
     });
 
     if (knowledgeItem) {
-      const retrievalDebug = ranked.map((item) => ({
-        knowledgeItemId: String(item.payload.knowledgeItemId),
-        chunkId: item.pointId,
-        question: String(item.payload.question ?? ""),
-        answer: String(item.payload.answer ?? ""),
-        sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
-        rerankScore: item.rerankScore,
-        vectorScore: item.vectorScore
-      }));
-
-      // 解析知识条目的图片路径
       const imagePaths: string[] = knowledgeItem.imagePathsJson
         ? JSON.parse(knowledgeItem.imagePathsJson)
         : knowledgeItem.imagePath
@@ -87,37 +119,26 @@ export async function retrieveAnswer(input: { conversationId: string; question: 
           : [];
 
       return {
-        sourceType: "kb" as const,
-        answer:
-          `根据知识库：\n${knowledgeItem.answer}\n\n参考问题：${knowledgeItem.question}`,
+        sourceType: "kb",
+        contextSummary,
+        queryText,
         retrievalDebug,
-        imagePaths
+        knowledgeItem: {
+          id: knowledgeItem.id,
+          question: knowledgeItem.question,
+          answer: knowledgeItem.answer,
+          imagePaths
+        },
+        referenceSnippets: knowledgeItem.chunks.map((item) => item.chunkText).slice(0, 3)
       };
     }
   }
 
-  const llmAnswer = await generateConservativeAnswer({
-    question: input.question || "用户上传了图片，请结合上下文提供保守建议。",
-    contextSummary,
-    retrievalHints: ranked.slice(0, 3).map((item) => String(item.payload.chunkText ?? ""))
-  });
-
   return {
-    sourceType: "llm" as const,
-    answer: llmAnswer,
-    retrievalDebug: ranked.map((item) => ({
-      knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
-      chunkId: item.pointId,
-      question: String(item.payload.question ?? ""),
-      answer: String(item.payload.answer ?? ""),
-      sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
-      rerankScore: item.rerankScore,
-      vectorScore: item.vectorScore
-    }))
+    sourceType: "llm",
+    contextSummary,
+    queryText,
+    retrievalDebug,
+    retrievalHints: ranked.slice(0, 3).map((item) => String(item.payload.chunkText ?? ""))
   };
 }
-
-export function parseAttachmentsJson(value: string | null) {
-  return safeJsonParse(value, []);
-}
-

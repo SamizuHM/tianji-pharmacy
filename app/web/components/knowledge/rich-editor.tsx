@@ -1,10 +1,10 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { useCallback } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
-import { useCallback } from "react";
+import StarterKit from "@tiptap/starter-kit";
 
 import { Button } from "@/components/ui/button";
 
@@ -30,14 +30,9 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
     }
   });
 
-  const addImage = useCallback(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file || !editor) return;
-
+  const uploadAndInsertImage = useCallback(
+    async (file: File) => {
+      if (!editor) return;
       const formData = new FormData();
       formData.append("files", file);
 
@@ -45,21 +40,33 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
         method: "POST",
         body: formData
       });
-
       if (!response.ok) return;
+
       const data = await response.json();
       const uploadedPath = data.files?.[0]?.path;
       if (uploadedPath) {
-        editor.chain().focus().setImage({ src: `/api/files/${uploadedPath}` }).run();
+        editor.chain().focus().setImage({ src: `/api/files/${uploadedPath.replace(/^uploads\//, "")}` }).run();
       }
+    },
+    [editor]
+  );
+
+  const addImage = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      await uploadAndInsertImage(file);
     };
     input.click();
-  }, [editor]);
+  }, [uploadAndInsertImage]);
 
   if (!editor) return null;
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-border">
       <div className="flex gap-1 border-b border-border bg-secondary/30 px-3 py-2">
         <Button
           variant="ghost"
@@ -91,7 +98,22 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
       </div>
       <EditorContent
         editor={editor}
-        className="min-h-[200px] px-3 py-3 prose prose-sm max-w-none focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none"
+        onPaste={(event) => {
+          const files = Array.from(event.clipboardData?.items ?? [])
+            .filter((item) => item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((item): item is File => Boolean(item));
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault();
+          void (async () => {
+            for (const file of files) {
+              await uploadAndInsertImage(file);
+            }
+          })();
+        }}
+        className="min-h-[200px] max-w-none px-3 py-3 prose prose-sm focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
       />
     </div>
   );

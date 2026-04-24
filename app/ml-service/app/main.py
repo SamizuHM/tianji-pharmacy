@@ -13,10 +13,11 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 import dashscope
-from dashscope import MultiModalEmbedding, TextReRank
+from dashscope import MultiModalConversation, MultiModalEmbedding, TextReRank
 from docx import Document
 from docx.oxml.ns import qn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from pydantic import BaseModel
 from pypdf import PdfReader
@@ -27,7 +28,7 @@ UPLOAD_DIR = ROOT_DIR / os.getenv("UPLOAD_DIR", "./uploads").replace("./", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
-DASHSCOPE_API_KEY = os.getenv("OPENAI_API_KEY", "")
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 
 dashscope.api_key = DASHSCOPE_API_KEY
 
@@ -48,6 +49,7 @@ class RerankRequest(BaseModel):
 class MultimodalEmbedItem(BaseModel):
     text: str
     image_path: str | None = None
+    image_paths: list[str] | None = None
 
 
 class MultimodalEmbedRequest(BaseModel):
@@ -57,16 +59,24 @@ class MultimodalEmbedRequest(BaseModel):
 class MultimodalRerankDoc(BaseModel):
     text: str
     image_path: str | None = None
+    image_paths: list[str] | None = None
 
 
 class MultimodalRerankRequest(BaseModel):
     query: str
-    query_image_path: str | None = None
+    query_image_paths: list[str] | None = None
     documents: list[MultimodalRerankDoc]
 
 
 class ParseDocumentRequest(BaseModel):
     file_path: str
+
+
+class MultiModalChatStreamRequest(BaseModel):
+    system_prompt: str
+    user_text: str
+    image_paths: list[str] | None = None
+    model: str | None = None
 
 
 # ---------- Clients ----------
@@ -75,6 +85,16 @@ def get_openai_client() -> OpenAI:
     if not OPENAI_BASE_URL or not OPENAI_API_KEY or not OPENAI_MODEL:
         raise HTTPException(status_code=500, detail="未配置 OpenAI 兼容模型环境变量")
     return OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
+
+
+def normalize_relative_image_path(image_path: str) -> Path:
+    candidate = Path(image_path)
+    if candidate.is_absolute():
+        return candidate
+    normalized = image_path.replace("\\", "/").lstrip("/")
+    if normalized.startswith("uploads/"):
+        return ROOT_DIR / normalized
+    return UPLOAD_DIR / normalized
 
 
 def get_rerank_client() -> OpenAI:
@@ -105,7 +125,53 @@ def rerank(request: RerankRequest) -> dict[str, list[float]]:
     if not request.documents:
         return {"scores": []}
     docs = [MultimodalRerankDoc(text=d) for d in request.documents]
-    return _rerank_multimodal_impl(request.query, None, docs)
+    return _rerank_multimodal_impl(request.query, [], docs)
+
+
+@app.post("/chat-multimodal-stream")
+def chat_multimodal_stream(request: MultiModalChatStreamRequest):
+    if not DASHSCOPE_API_KEY:
+        raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY 或 OPENAI_API_KEY")
+
+    model_name = request.model or OPENAI_MODEL
+    if not model_name:
+        raise HTTPException(status_code=500, detail="未配置多模态聊天模型")
+
+    messages = _build_multimodal_messages(
+        system_prompt=request.system_prompt,
+        user_text=request.user_text,
+        image_paths=request.image_paths or [],
+    )
+
+    def generate():
+        try:
+            response = MultiModalConversation.call(
+                api_key=DASHSCOPE_API_KEY,
+                model=model_name,
+                messages=messages,
+                stream=True,
+            )
+            for chunk in response:
+                try:
+                    message = chunk.output.choices[0].message
+                except Exception:
+                    continue
+
+                content = getattr(message, "content", None)
+                if not content:
+                    content = message.get("content", []) if hasattr(message, "get") else []
+
+                if not content:
+                    continue
+
+                for item in content:
+                    text = item.get("text") if isinstance(item, dict) else None
+                    if text:
+                        yield text
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"多模态对话流式调用失败：{exc}") from exc
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
 # ---------- Multimodal Embed ----------
@@ -119,8 +185,9 @@ def embed_multimodal(request: MultimodalEmbedRequest) -> dict[str, list[list[flo
 
 def _encode_image_b64(image_path: str) -> tuple[str, str]:
     """返回 (data_url, mime_subtype)。image_path 相对于 uploads 目录。"""
-    # image_path 形如 knowledge-assets/full/xxx.jpg，实际文件在 uploads/ 下
-    abs_path = ROOT_DIR / "uploads" / image_path if not Path(image_path).is_absolute() else Path(image_path)
+    abs_path = normalize_relative_image_path(image_path)
+    if not abs_path.exists():
+        raise HTTPException(status_code=404, detail=f"图片不存在：{image_path}")
     ext = abs_path.suffix.lstrip(".").lower() or "png"
     mime = "jpeg" if ext == "jpg" else ext
     with open(abs_path, "rb") as f:
@@ -128,14 +195,33 @@ def _encode_image_b64(image_path: str) -> tuple[str, str]:
     return f"data:image/{mime};base64,{b64}", mime
 
 
+def _build_multimodal_messages(system_prompt: str, user_text: str, image_paths: list[str]) -> list[dict[str, Any]]:
+    content: list[dict[str, str]] = []
+    for image_path in image_paths:
+        data_url, _ = _encode_image_b64(image_path)
+        content.append({"image": data_url})
+
+    merged_text = f"{system_prompt.strip()}\n\n{user_text.strip()}".strip()
+    content.append({"text": merged_text})
+    return [{"role": "user", "content": content}]
+
+
 def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[list[float]]]:
     all_vectors: list[list[float]] = []
     # dashscope API 支持批量，但为稳定性逐条调用
     for item in items:
+        image_candidates = [p for p in (item.image_paths or []) if p]
+        if item.image_path and item.image_path not in image_candidates:
+            image_candidates.insert(0, item.image_path)
+        item_text = item.text
+        if len(image_candidates) > 1:
+            summary = summarize_images_for_retrieval(item.text, image_candidates[1:])
+            if summary:
+                item_text = f"{item.text}\n补充图片线索：{summary}"
         input_data: list[dict[str, str]] = []
-        entry: dict[str, str] = {"text": item.text}
-        if item.image_path:
-            data_url, _ = _encode_image_b64(item.image_path)
+        entry: dict[str, str] = {"text": item_text}
+        if image_candidates:
+            data_url, _ = _encode_image_b64(image_candidates[0])
             entry["image"] = data_url
         input_data.append(entry)
 
@@ -159,23 +245,54 @@ def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[l
     return {"vectors": all_vectors}
 
 
+def summarize_images_for_retrieval(text: str, image_paths: list[str]) -> str:
+    if not image_paths:
+        return ""
+
+    client = get_openai_client()
+    content: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text":
+                "请仅基于这些图片，总结与检索相关的简短中文线索。不要分点，不要扩展，不要编造。\n"
+                f"用户问题：{text or '用户上传了图片，请根据图片理解诉求'}"
+        }
+    ]
+    for image_path in image_paths:
+        data_url, _ = _encode_image_b64(image_path)
+        content.append({"type": "image_url", "image_url": {"url": data_url}})
+
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[{"role": "user", "content": content}],
+        extra_body={"enable_thinking": False},
+    )
+    return response.choices[0].message.content.strip() if response.choices else ""
+
+
 # ---------- Multimodal Rerank ----------
 
 @app.post("/rerank-multimodal")
 def rerank_multimodal(request: MultimodalRerankRequest) -> dict[str, list[float]]:
     if not request.documents:
         return {"scores": []}
-    return _rerank_multimodal_impl(request.query, request.query_image_path, request.documents)
+    return _rerank_multimodal_impl(request.query, request.query_image_paths or [], request.documents)
 
 
 def _rerank_multimodal_impl(
     query: str,
-    query_image_path: str | None,
+    query_image_paths: list[str],
     documents: list[MultimodalRerankDoc],
 ) -> dict[str, list[float]]:
-    query_input: dict[str, str] = {"text": query}
-    if query_image_path:
-        data_url, _ = _encode_image_b64(query_image_path)
+    normalized_query = query
+    if len(query_image_paths) > 1:
+        summary = summarize_images_for_retrieval(query, query_image_paths[1:])
+        if summary:
+            normalized_query = f"{query}\n补充图片线索：{summary}"
+
+    query_input: dict[str, str] = {"text": normalized_query}
+    if query_image_paths:
+        data_url, _ = _encode_image_b64(query_image_paths[0])
         query_input["image"] = data_url
 
     doc_inputs: list[dict[str, str]] = []
@@ -183,10 +300,18 @@ def _rerank_multimodal_impl(
     doc_index_map: list[tuple[int, int]] = []  # (start, end)
     for doc in documents:
         start = len(doc_inputs)
-        if doc.image_path:
-            data_url, _ = _encode_image_b64(doc.image_path)
+        doc_image_paths = [p for p in (doc.image_paths or []) if p]
+        if doc.image_path and doc.image_path not in doc_image_paths:
+            doc_image_paths.insert(0, doc.image_path)
+        doc_text = doc.text
+        if len(doc_image_paths) > 1:
+            summary = summarize_images_for_retrieval(doc.text, doc_image_paths[1:])
+            if summary:
+                doc_text = f"{doc.text}\n补充图片线索：{summary}"
+        if doc_image_paths:
+            data_url, _ = _encode_image_b64(doc_image_paths[0])
             doc_inputs.append({"image": data_url})
-        doc_inputs.append({"text": doc.text})
+        doc_inputs.append({"text": doc_text})
         doc_index_map.append((start, len(doc_inputs)))
 
     try:
@@ -361,8 +486,11 @@ def convert_doc_to_docx(target: Path) -> Path | None:
         temp_dir = Path(temp_dir_str)
         converted = convert_doc_with_office(target, temp_dir)
         if converted:
-            # 复制到持久位置以便后续图片提取
-            return converted
+            persistent_dir = UPLOAD_DIR / "knowledge-assets" / "_converted"
+            persistent_dir.mkdir(parents=True, exist_ok=True)
+            persistent_path = persistent_dir / converted.name
+            shutil.copy2(converted, persistent_path)
+            return persistent_path
 
         antiword_text = convert_doc_with_tool(target, ["antiword", str(target)])
         if antiword_text:

@@ -1,7 +1,6 @@
-import { FIXED_ASSISTANT_SUFFIX } from "@pharmacy/shared";
+import { MessageSourceType, MessageRole } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
-import { retrieveAnswer } from "@/lib/services/retrieval";
 import { truncateText } from "@/lib/utils";
 
 export async function createConversation(userId: string, initialQuestion?: string) {
@@ -15,8 +14,17 @@ export async function createConversation(userId: string, initialQuestion?: strin
 
 export async function getConversationList(userId: string) {
   return prisma.conversation.findMany({
-    where: { userId },
+    where: {
+      userId,
+      deletedAt: null
+    },
     orderBy: { updatedAt: "desc" }
+  });
+}
+
+export async function getConversationDetail(conversationId: string) {
+  return prisma.conversation.findUnique({
+    where: { id: conversationId }
   });
 }
 
@@ -27,57 +35,52 @@ export async function getConversationMessages(conversationId: string) {
   });
 }
 
-export async function askInConversation(input: {
+export async function appendConversationMessage(input: {
   conversationId: string;
-  text: string;
-  attachments: string;
+  role: MessageRole;
+  sourceType: MessageSourceType;
+  contentText: string;
+  attachmentsJson?: string | null;
+  retrievalDebugJson?: string | null;
 }) {
-  const attachments = JSON.parse(input.attachments) as Array<{ path: string }>;
-  const inputMode = input.text && attachments.length ? "mixed" : input.text ? "text" : "image";
-
-  const userMessage = await prisma.chatMessage.create({
+  return prisma.chatMessage.create({
     data: {
       conversationId: input.conversationId,
-      role: "user",
-      sourceType: "system",
-      contentText: input.text || "用户上传了图片",
-      attachmentsJson: input.attachments
+      role: input.role,
+      sourceType: input.sourceType,
+      contentText: input.contentText,
+      attachmentsJson: input.attachmentsJson ?? null,
+      retrievalDebugJson: input.retrievalDebugJson ?? null
     }
   });
-
-  const result = await retrieveAnswer({
-    conversationId: input.conversationId,
-    question: input.text,
-    imagePaths: attachments.map((item) => item.path)
-  });
-
-  const assistantText = `${result.answer}\n\n${FIXED_ASSISTANT_SUFFIX}`;
-
-  const assistantMessage = await prisma.chatMessage.create({
-    data: {
-      conversationId: input.conversationId,
-      role: "assistant",
-      sourceType: result.sourceType,
-      contentText: assistantText,
-      retrievalDebugJson: JSON.stringify({
-        debug: result.retrievalDebug,
-        imagePaths: result.imagePaths ?? []
-      })
-    }
-  });
-
-  await prisma.conversation.update({
-    where: { id: input.conversationId },
-    data: {
-      title: truncateText(input.text || "图片问题", 30)
-    }
-  });
-
-  return {
-    userMessage,
-    assistantMessage,
-    inputMode,
-    result
-  };
 }
 
+export async function refreshConversationTitle(conversationId: string, inputText: string) {
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: {
+      title: truncateText(inputText || "图片问题", 30)
+    }
+  });
+}
+
+export async function softDeleteConversation(input: { conversationId: string; userId: string }) {
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: input.conversationId,
+      userId: input.userId,
+      deletedAt: null
+    }
+  });
+
+  if (!conversation) {
+    throw new Error("会话不存在");
+  }
+
+  return prisma.conversation.update({
+    where: { id: input.conversationId },
+    data: {
+      deletedAt: new Date()
+    }
+  });
+}
