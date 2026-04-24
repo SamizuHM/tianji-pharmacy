@@ -22,16 +22,15 @@ for i in $(seq 1 90); do
   sleep 2
 done
 
+echo "[0/3] Syncing database schema..."
+npx prisma db push --skip-generate
+
 if [ ! -f "$INIT_MARKER" ]; then
   echo "=== First-time initialization ==="
-
-  echo "[1/3] Pushing database schema..."
-  npx prisma db push --skip-generate --accept-data-loss
-
-  echo "[2/3] Seeding database..."
+  echo "[1/2] Seeding database..."
   npx tsx prisma/seed.ts
 
-  echo "[3/3] Importing seed knowledge..."
+  echo "[2/2] Importing seed knowledge..."
   # Login to get session cookie
   COOKIE=$(curl -sf -X POST http://localhost:3000/api/auth/login \
     -H 'Content-Type: application/json' \
