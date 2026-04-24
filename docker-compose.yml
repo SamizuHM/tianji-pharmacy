@@ -2,9 +2,9 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.13.2
     container_name: tianji-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
+    expose:
+      - "6333"
+      - "6334"
     volumes:
       - qdrant_storage:/qdrant/storage
 
@@ -16,7 +16,7 @@ services:
     environment:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-vl}
+      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
       - ROOT_DIR=/app
       - UPLOAD_DIR=./uploads
     healthcheck:
@@ -32,14 +32,14 @@ services:
       context: .
       dockerfile: Dockerfile.web
     container_name: tianji-web
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/dev.db
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-vl}
+      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
       - UPLOAD_DIR=/app/uploads
       - QDRANT_URL=http://qdrant:6333
       - EMBEDDING_SERVICE_URL=http://ml-service:8001/embed
@@ -53,6 +53,14 @@ services:
         condition: service_started
       ml-service:
         condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tianji-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
 
 volumes:
   qdrant_storage:
