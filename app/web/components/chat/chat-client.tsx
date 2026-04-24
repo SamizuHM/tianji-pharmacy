@@ -163,10 +163,12 @@ export function ChatClient(props: {
             <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
               {props.messages.map((message) => {
                 const attachmentsData = safeJsonParse<AttachmentItem[]>(message.attachmentsJson, []);
-                const retrievalDebug = safeJsonParse<Array<{ question: string; sourceFile?: string | null; rerankScore: number }>>(
-                  message.retrievalDebugJson,
-                  []
-                );
+                const debugPayload = safeJsonParse<{
+                  debug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+                  imagePaths?: string[];
+                }>(message.retrievalDebugJson, {});
+                const retrievalDebug = debugPayload.debug ?? (Array.isArray(debugPayload) ? debugPayload : []);
+                const imagePaths = debugPayload.imagePaths ?? [];
 
                 return (
                   <div
@@ -179,6 +181,19 @@ export function ChatClient(props: {
                       <Badge className={sourceBadgeClass(message.sourceType)}>{sourceLabel(message.sourceType, message.role)}</Badge>
                     </div>
                     <div className="whitespace-pre-wrap text-sm leading-6">{message.contentText}</div>
+                    {imagePaths.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {imagePaths.map((img, i) => (
+                          <img
+                            key={i}
+                            src={`/api/files/${img}`}
+                            alt=""
+                            className="max-h-48 cursor-pointer rounded-xl border border-border object-contain transition hover:opacity-80"
+                            onClick={() => window.open(`/api/files/${img}`, "_blank")}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                     {attachmentsData.length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {attachmentsData.map((item) => (

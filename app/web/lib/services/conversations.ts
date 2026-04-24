@@ -59,7 +59,10 @@ export async function askInConversation(input: {
       role: "assistant",
       sourceType: result.sourceType,
       contentText: assistantText,
-      retrievalDebugJson: JSON.stringify(result.retrievalDebug)
+      retrievalDebugJson: JSON.stringify({
+        debug: result.retrievalDebug,
+        imagePaths: result.imagePaths ?? []
+      })
     }
   });
 
