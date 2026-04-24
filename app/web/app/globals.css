@@ -1,0 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=ZCOOL+XiaoWei&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image:
+      radial-gradient(circle at top left, rgba(242, 198, 109, 0.35), transparent 28%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(246, 244, 238, 1));
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-wide;
+  }
+}
+
+@layer utilities {
+  .panel {
+    @apply rounded-2xl border bg-card shadow-soft;
+  }
+
+  .page-shell {
+    @apply mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 md:px-6;
+  }
+}
+

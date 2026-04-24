@@ -1,0 +1,33 @@
+{
+  "name": "tianji-pharmacy",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev": "concurrently -n web,ml -c blue,green \"pnpm dev:web\" \"pnpm dev:ml\"",
+    "dev:web": "pnpm --filter web dev",
+    "dev:ml": "cd app/ml-service && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "kb:import": "tsx scripts/import-seed-knowledge.ts",
+    "check:env": "tsx scripts/check-env.ts",
+    "init": "bash scripts/init.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
+    "prisma": "^6.7.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@pharmacy/shared": "workspace:*",
+    "@prisma/client": "^6.7.0",
+    "@qdrant/js-client-rest": "^1.15.0",
+    "bcryptjs": "^3.0.2"
+  }
+}

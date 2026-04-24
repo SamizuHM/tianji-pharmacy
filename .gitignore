@@ -1,0 +1,36 @@
+node_modules
+.next
+dist
+build
+.turbo
+.DS_Store
+.env
+.env.local
+*.log
+*.db
+*.db-journal
+
+# Python
+.venv
+app/ml-service/.venv
+__pycache__
+**/*.pyc
+*.pytest_cache
+*.mypy_cache
+
+# Uploads (runtime data)
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Docker export files
+*.tar
+*.tar.gz
+
+# Large original docs (not needed, seed files are in their directories)
+信息部常见问题详解.doc

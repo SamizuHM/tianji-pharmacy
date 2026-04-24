@@ -1,0 +1,70 @@
+# ---- Stage 1: Dependencies ----
+FROM node:22-bookworm AS deps
+
+RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
+
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY app/web/package.json ./app/web/
+COPY packages/shared/package.json ./packages/shared/
+COPY prisma ./prisma/
+
+RUN pnpm install --frozen-lockfile
+
+# ---- Stage 2: Build ----
+FROM deps AS builder
+
+WORKDIR /app
+
+COPY app/web ./app/web/
+COPY packages/shared ./packages/shared/
+
+RUN pnpm db:generate
+RUN pnpm --filter web build
+
+# ---- Stage 3: Production runner ----
+FROM node:22-bookworm-slim AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy standalone Next.js output
+COPY --from=builder /app/app/web/.next/standalone ./
+COPY --from=builder /app/app/web/.next/static ./app/web/.next/static
+
+# Copy Prisma schema and generated client
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma ./node_modules/@prisma
+
+# Install init tooling + curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN npm install -g prisma@6 tsx@4 typescript@5
+
+# Copy shared package (needed by seed.ts for @pharmacy/shared)
+COPY --from=builder /app/packages/shared ./packages/shared
+RUN mkdir -p node_modules/@pharmacy && ln -s /app/packages/shared node_modules/@pharmacy/shared
+COPY --from=builder /app/node_modules/.pnpm/bcryptjs*/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=builder /app/node_modules/.pnpm/dotenv*/node_modules/dotenv ./node_modules/dotenv
+
+# Copy seed and knowledge files
+COPY prisma/seed.ts ./prisma/seed.ts
+COPY scripts/import-seed-knowledge.ts ./scripts/import-seed-knowledge.ts
+COPY seed_knowledge ./seed_knowledge/
+COPY "药店门店智能问答轻量级知识库.docx" ./
+COPY "信息部常见问题详解" "./信息部常见问题详解/"
+
+# Copy entrypoint
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+RUN mkdir -p /app/data /app/uploads
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
