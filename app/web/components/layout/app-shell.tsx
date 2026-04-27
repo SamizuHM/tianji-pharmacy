@@ -60,22 +60,14 @@ export function AppShell(props: {
   }, []);
 
   useEffect(() => {
-    let socket: WebSocket | null = null;
+    let eventSource: EventSource | null = null;
     let disposed = false;
 
-    async function connect() {
-      const response = await fetch("/api/notifications/session", { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-      const data = (await response.json()) as { wsUrl: string };
-      if (disposed || !data.wsUrl) {
-        return;
-      }
+    function connect() {
+      eventSource = new EventSource("/api/notifications/stream");
 
-      socket = new WebSocket(data.wsUrl);
-      socket.onmessage = async (event) => {
-        const payload = JSON.parse(String(event.data)) as {
+      const handlePayload = (raw: string) => {
+        const payload = JSON.parse(raw) as {
           type: string;
           title?: string;
           message?: string;
@@ -87,7 +79,7 @@ export function AppShell(props: {
           setPendingCounts(payload.pendingCounts);
         }
 
-        if (payload.type === "snapshot" || !payload.title || !payload.message) {
+        if (payload.type === "snapshot" || payload.type === "ping" || !payload.title || !payload.message) {
           return;
         }
 
@@ -99,23 +91,41 @@ export function AppShell(props: {
         };
         setNotifications((current) => [item, ...current].slice(0, 4));
 
-        if (typeof window !== "undefined" && "Notification" in window) {
-          if (Notification.permission === "granted") {
-            new Notification(payload.title, { body: payload.message });
-          }
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          new Notification(payload.title, { body: payload.message });
         }
 
         window.setTimeout(() => {
           setNotifications((current) => current.filter((entry) => entry.id !== item.id));
         }, 5000);
       };
+
+      eventSource.addEventListener("snapshot", (event) => {
+        if (disposed) return;
+        handlePayload((event as MessageEvent).data);
+      });
+
+      eventSource.addEventListener("ticket", (event) => {
+        if (disposed) return;
+        handlePayload((event as MessageEvent).data);
+      });
+
+      eventSource.addEventListener("ping", () => {
+        // 心跳仅用于保活，不需要 UI 响应。
+      });
+
+      eventSource.onerror = () => {
+        if (disposed) {
+          return;
+        }
+      };
     }
 
-    void connect();
+    connect();
 
     return () => {
       disposed = true;
-      socket?.close();
+      eventSource?.close();
     };
   }, []);
 

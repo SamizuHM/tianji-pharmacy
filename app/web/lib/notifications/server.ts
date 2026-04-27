@@ -1,15 +1,12 @@
-import { createServer, Server } from "node:http";
+import crypto from "node:crypto";
 
 import type { UserRole } from "@prisma/client";
-import { WebSocketServer, WebSocket } from "ws";
 
 import { prisma } from "@/lib/db";
-import { env } from "@/lib/env";
 
-type ClientMeta = {
-  socket: WebSocket;
-  userId: string;
-  role: UserRole;
+type PendingCounts = {
+  human_l1: number;
+  human_l2: number;
 };
 
 type TicketNotificationEvent = {
@@ -20,87 +17,50 @@ type TicketNotificationEvent = {
   ticketNo: string;
   targetRoles?: UserRole[];
   targetUserIds?: string[];
-  pendingCounts?: {
-    human_l1: number;
-    human_l2: number;
-  };
+  pendingCounts?: PendingCounts;
   createdAt: string;
 };
 
+type StreamEvent =
+  | {
+      type: "snapshot" | "ping";
+      pendingCounts?: PendingCounts;
+      createdAt: string;
+    }
+  | TicketNotificationEvent;
+
+type ClientMeta = {
+  id: string;
+  userId: string;
+  role: UserRole;
+  controller: ReadableStreamDefaultController<Uint8Array>;
+};
+
 declare global {
-  var __pharmacyNotificationServer:
-    | {
-        server: Server;
-        wss: WebSocketServer;
-        clients: Set<ClientMeta>;
-      }
-    | undefined;
+  var __pharmacyNotificationClients: Map<string, ClientMeta> | undefined;
 }
 
-function serializeEvent(event: TicketNotificationEvent) {
-  return JSON.stringify(event);
-}
+const encoder = new TextEncoder();
 
-export async function ensureNotificationServer() {
-  if (globalThis.__pharmacyNotificationServer) {
-    return globalThis.__pharmacyNotificationServer;
+function getClientStore() {
+  if (!globalThis.__pharmacyNotificationClients) {
+    globalThis.__pharmacyNotificationClients = new Map();
   }
+  return globalThis.__pharmacyNotificationClients;
+}
 
-  const clients = new Set<ClientMeta>();
-  const server = createServer();
-  const wss = new WebSocketServer({ server });
+function serializeSse(event: string, data: StreamEvent) {
+  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
 
-  wss.on("connection", async (socket, request) => {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
-    const token = url.searchParams.get("token");
-    if (!token) {
-      socket.close(1008, "missing token");
-      return;
-    }
-
-    const session = await prisma.session.findUnique({
-      where: { token },
-      include: { user: true }
-    });
-    if (!session || session.expiresAt.getTime() < Date.now()) {
-      socket.close(1008, "invalid token");
-      return;
-    }
-
-    const meta: ClientMeta = {
-      socket,
-      userId: session.userId,
-      role: session.user.role
-    };
-    clients.add(meta);
-
-    socket.on("close", () => {
-      clients.delete(meta);
-    });
-
-    try {
-      const counts = await getPendingTicketCounts();
-      socket.send(
-        JSON.stringify({
-          type: "snapshot",
-          pendingCounts: counts
-        })
-      );
-    } catch {
-      // 忽略初始化快照失败，避免阻断连接。
-    }
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(env.NOTIFICATION_WS_PORT, "0.0.0.0", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-
-  globalThis.__pharmacyNotificationServer = { server, wss, clients };
-  return globalThis.__pharmacyNotificationServer;
+function pushEvent(client: ClientMeta, event: string, data: StreamEvent) {
+  try {
+    client.controller.enqueue(serializeSse(event, data));
+    return true;
+  } catch {
+    getClientStore().delete(client.id);
+    return false;
+  }
 }
 
 export async function getPendingTicketCounts() {
@@ -122,17 +82,67 @@ export async function getPendingTicketCounts() {
   return { human_l1, human_l2 };
 }
 
+export async function createNotificationStream(input: { userId: string; role: UserRole }) {
+  const clientId = crypto.randomUUID();
+  const clientStore = getClientStore();
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const client: ClientMeta = {
+        id: clientId,
+        userId: input.userId,
+        role: input.role,
+        controller
+      };
+      clientStore.set(clientId, client);
+
+      const pendingCounts = await getPendingTicketCounts();
+      pushEvent(client, "snapshot", {
+        type: "snapshot",
+        pendingCounts,
+        createdAt: new Date().toISOString()
+      });
+
+      heartbeat = setInterval(() => {
+        const activeClient = clientStore.get(clientId);
+        if (!activeClient) {
+          if (heartbeat) {
+            clearInterval(heartbeat);
+          }
+          return;
+        }
+        pushEvent(activeClient, "ping", {
+          type: "ping",
+          createdAt: new Date().toISOString()
+        });
+      }, 20000);
+    },
+    cancel() {
+      clientStore.delete(clientId);
+      if (heartbeat) {
+        clearInterval(heartbeat);
+      }
+    }
+  });
+
+  return stream;
+}
+
 export async function broadcastTicketNotification(event: Omit<TicketNotificationEvent, "pendingCounts" | "createdAt">) {
-  const runtime = await ensureNotificationServer();
+  const clientStore = getClientStore();
+  if (!clientStore.size) {
+    return;
+  }
+
   const pendingCounts = await getPendingTicketCounts();
   const payload: TicketNotificationEvent = {
     ...event,
     pendingCounts,
     createdAt: new Date().toISOString()
   };
-  const serialized = serializeEvent(payload);
 
-  for (const client of runtime.clients) {
+  for (const client of clientStore.values()) {
     if (event.targetUserIds?.length && !event.targetUserIds.includes(client.userId)) {
       if (!event.targetRoles?.includes(client.role)) {
         continue;
@@ -141,8 +151,6 @@ export async function broadcastTicketNotification(event: Omit<TicketNotification
     if (!event.targetUserIds?.length && event.targetRoles?.length && !event.targetRoles.includes(client.role)) {
       continue;
     }
-    if (client.socket.readyState === WebSocket.OPEN) {
-      client.socket.send(serialized);
-    }
+    pushEvent(client, "ticket", payload);
   }
 }
