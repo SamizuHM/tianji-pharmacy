@@ -187,6 +187,7 @@ docker compose logs -f ml-service
 - 当前 compose 设计是内部通信优先：`qdrant`、`ml-service` 不暴露宿主机端口。
 - 对外访问通过 `cloudflared` 隧道转发到 `web:3000`。
 - 首次启动容器会初始化数据库与 seed，后续重启不会重复导入知识。
+- 如果你更关注首次启动速度，可以在 `.env` 中设置 `AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=false`，启动后再手动执行知识导入。
 
 ### 本地健康检查（`pnpm dev`）
 

@@ -41,6 +41,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
       - UPLOAD_DIR=/app/uploads
+      - AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=${AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT:-true}
       - QDRANT_URL=http://qdrant:6333
       - EMBEDDING_SERVICE_URL=http://ml-service:8001/embed
       - RERANK_SERVICE_URL=http://ml-service:8001/rerank

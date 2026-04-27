@@ -14,7 +14,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "kb:import": "tsx scripts/import-seed-knowledge.ts",
     "check:env": "tsx scripts/check-env.ts",
-    "init": "bash scripts/init.sh"
+    "init": "bash scripts/init.sh",
+    "compose:up": "docker compose up -d",
+    "compose:rebuild:web": "docker compose up -d --build web cloudflared",
+    "compose:rebuild:ml": "docker compose up -d --build ml-service web cloudflared",
+    "compose:rebuild:all": "docker compose up -d --build"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

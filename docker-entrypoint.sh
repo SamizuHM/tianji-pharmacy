@@ -2,6 +2,7 @@
 set -euo pipefail
 
 INIT_MARKER="/app/data/.initialized"
+AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT="${AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT:-true}"
 
 echo "Starting Next.js server in background..."
 node app/web/server.js &
@@ -30,19 +31,23 @@ if [ ! -f "$INIT_MARKER" ]; then
   echo "[1/2] Seeding database..."
   npx tsx prisma/seed.ts
 
-  echo "[2/2] Importing seed knowledge..."
-  # Login to get session cookie
-  COOKIE=$(curl -sf -X POST http://localhost:3000/api/auth/login \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"药店工作人员","password":"demo123"}' \
-    -D - -o /dev/null 2>&1 | grep -i 'set-cookie' | head -1 | sed 's/.*set-cookie: *//i; s/;.*//')
+  if [ "$AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT" = "true" ]; then
+    echo "[2/2] Importing seed knowledge..."
+    # Login to get session cookie
+    COOKIE=$(curl -sf -X POST http://localhost:3000/api/auth/login \
+      -H 'Content-Type: application/json' \
+      -d '{"username":"药店工作人员","password":"demo123"}' \
+      -D - -o /dev/null 2>&1 | grep -i 'set-cookie' | head -1 | sed 's/.*set-cookie: *//i; s/;.*//')
 
-  if [ -z "$COOKIE" ]; then
-    echo "WARNING: Failed to get session cookie, skipping knowledge import"
+    if [ -z "$COOKIE" ]; then
+      echo "WARNING: Failed to get session cookie, skipping knowledge import"
+    else
+      IMPORT_RESULT=$(curl -sf -X POST http://localhost:3000/api/knowledge \
+        -H "Cookie: $COOKIE" 2>&1) || IMPORT_RESULT="failed"
+      echo "Import result: $IMPORT_RESULT"
+    fi
   else
-    IMPORT_RESULT=$(curl -sf -X POST http://localhost:3000/api/knowledge \
-      -H "Cookie: $COOKIE" 2>&1) || IMPORT_RESULT="failed"
-    echo "Import result: $IMPORT_RESULT"
+    echo "[2/2] Skipping seed knowledge import (AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=false)"
   fi
 
   touch "$INIT_MARKER"
