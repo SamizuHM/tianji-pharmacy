@@ -3,9 +3,9 @@
   "private": true,
   "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "dev": "concurrently -n web,ml -c blue,green \"pnpm dev:web\" \"pnpm dev:ml\"",
+    "dev": "pnpm db:push && concurrently -n web,ml -c blue,green \"pnpm dev:web\" \"pnpm dev:ml\"",
     "dev:web": "pnpm --filter web dev",
-    "dev:ml": "cd app/ml-service && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
+    "dev:ml": "bash scripts/dev-ml.sh",
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint",
     "db:generate": "prisma generate",
