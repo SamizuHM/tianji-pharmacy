@@ -66,7 +66,6 @@ EMBEDDING_SERVICE_URL="http://127.0.0.1:8001/embed"
 RERANK_SERVICE_URL="http://127.0.0.1:8001/rerank"
 ML_SERVICE_URL="http://127.0.0.1:8001"
 SESSION_TTL_HOURS="72"
-CF_TUNNEL_TOKEN="your-cloudflared-token"
 ```
 
 ### 2. 本地开发模式（`pnpm dev`）
@@ -74,6 +73,12 @@ CF_TUNNEL_TOKEN="your-cloudflared-token"
 ```bash
 pnpm install
 pnpm db:push
+docker compose up -d qdrant
+cd app/ml-service
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ../..
 pnpm dev
 ```
 
@@ -83,6 +88,12 @@ pnpm dev
 - `dev:ml` 脚本会自动加载根目录 `.env`，并优先使用 `app/ml-service/.venv`。
 
 ### 3. 容器部署模式（`docker compose up -d --build`）
+
+容器部署额外需要：
+
+```env
+CF_TUNNEL_TOKEN="your-cloudflared-token"
+```
 
 ```bash
 docker compose up -d --build

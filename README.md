@@ -130,7 +130,23 @@ bash scripts/init.sh
 bash scripts/init.sh
 ```
 
-2. 启动开发模式（会自动 `db:push`，并并发启动 Web + ML）：
+2. 启动本地 `qdrant`（本地开发仍然依赖向量库）：
+
+```bash
+docker compose up -d qdrant
+```
+
+3. 首次开发时准备 `ml-service` Python 环境：
+
+```bash
+cd app/ml-service
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ../..
+```
+
+4. 启动开发模式（会自动 `db:push`，并并发启动 Web + ML）：
 
 ```bash
 pnpm dev
