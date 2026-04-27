@@ -6,13 +6,16 @@ declare global {
   var __pharmacyPrisma: PrismaClient | undefined;
 }
 
-const rawUrl = process.env.DATABASE_URL ?? `file:${path.resolve(process.cwd(), "prisma", "dev.db")}`;
+const rawUrl = process.env.DATABASE_URL ?? "file:./dev.db";
 
-// 绝对路径（file:/app/data/dev.db）直接使用，相对路径基于项目根目录解析
+// 绝对路径（file:/app/data/dev.db）直接使用。
+// 相对 SQLite 路径按 Prisma CLI 语义解析：基于 schema 所在目录（<repo>/prisma）。
+const repoRoot = process.cwd().endsWith(path.join("app", "web")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
+const prismaDir = path.resolve(repoRoot, "prisma");
 const databaseUrl = rawUrl.startsWith("file:/")
   ? rawUrl
   : rawUrl.startsWith("file:")
-    ? `file:${path.resolve(process.cwd().endsWith(path.join("app", "web")) ? path.resolve(process.cwd(), "..", "..") : process.cwd(), rawUrl.replace("file:", ""))}`
+    ? `file:${path.resolve(prismaDir, rawUrl.replace("file:", ""))}`
     : rawUrl;
 
 export const prisma =
