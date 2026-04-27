@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import type { AttachmentItem } from "@pharmacy/shared";
 import { CircleAlert, ImagePlus, LifeBuoy, SendHorizontal, Trash2, X } from "lucide-react";
 
+import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { safeJsonParse } from "@/lib/utils";
+import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
   id: string;
@@ -130,7 +131,7 @@ export function ChatClient(props: {
         role: "user",
         sourceType: "system",
         contentText: requestText || "用户上传了图片",
-        attachmentsJson: JSON.stringify(requestAttachments),
+        attachmentsJson: requestAttachments.length ? JSON.stringify(requestAttachments) : null,
         retrievalDebugJson: null,
         createdAt: new Date().toISOString()
       },
@@ -295,7 +296,7 @@ export function ChatClient(props: {
           <CardContent className="space-y-4">
             <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
               {messages.map((message) => {
-                const attachmentsData = safeJsonParse<AttachmentItem[]>(message.attachmentsJson, []);
+                const attachmentsData = getAttachmentItems(message.attachmentsJson);
                 const debugPayload = safeJsonParse<{
                   debug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
                   imagePaths?: string[];
@@ -327,21 +328,7 @@ export function ChatClient(props: {
                         ))}
                       </div>
                     ) : null}
-                    {attachmentsData.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {attachmentsData.map((item) => (
-                          <a
-                            key={item.path}
-                            href={`/api/files/${item.path.replace(/^uploads\//, "")}`}
-                            target="_blank"
-                            className="rounded-xl border border-border bg-white px-3 py-2 text-xs hover:bg-secondary"
-                            rel="noreferrer"
-                          >
-                            {item.name}
-                          </a>
-                        ))}
-                      </div>
-                    ) : null}
+                    <AttachmentGallery attachments={attachmentsData} />
                     {retrievalDebug.length ? (
                       <details className="mt-3 rounded-xl border border-border bg-white/80 p-3 text-xs">
                         <summary className="cursor-pointer text-muted">查看命中来源 / Debug</summary>

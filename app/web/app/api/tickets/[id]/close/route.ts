@@ -10,19 +10,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const body = (await request.json()) as { resolutionText?: string };
+  const body = (await request.json()) as { resolutionText?: string; attachments?: unknown[] };
 
   if (!body.resolutionText?.trim()) {
     return NextResponse.json({ error: "请填写处理结论" }, { status: 400 });
   }
 
-  const ticket = await closeTicket({
-    ticketId: id,
-    senderRole: user.role,
-    senderUserId: user.id,
-    resolutionText: body.resolutionText.trim()
-  });
+  try {
+    const ticket = await closeTicket({
+      ticketId: id,
+      senderRole: user.role,
+      senderUserId: user.id,
+      resolutionText: body.resolutionText.trim(),
+      attachments: body.attachments?.length ? JSON.stringify(body.attachments) : undefined
+    });
 
-  return NextResponse.json({ ticket });
+    return NextResponse.json({ ticket });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "关闭失败" }, { status: 400 });
+  }
 }
-

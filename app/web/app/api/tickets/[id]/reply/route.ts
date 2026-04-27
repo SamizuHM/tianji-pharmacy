@@ -11,15 +11,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const { id } = await context.params;
   const body = (await request.json()) as { content?: string; attachments?: unknown[] };
+  try {
+    const message = await replyTicket({
+      ticketId: id,
+      senderRole: user.role === "staff" ? "user" : user.role,
+      senderUserId: user.id,
+      content: body.content?.trim() || "补充了附件说明",
+      attachments: body.attachments?.length ? JSON.stringify(body.attachments) : undefined
+    });
 
-  const message = await replyTicket({
-    ticketId: id,
-    senderRole: user.role === "staff" ? "user" : user.role,
-    senderUserId: user.id,
-    content: body.content?.trim() || "补充了附件说明",
-    attachments: body.attachments?.length ? JSON.stringify(body.attachments) : undefined
-  });
-
-  return NextResponse.json({ message });
+    return NextResponse.json({ message });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "回复失败" }, { status: 400 });
+  }
 }
-

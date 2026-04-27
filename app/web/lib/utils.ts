@@ -1,3 +1,4 @@
+import type { AttachmentItem } from "@pharmacy/shared";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -40,3 +41,22 @@ export function toArray<T>(value: T | T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
+export function getAttachmentItems(value: string | null | undefined) {
+  return safeJsonParse<AttachmentItem[]>(value, []).filter((item) => Boolean(item?.path));
+}
+
+export function getAttachmentPaths(value: string | null | undefined) {
+  return Array.from(new Set(getAttachmentItems(value).map((item) => item.path).filter(Boolean)));
+}
+
+export function getFileUrl(filePath: string) {
+  return `/api/files/${filePath.replace(/^uploads\//, "")}`;
+}
+
+export function isImageAttachment(item: { mimeType?: string; path?: string }) {
+  if (item.mimeType?.startsWith("image/")) {
+    return true;
+  }
+
+  return /\.(png|jpe?g|webp|gif)$/i.test(item.path ?? "");
+}

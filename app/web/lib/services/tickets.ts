@@ -2,7 +2,9 @@ import { MessageRole, Prisma, TicketStatus, UserRole } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { broadcastTicketNotification, getPendingTicketCounts } from "@/lib/notifications/server";
+import { appendConversationMessage } from "@/lib/services/conversations";
 import { writeTicketResolutionToKnowledge } from "@/lib/services/knowledge";
+import { getAttachmentItems, getAttachmentPaths } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
 
 export async function createTicketFromConversation(input: {
@@ -17,6 +19,7 @@ export async function createTicketFromConversation(input: {
 
   const latestUser = messages.find((item) => item.role === "user");
   const latestAssistant = messages.find((item) => item.role === "assistant");
+  const latestUserAttachments = getAttachmentItems(latestUser?.attachmentsJson);
 
   if (!latestUser || !latestAssistant) {
     throw new Error("当前会话缺少可用于转人工的问答内容");
@@ -37,7 +40,7 @@ export async function createTicketFromConversation(input: {
       conversationId: input.conversationId,
       title,
       latestUserQuestion: latestUser.contentText,
-      inputMode: latestUser.attachmentsJson ? (latestUser.contentText ? "mixed" : "image") : "text",
+      inputMode: latestUserAttachments.length ? (latestUser.contentText ? "mixed" : "image") : "text",
       aiAnswerSnapshot: latestAssistant.contentText,
       conversationSnapshot
     }
@@ -55,9 +58,9 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "user",
         senderUserId: input.createdByUserId,
-        messageType: latestUser.attachmentsJson ? "image" : "text",
+        messageType: latestUserAttachments.length ? "image" : "text",
         content: latestUser.contentText,
-        attachments: latestUser.attachmentsJson ?? undefined
+        attachments: latestUserAttachments.length ? JSON.stringify(latestUserAttachments) : undefined
       }
     ]
   });
@@ -122,6 +125,18 @@ export async function replyTicket(input: {
   content: string;
   attachments?: string;
 }) {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!ticket) {
+    throw new Error("工单不存在");
+  }
+
+  if (ticket.status === "closed") {
+    throw new Error("工单已关闭，不能继续追加回复");
+  }
+
   const message = await prisma.ticketMessage.create({
     data: {
       ticketId: input.ticketId,
@@ -133,23 +148,28 @@ export async function replyTicket(input: {
     }
   });
 
-  const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
-  });
-  if (ticket) {
-    await broadcastTicketNotification({
-      type: "ticket_replied",
-      title: "工单有新回复",
-      message:
-        input.senderRole === "user"
-          ? `工单 ${ticket.ticketNo} 有新的门店补充说明`
-          : `工单 ${ticket.ticketNo} 有新的人工处理回复`,
-      ticketId: ticket.id,
-      ticketNo: ticket.ticketNo,
-      targetRoles: input.senderRole === "user" ? [ticket.currentAssigneeRole] : undefined,
-      targetUserIds: input.senderRole === "user" ? undefined : [ticket.createdByUserId]
+  if (ticket.conversationId) {
+    await appendConversationMessage({
+      conversationId: ticket.conversationId,
+      role: input.senderRole,
+      sourceType: "manual",
+      contentText: input.content,
+      attachmentsJson: input.attachments ?? null
     });
   }
+
+  await broadcastTicketNotification({
+    type: "ticket_replied",
+    title: "工单有新回复",
+    message:
+      input.senderRole === "user"
+        ? `工单 ${ticket.ticketNo} 有新的门店补充说明`
+        : `工单 ${ticket.ticketNo} 有新的人工处理回复`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetRoles: input.senderRole === "user" ? [ticket.currentAssigneeRole] : undefined,
+    targetUserIds: input.senderRole === "user" ? undefined : [ticket.createdByUserId]
+  });
 
   return message;
 }
@@ -192,7 +212,20 @@ export async function closeTicket(input: {
   senderRole: MessageRole;
   senderUserId: string;
   resolutionText: string;
+  attachments?: string;
 }) {
+  const existingTicket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!existingTicket) {
+    throw new Error("工单不存在");
+  }
+
+  if (existingTicket.status === "closed") {
+    throw new Error("工单已关闭");
+  }
+
   const ticket = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
@@ -209,8 +242,9 @@ export async function closeTicket(input: {
         ticketId: input.ticketId,
         senderRole: input.senderRole,
         senderUserId: input.senderUserId,
-        messageType: "text",
-        content: input.resolutionText
+        messageType: input.attachments ? "image" : "text",
+        content: input.resolutionText,
+        attachments: input.attachments
       },
       {
         ticketId: input.ticketId,
@@ -222,21 +256,30 @@ export async function closeTicket(input: {
   });
 
   if (ticket.conversationId) {
-    await prisma.chatMessage.create({
-      data: {
-        conversationId: ticket.conversationId,
-        role: input.senderRole,
-        sourceType: "manual",
-        contentText: input.resolutionText
-      }
+    await appendConversationMessage({
+      conversationId: ticket.conversationId,
+      role: input.senderRole,
+      sourceType: "manual",
+      contentText: input.resolutionText,
+      attachmentsJson: input.attachments ?? null
     });
   }
+
+  const ticketMessages = await prisma.ticketMessage.findMany({
+    where: { ticketId: ticket.id },
+    select: { attachments: true }
+  });
+
+  const imagePaths = Array.from(
+    new Set(ticketMessages.flatMap((message) => getAttachmentPaths(message.attachments)))
+  );
 
   await writeTicketResolutionToKnowledge({
     ticketId: ticket.id,
     question: ticket.latestUserQuestion,
     contextSummary: ticket.conversationSnapshot,
-    resolution: input.resolutionText
+    resolution: input.resolutionText,
+    imagePaths
   });
 
   await broadcastTicketNotification({

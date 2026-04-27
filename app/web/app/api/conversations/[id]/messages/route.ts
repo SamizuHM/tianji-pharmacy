@@ -59,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     role: "user",
     sourceType: "system",
     contentText: text || "用户上传了图片",
-    attachmentsJson: JSON.stringify(attachments)
+    attachmentsJson: attachments.length ? JSON.stringify(attachments) : null
   });
   await refreshConversationTitle(id, text || "图片问题");
 

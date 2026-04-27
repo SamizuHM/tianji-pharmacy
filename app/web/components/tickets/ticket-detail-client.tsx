@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import type { AttachmentItem } from "@pharmacy/shared";
 import { Ticket, TicketMessage } from "@prisma/client";
 
+import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { safeJsonParse } from "@/lib/utils";
+import { getAttachmentItems } from "@/lib/utils";
 
 type TicketMessageWithSender = TicketMessage & {
   senderUser?: {
@@ -71,7 +72,10 @@ export function TicketDetailClient(props: {
       const response = await fetch(`/api/tickets/${props.ticket.id}/close`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolutionText })
+        body: JSON.stringify({
+          resolutionText,
+          attachments
+        })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -79,6 +83,7 @@ export function TicketDetailClient(props: {
         return;
       }
       setResolutionText("");
+      setAttachments([]);
       router.refresh();
     });
   }
@@ -103,7 +108,7 @@ export function TicketDetailClient(props: {
         </CardHeader>
         <CardContent className="space-y-4">
           {props.ticket.messages.map((message) => {
-            const files = safeJsonParse<AttachmentItem[]>(message.attachments, []);
+            const files = getAttachmentItems(message.attachments);
             return (
               <div key={message.id} className="rounded-2xl border border-border bg-white p-4">
                 <div className="mb-2 flex items-center gap-2">
@@ -111,21 +116,7 @@ export function TicketDetailClient(props: {
                   <Badge className="bg-secondary text-foreground">{message.messageType}</Badge>
                 </div>
                 <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-                {files.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {files.map((file) => (
-                      <a
-                        key={file.path}
-                        href={`/api/files/${file.path.replace(/^uploads\//, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-xl border border-border px-3 py-2 text-xs"
-                      >
-                        {file.name}
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
+                <AttachmentGallery attachments={files} linkClassName="rounded-xl border border-border px-3 py-2 text-xs" />
               </div>
             );
           })}
@@ -166,6 +157,11 @@ export function TicketDetailClient(props: {
             <CardTitle>继续处理</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {props.ticket.status === "closed" ? (
+              <Alert className="border-primary/30 bg-primary/5 text-foreground">
+                工单已关闭。如需补充图片或说明，请重新发起新工单，避免知识回写和处理记录前后不一致。
+              </Alert>
+            ) : null}
             <Textarea placeholder="补充处理说明" value={content} onChange={(event) => setContent(event.target.value)} />
             <label className="inline-flex cursor-pointer rounded-xl border border-border px-4 py-2 text-sm">
               上传图片
@@ -174,6 +170,7 @@ export function TicketDetailClient(props: {
                 type="file"
                 accept="image/png,image/jpeg,image/jpg,image/webp"
                 multiple
+                disabled={props.ticket.status === "closed"}
                 onChange={async (event) => {
                   if (event.target.files?.length) {
                     await uploadFiles(event.target.files);
@@ -186,7 +183,7 @@ export function TicketDetailClient(props: {
                 <Badge key={item.path}>{item.name}</Badge>
               ))}
             </div>
-            <Button className="w-full" variant="secondary" onClick={postReply} disabled={pending}>
+            <Button className="w-full" variant="secondary" onClick={postReply} disabled={pending || props.ticket.status === "closed"}>
               发送处理回复
             </Button>
 

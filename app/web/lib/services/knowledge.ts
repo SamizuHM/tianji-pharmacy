@@ -266,6 +266,7 @@ export async function writeTicketResolutionToKnowledge(input: {
   contextSummary: string;
   resolution: string;
   ticketId: string;
+  imagePaths?: string[];
 }) {
   const standardAnswer = input.resolution.trim();
   const question = input.question.trim() || `工单 ${input.ticketId} 闭环问题`;
@@ -279,6 +280,8 @@ export async function writeTicketResolutionToKnowledge(input: {
     sourceType: "manual_ticket",
     sourceTicketId: input.ticketId,
     docType: "manual_ticket",
+    imagePath: input.imagePaths?.[0] ?? null,
+    imagePaths: input.imagePaths ?? [],
     originalText: `${question}\n${input.contextSummary}\n${standardAnswer}`,
     normalizedText: `${question}\n${input.contextSummary}\n${standardAnswer}`,
     chunkTexts: [`问题：${question}\n背景：${input.contextSummary}\n标准答案：${standardAnswer}`]
