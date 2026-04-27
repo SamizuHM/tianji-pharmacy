@@ -44,31 +44,31 @@ export default async function AdminKnowledgePage() {
       initialPendingCounts={pendingCounts}
     >
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>导入操作</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             <KnowledgeImportButton />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>新增知识</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             <KnowledgeCreateForm />
           </CardContent>
         </Card>
       </div>
 
       <div className="mt-6">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>知识条目 ({items.length})</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent className="min-w-0 overflow-x-auto">
             <KnowledgeTable items={serializedItems} />
           </CardContent>
         </Card>
@@ -76,11 +76,11 @@ export default async function AdminKnowledgePage() {
 
       {jobs.length > 0 && (
         <div className="mt-6">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>导入记录</CardTitle>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="min-w-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">

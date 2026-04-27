@@ -133,7 +133,7 @@ export function AppShell(props: {
 
   return (
     <div className="page-shell md:flex-row md:gap-6">
-      <aside className="panel mb-4 flex w-full flex-col gap-4 p-4 md:sticky md:top-6 md:mb-0 md:h-[calc(100vh-3rem)] md:w-72">
+      <aside className="panel mb-4 flex w-full flex-col gap-4 p-4 md:mb-0 md:h-[calc(100vh-3rem)] md:w-72 md:shrink-0 md:sticky md:top-6">
         <div className="space-y-2">
           <Badge className="bg-primary/10 text-primary">药店门店智能问答 Demo</Badge>
           <h1 className="text-2xl">{props.displayName}</h1>
@@ -164,7 +164,7 @@ export function AppShell(props: {
           </Button>
         </form>
       </aside>
-      <main className="flex-1 space-y-6">
+      <main className="min-w-0 flex-1 space-y-6">
         {notifications.length ? (
           <div className="fixed right-6 top-6 z-50 space-y-3">
             {notifications.map((item) => (
@@ -178,7 +178,7 @@ export function AppShell(props: {
             ))}
           </div>
         ) : null}
-        <div className="panel overflow-hidden">
+        <div className="panel min-w-0 overflow-hidden">
           <div className="border-b border-border px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -188,7 +188,7 @@ export function AppShell(props: {
               <UserRoundCog className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <div className="p-6">{props.children}</div>
+          <div className="min-w-0 p-6">{props.children}</div>
         </div>
       </main>
     </div>

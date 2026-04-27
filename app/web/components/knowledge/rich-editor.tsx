@@ -113,7 +113,7 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
             }
           })();
         }}
-        className="min-h-[200px] max-w-none px-3 py-3 prose prose-sm focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+        className="min-h-[200px] max-w-none px-3 py-3 prose prose-sm focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:max-w-full [&_.ProseMirror]:overflow-x-auto [&_.ProseMirror]:outline-none [&_.ProseMirror_img]:h-auto [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
       />
     </div>
   );
