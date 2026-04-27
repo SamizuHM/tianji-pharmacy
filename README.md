@@ -78,13 +78,17 @@ KB_HIT_THRESHOLD="0.72"
 MAX_CONTEXT_TURNS="6"
 UPLOAD_DIR="./uploads"
 SERVICE_HOTLINE="027-xxxx"
-NOTIFICATION_WS_PORT="3001"
 QDRANT_URL="http://127.0.0.1:6333"
 EMBEDDING_SERVICE_URL="http://127.0.0.1:8001/embed"
 RERANK_SERVICE_URL="http://127.0.0.1:8001/rerank"
 ML_SERVICE_URL="http://127.0.0.1:8001"
 SESSION_TTL_HOURS="72"
 ```
+
+说明：
+
+- 上面这组地址是给 `pnpm dev` 本地联调用的（`127.0.0.1`）。
+- Docker 方式启动时，容器内地址由 `docker-compose.yml` 注入（例如 `qdrant:6333`、`ml-service:8001`），不依赖这些本机回环地址。
 
 ## 一键初始化
 
@@ -100,46 +104,80 @@ bash scripts/init.sh
 - 固定账号 seed
 - 创建 `uploads/`
 
-## 启动顺序
+## 启动方式
 
-### 1. 启动 Qdrant
+本项目支持两种启动方式：
 
-```bash
-docker compose up -d qdrant
-```
+1. `pnpm dev`（本地开发模式）
+2. `docker compose up -d --build`（容器部署模式）
 
-### 2. 启动 Python FastAPI 服务
+### 两种方式区别
 
-推荐在 `app/ml-service` 下单独创建虚拟环境：
+| 对比项 | `pnpm dev` 本地开发 | `docker compose up -d --build` 容器部署 |
+|---|---|---|
+| 进程位置 | Web/ML 在宿主机进程运行 | Web/ML/Qdrant/cloudflared 全在容器内 |
+| 配置来源 | 根目录 `.env` 由脚本/框架加载 | `docker-compose.yml` 注入容器环境变量 |
+| 服务互联地址 | `127.0.0.1` | 服务名（`qdrant`、`ml-service`、`web`） |
+| 端口暴露 | 本地直接监听 `3000/8001` | 仅容器内 `expose`，通过 `cloudflared` 对外 |
+| 数据落盘 | `prisma/dev.db` + 本地 `uploads/` | `db_data` / `uploads_data` / `qdrant_storage` volume |
+| 适用场景 | 开发调试、看日志、改代码热更新 | 稳定运行、隔离部署、对外发布 |
 
-```bash
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-```
+### 方式一：`pnpm dev`（推荐开发时使用）
 
-首次启动时会按当前配置调用 DashScope 多模态 embedding / rerank 与 OpenAI-compatible 的 `qwen3.5-27b`。
-
-说明：
-
-- 检索改写使用多模态输入生成查询文本
-- 最终回答在用户上传图片时，会通过 Python ML Service 转发到 DashScope `MultiModalConversation` 流式接口
-- 前端接收到的仍然是统一的 SSE 打字机流
-
-### 3. 启动 Next.js
-
-回到仓库根目录：
+1. 安装依赖并初始化：
 
 ```bash
-pnpm dev:web
+bash scripts/init.sh
 ```
 
-也可以同时启动：
+2. 启动开发模式（会自动 `db:push`，并并发启动 Web + ML）：
 
 ```bash
 pnpm dev
+```
+
+说明：
+
+- `dev:ml` 会优先使用 `app/ml-service/.venv`，并自动加载根目录 `.env`。
+- 若 Python 环境缺依赖，会给出明确安装命令（`pip install -r app/ml-service/requirements.txt`）。
+
+### 方式二：`docker compose up -d --build`（部署时使用）
+
+1. 先配置根目录 `.env` 至少这些字段：
+
+```env
+OPENAI_BASE_URL=...
+OPENAI_API_KEY=...
+OPENAI_MODEL=qwen3.5-27b
+CF_TUNNEL_TOKEN=...
+```
+
+2. 启动容器：
+
+```bash
+docker compose up -d --build
+```
+
+3. 查看状态与日志：
+
+```bash
+docker compose ps
+docker compose logs -f web
+docker compose logs -f ml-service
+```
+
+注意：
+
+- 当前 compose 设计是内部通信优先：`qdrant`、`ml-service` 不暴露宿主机端口。
+- 对外访问通过 `cloudflared` 隧道转发到 `web:3000`。
+- 首次启动容器会初始化数据库与 seed，后续重启不会重复导入知识。
+
+### 本地健康检查（`pnpm dev`）
+
+```bash
+curl http://127.0.0.1:8001/health
+curl http://127.0.0.1:6333/collections
+curl -X POST http://127.0.0.1:3000/api/auth/login
 ```
 
 ## 导入种子知识

@@ -32,6 +32,20 @@
 
 ## 环境准备与启动
 
+本项目支持两种启动方式：
+
+1. `pnpm dev` 本地开发模式
+2. `docker compose up -d --build` 容器部署模式
+
+差异简表：
+
+| 对比项 | `pnpm dev` | `docker compose up -d --build` |
+|---|---|---|
+| 进程位置 | 宿主机本地进程 | 容器内进程 |
+| 服务地址 | `127.0.0.1` | `qdrant` / `ml-service` / `web` 服务名 |
+| 端口策略 | 本地监听端口 | 内网 `expose` + `cloudflared` 对外 |
+| 数据持久化 | 本地文件 | Docker volumes |
+
 ### 1. 环境变量
 
 项目根目录 `.env`：
@@ -47,55 +61,45 @@ KB_HIT_THRESHOLD="0.72"
 MAX_CONTEXT_TURNS="6"
 UPLOAD_DIR="./uploads"
 SERVICE_HOTLINE="027-xxxx"
-NOTIFICATION_WS_PORT="3001"
 QDRANT_URL="http://127.0.0.1:6333"
 EMBEDDING_SERVICE_URL="http://127.0.0.1:8001/embed"
 RERANK_SERVICE_URL="http://127.0.0.1:8001/rerank"
 ML_SERVICE_URL="http://127.0.0.1:8001"
 SESSION_TTL_HOURS="72"
+CF_TUNNEL_TOKEN="your-cloudflared-token"
 ```
 
-### 2. 启动依赖服务
+### 2. 本地开发模式（`pnpm dev`）
 
 ```bash
-# Qdrant 向量数据库（Docker）
-docker run -d --name qdrant -p 6333:6333 qdrant/qdrant:latest
-
-# 初始化数据库 + 种子用户
-cd tianji-pharmacy
-npx prisma migrate dev
-npx tsx prisma/seed.ts
-```
-
-### 3. 启动 ML Service
-
-```bash
-cd app/ml-service
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
-
-# 启动
-OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1" \
-OPENAI_API_KEY="sk-your-key" \
-OPENAI_MODEL="qwen3.5-27b" \
-UPLOAD_DIR="./uploads" \
-uvicorn app.main:app --host 127.0.0.1 --port 8001
-```
-
-### 4. 启动 Web 服务
-
-```bash
-cd app/web
+pnpm install
+pnpm db:push
 pnpm dev
 ```
 
-### 5. 验证启动
+说明：
+
+- `pnpm dev` 会并发启动 `web` 与 `ml-service`。
+- `dev:ml` 脚本会自动加载根目录 `.env`，并优先使用 `app/ml-service/.venv`。
+
+### 3. 容器部署模式（`docker compose up -d --build`）
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+说明：
+
+- `qdrant`、`ml-service`、`web` 走容器内通信。
+- 用户入口通过 `cloudflared` 隧道暴露，不依赖宿主机端口映射。
+
+### 4. 验证启动（本地开发模式）
 
 ```bash
 curl http://127.0.0.1:8001/health          # ML Service
 curl http://127.0.0.1:6333/collections      # Qdrant
-curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
+curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 ```
 
 ---
@@ -168,7 +172,7 @@ curl http://127.0.0.1:3000/api/auth/login   # Web (POST)
 | DELETE | /api/conversations/[id] | 软删除会话 | staff |
 | GET | /api/conversations/[id]/messages | 消息历史 | staff |
 | POST | /api/conversations/[id]/messages | 发送消息 | staff |
-| GET | /api/notifications/session | 获取通知 WebSocket 会话信息 | 已登录 |
+| GET | /api/notifications/stream | 订阅实时通知 SSE 流 | 已登录 |
 | GET | /api/tickets | 工单列表 | 已登录 |
 | POST | /api/tickets | 创建工单 | staff |
 | GET | /api/tickets/[id] | 工单详情 | 已登录 |
@@ -559,22 +563,33 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 > `sourceType` 取值：`kb`（知识库命中）| `llm`（大模型兜底）
 > 有图片时，最终回答也会进入多模态模型，不再只是检索阶段看图。
 
-### GET /api/notifications/session
+### GET /api/notifications/stream
 
-获取当前用户的实时通知 WebSocket 连接信息。
+订阅当前用户的实时通知 SSE 流。
 
-**响应**：
-```json
-{
-  "wsUrl": "ws://127.0.0.1:3001?token=...",
-  "role": "human_l1"
-}
+**响应头**：
+
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache, no-transform`
+- `Connection: keep-alive`
+
+**事件类型**：
+
+- `snapshot`：初次连接时返回当前待办数量
+- `ticket`：工单新建、升级、回复、关闭通知
+- `ping`：保活心跳
+
+**示例**：
+
+```bash
+curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 ```
 
 说明：
 
-- 前端拿到 `wsUrl` 后建立 WebSocket 连接
-- 人工1 / 人工2 的待办数量、站内提醒和浏览器通知都依赖这个连接
+- 前端通过同域 `EventSource("/api/notifications/stream")` 建立连接
+- 无需额外 `3001` 端口
+- 该流会随浏览器自动重连，适合当前 `cloudflared -> web:3000` 部署方式
 
 ### POST /api/tickets
 
