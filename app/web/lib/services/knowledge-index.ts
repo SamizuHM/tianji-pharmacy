@@ -5,6 +5,7 @@ import {
   type KnowledgeItem,
   type Prisma
 } from "@prisma/client";
+import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { embedMultimodal } from "@/lib/retrieval/ml-service";
@@ -13,6 +14,13 @@ import { COLLECTION_NAME, ensureCollection, ensureQdrantWriteReady, qdrant } fro
 const INDEX_RETRY_BASE_MS = 5_000;
 const INDEX_RETRY_MAX_MS = 5 * 60_000;
 const EMBED_BATCH_SIZE = 16;
+
+export function buildStablePointId(chunkId: string) {
+  const hex = createHash("sha256").update(chunkId).digest("hex").slice(0, 32).split("");
+  hex[12] = "5";
+  hex[16] = ["8", "9", "a", "b"][Number.parseInt(hex[16], 16) % 4];
+  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20, 32).join("")}`;
+}
 
 type ChunkRecord = KnowledgeChunk & {
   knowledgeItem: KnowledgeItem;
@@ -156,7 +164,7 @@ async function buildUpsertTaskInputs(
 
       results.push({
         chunk,
-        pointId: chunk.id,
+        pointId: buildStablePointId(chunk.id),
         payloadJson: JSON.stringify(payload)
       });
     });
@@ -196,7 +204,7 @@ export async function prepareKnowledgeChunkUpsertTasks(
       results.push({
         chunkId: chunk.chunkId,
         knowledgeItemId: chunk.knowledgeItemId,
-        pointId: chunk.chunkId,
+        pointId: buildStablePointId(chunk.chunkId),
         payloadJson: JSON.stringify(payload)
       });
     });
@@ -335,14 +343,15 @@ export async function normalizeKnowledgeChunkPointIds() {
   let normalizedCount = 0;
 
   for (const row of rows) {
-    if (row.qdrantPointId === row.id) {
+    const stablePointId = buildStablePointId(row.id);
+    if (row.qdrantPointId === stablePointId) {
       continue;
     }
 
     await prisma.knowledgeChunk.update({
       where: { id: row.id },
       data: {
-        qdrantPointId: row.id
+        qdrantPointId: stablePointId
       }
     });
     normalizedCount += 1;
@@ -411,20 +420,28 @@ async function scrollAllQdrantPoints() {
   let offset: unknown = undefined;
 
   while (true) {
-    const response = (await (qdrant as unknown as {
-      scroll: (
-        collectionName: string,
-        params: Record<string, unknown>
-      ) => Promise<{ points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>; next_page_offset?: unknown }>;
-    }).scroll(COLLECTION_NAME, {
-      with_payload: true,
-      with_vector: false,
-      limit: 256,
-      offset
-    })) as {
-      points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
-      next_page_offset?: unknown;
-    };
+    let response;
+    try {
+      response = (await (qdrant as unknown as {
+        scroll: (
+          collectionName: string,
+          params: Record<string, unknown>
+        ) => Promise<{ points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>; next_page_offset?: unknown }>;
+      }).scroll(COLLECTION_NAME, {
+        with_payload: true,
+        with_vector: false,
+        limit: 256,
+        offset
+      })) as {
+        points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
+        next_page_offset?: unknown;
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Collection `pharmacy_kb` doesn't exist")) {
+        return points;
+      }
+      throw error;
+    }
 
     const pagePoints = response.points ?? [];
     points.push(

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
 import { parseDocument } from "@/lib/retrieval/ml-service";
 import {
+  buildStablePointId,
   prepareKnowledgeChunkUpsertTasks,
   tryDrainKnowledgeIndexTasks,
   type KnowledgeChunkProjectionSource
@@ -99,7 +100,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       originalText: input.originalText,
       sourceFile: input.sourceFile,
       docType: input.docType,
-      qdrantPointId: chunkId,
+      qdrantPointId: buildStablePointId(chunkId),
       metadataJson: JSON.stringify(buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, input))
     };
   });
