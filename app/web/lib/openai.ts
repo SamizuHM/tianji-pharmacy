@@ -109,14 +109,14 @@ export async function streamChatText(input: {
 
 export async function buildMultimodalQueryText(input: { question: string; contextSummary: string; imagePaths: string[] }) {
   if (input.imagePaths.length === 0) {
-    return [input.contextSummary, input.question].filter(Boolean).join("\n");
+    return input.question || "用户未输入明确问题";
   }
 
   const content = await createMultimodalUserContent({
     instruction:
-      "请把用户当前问题、最近上下文与全部图片信息整理成适合知识库检索的一段中文查询文本。输出纯文本，不要分点，不要解释，不要编造未出现的细节。",
+      "请仅把用户当前问题与全部图片信息整理成适合知识库检索的一段中文查询文本。输出纯文本，不要分点，不要解释，不要编造未出现的细节。",
     question: input.question,
-    contextSummary: input.contextSummary,
+    contextSummary: "",
     imagePaths: input.imagePaths
   });
 
