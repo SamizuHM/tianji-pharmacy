@@ -1,12 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { KnowledgeSourceType, Prisma } from "@prisma/client";
+import { KnowledgeIndexTaskStatus, KnowledgeIndexTaskType, KnowledgeSourceType } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
-import { embedMultimodal, parseDocument } from "@/lib/retrieval/ml-service";
-import { COLLECTION_NAME, ensureCollection, qdrant } from "@/lib/retrieval/qdrant";
+import { parseDocument } from "@/lib/retrieval/ml-service";
+import {
+  prepareKnowledgeChunkUpsertTasks,
+  tryDrainKnowledgeIndexTasks,
+  type KnowledgeChunkProjectionSource
+} from "@/lib/services/knowledge-index";
 
 type UpsertKnowledgeInput = {
   categoryL1: string;
@@ -25,8 +29,46 @@ type UpsertKnowledgeInput = {
   chunkTexts: string[];
 };
 
-export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
-  const existing = await prisma.knowledgeItem.findFirst({
+type ExistingKnowledgeItem = Awaited<ReturnType<typeof findExistingKnowledgeItem>>;
+
+function buildTagsJson(tags: string[]) {
+  return JSON.stringify(Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))));
+}
+
+function buildImagePaths(input: UpsertKnowledgeInput) {
+  return input.imagePaths?.filter(Boolean) ?? [];
+}
+
+function buildChunkMetadata(
+  itemId: string,
+  chunkId: string,
+  chunkIndex: number,
+  chunkText: string,
+  input: UpsertKnowledgeInput
+) {
+  return {
+    knowledgeItemId: itemId,
+    chunkId,
+    chunkIndex,
+    chunkText,
+    question: input.question,
+    answer: input.answer,
+    sourceFile: input.sourceFile ?? null,
+    docType: input.docType ?? null,
+    categoryL1: input.categoryL1,
+    categoryL2: input.categoryL2,
+    imagePath: input.imagePath ?? null,
+    imagePaths: buildImagePaths(input)
+  };
+}
+
+async function findExistingKnowledgeItem(input: {
+  question: string;
+  sourceFile?: string;
+  sourceTicketId?: string;
+  sourceType: KnowledgeSourceType;
+}) {
+  return prisma.knowledgeItem.findFirst({
     where: {
       question: input.question,
       sourceFile: input.sourceFile ?? null,
@@ -34,56 +76,50 @@ export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
       sourceType: input.sourceType
     },
     include: {
-      chunks: true
+      chunks: {
+        orderBy: { chunkIndex: "asc" }
+      }
     }
   });
+}
 
-  if (existing) {
-    const pointIds = existing.chunks.map((chunk) => chunk.qdrantPointId);
-    if (pointIds.length) {
-      await qdrant.delete(COLLECTION_NAME, {
-        wait: true,
-        points: pointIds
-      });
-    }
+async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: ExistingKnowledgeItem) {
+  const itemId = existing?.id ?? crypto.randomUUID();
+  const existingChunks = existing?.chunks ?? [];
+  const imagePaths = buildImagePaths(input);
 
-    await prisma.knowledgeItem.delete({
-      where: { id: existing.id }
-    });
-  }
-
-  const item = await prisma.knowledgeItem.create({
-    data: {
-      categoryL1: input.categoryL1,
-      categoryL2: input.categoryL2,
-      question: input.question,
-      answer: input.answer,
-      tagsJson: JSON.stringify(input.tags),
-      sourceType: input.sourceType,
-      sourceTicketId: input.sourceTicketId,
+  const chunkPlans = input.chunkTexts.map((chunkText, chunkIndex) => {
+    const existingChunk = existingChunks[chunkIndex];
+    const chunkId = existingChunk?.id ?? crypto.randomUUID();
+    return {
+      id: chunkId,
+      knowledgeItemId: itemId,
+      chunkIndex,
+      chunkText,
+      originalText: input.originalText,
       sourceFile: input.sourceFile,
       docType: input.docType,
-      imagePath: input.imagePath,
-      imagePathsJson: input.imagePaths?.length ? JSON.stringify(input.imagePaths) : null
-    }
+      qdrantPointId: chunkId,
+      metadataJson: JSON.stringify(buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, input))
+    };
   });
-
-  // 使用多模态 embedding（文本+图片融合向量）
-  const embedInputs = input.chunkTexts.map((text) => ({
-    text,
-    image_path: input.imagePaths?.[0] ?? undefined,
-    image_paths: input.imagePaths ?? []
-  }));
-  const vectors = await embedMultimodal(embedInputs);
-  await ensureCollection(vectors.vectors[0]?.length ?? 1024);
-
-  const chunksData: Prisma.KnowledgeChunkCreateManyInput[] = [];
-
-  for (let index = 0; index < input.chunkTexts.length; index += 1) {
-    const pointId = crypto.randomUUID();
-    const chunkText = input.chunkTexts[index];
-    const payload = {
-      knowledgeItemId: item.id,
+  const staleChunks = existingChunks.filter((chunk) => !chunkPlans.some((plan) => plan.id === chunk.id));
+  const legacyPointDeletes = existingChunks
+    .filter((chunk) => chunkPlans.some((plan) => plan.id === chunk.id) && chunk.qdrantPointId !== chunk.id)
+    .map((chunk) => ({
+      knowledgeItemId: existing?.id ?? itemId,
+      chunkId: chunk.id,
+      pointId: chunk.qdrantPointId,
+      payloadJson: JSON.stringify({ reason: "legacy_point_id_cleanup" })
+    }));
+  const taskSources: KnowledgeChunkProjectionSource[] = chunkPlans.map((chunk) => ({
+    knowledgeItemId: itemId,
+    chunkId: chunk.id,
+    chunkIndex: chunk.chunkIndex,
+    chunkText: chunk.chunkText,
+    sourceFile: chunk.sourceFile ?? null,
+    docType: chunk.docType ?? null,
+    knowledgeItem: {
       question: input.question,
       answer: input.answer,
       sourceFile: input.sourceFile ?? null,
@@ -91,40 +127,157 @@ export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
       categoryL1: input.categoryL1,
       categoryL2: input.categoryL2,
       imagePath: input.imagePath ?? null,
-      imagePaths: input.imagePaths ?? []
+      imagePaths
+    }
+  }));
+  const upsertTasks = await prepareKnowledgeChunkUpsertTasks(taskSources);
+
+  const item = await prisma.$transaction(async (tx) => {
+    const itemData = {
+      categoryL1: input.categoryL1,
+      categoryL2: input.categoryL2,
+      question: input.question,
+      answer: input.answer,
+      tagsJson: buildTagsJson(input.tags),
+      sourceType: input.sourceType,
+      sourceTicketId: input.sourceTicketId ?? null,
+      sourceFile: input.sourceFile ?? null,
+      docType: input.docType ?? null,
+      imagePath: input.imagePath ?? null,
+      imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null
     };
 
-    await qdrant.upsert(COLLECTION_NAME, {
-      wait: true,
-      points: [
-        {
-          id: pointId,
-          vector: vectors.vectors[index],
-          payload: {
-            ...payload,
-            chunkText
-          }
+    if (existing) {
+      await tx.knowledgeItem.update({
+        where: { id: existing.id },
+        data: itemData
+      });
+    } else {
+      await tx.knowledgeItem.create({
+        data: {
+          id: itemId,
+          ...itemData
         }
-      ]
-    });
+      });
+    }
 
-    chunksData.push({
-      knowledgeItemId: item.id,
-      chunkIndex: index,
-      chunkText,
-      originalText: input.originalText,
-      sourceFile: input.sourceFile,
-      docType: input.docType,
-      qdrantPointId: pointId,
-      metadataJson: JSON.stringify(payload)
-    });
-  }
+    for (const chunk of chunkPlans) {
+      await tx.knowledgeChunk.upsert({
+        where: { id: chunk.id },
+        update: {
+          knowledgeItemId: chunk.knowledgeItemId,
+          chunkIndex: chunk.chunkIndex,
+          chunkText: chunk.chunkText,
+          originalText: chunk.originalText,
+          sourceFile: chunk.sourceFile ?? null,
+          docType: chunk.docType ?? null,
+          qdrantPointId: chunk.qdrantPointId,
+          metadataJson: chunk.metadataJson
+        },
+        create: chunk
+      });
+    }
 
-  if (chunksData.length > 0) {
-    await prisma.knowledgeChunk.createMany({ data: chunksData });
-  }
+    if (staleChunks.length) {
+      await tx.knowledgeChunk.deleteMany({
+        where: {
+          id: { in: staleChunks.map((chunk) => chunk.id) }
+        }
+      });
+    }
+
+    const taskData = [
+      ...upsertTasks.map((task) => ({
+        taskType: KnowledgeIndexTaskType.upsert,
+        status: KnowledgeIndexTaskStatus.pending,
+        knowledgeItemId: task.knowledgeItemId,
+        chunkId: task.chunkId,
+        pointId: task.pointId,
+        payloadJson: task.payloadJson
+      })),
+      ...staleChunks.map((chunk) => ({
+        taskType: KnowledgeIndexTaskType.delete,
+        status: KnowledgeIndexTaskStatus.pending,
+        knowledgeItemId: existing?.id ?? itemId,
+        chunkId: chunk.id,
+        pointId: chunk.qdrantPointId,
+        payloadJson: JSON.stringify({ reason: "stale_chunk_delete" })
+      })),
+      ...legacyPointDeletes.map((task) => ({
+        taskType: KnowledgeIndexTaskType.delete,
+        status: KnowledgeIndexTaskStatus.pending,
+        knowledgeItemId: task.knowledgeItemId,
+        chunkId: task.chunkId,
+        pointId: task.pointId,
+        payloadJson: task.payloadJson
+      }))
+    ];
+
+    if (taskData.length) {
+      await tx.knowledgeIndexTask.createMany({
+        data: taskData
+      });
+    }
+
+    return tx.knowledgeItem.findUniqueOrThrow({
+      where: { id: itemId }
+    });
+  });
+
+  await tryDrainKnowledgeIndexTasks({
+    limit: Math.max(20, upsertTasks.length + staleChunks.length + legacyPointDeletes.length)
+  });
 
   return item;
+}
+
+export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
+  const existing = await findExistingKnowledgeItem({
+    question: input.question,
+    sourceFile: input.sourceFile,
+    sourceTicketId: input.sourceTicketId,
+    sourceType: input.sourceType
+  });
+
+  return persistKnowledgeItem(input, existing);
+}
+
+export async function deleteKnowledgeItem(id: string) {
+  const existing = await prisma.knowledgeItem.findUnique({
+    where: { id },
+    include: {
+      chunks: {
+        orderBy: { chunkIndex: "asc" }
+      }
+    }
+  });
+
+  if (!existing) {
+    throw new Error("知识条目不存在");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (existing.chunks.length) {
+      await tx.knowledgeIndexTask.createMany({
+        data: existing.chunks.map((chunk) => ({
+          taskType: KnowledgeIndexTaskType.delete,
+          status: KnowledgeIndexTaskStatus.pending,
+          knowledgeItemId: existing.id,
+          chunkId: chunk.id,
+          pointId: chunk.qdrantPointId,
+          payloadJson: JSON.stringify({ reason: "knowledge_item_delete" })
+        }))
+      });
+    }
+
+    await tx.knowledgeItem.delete({
+      where: { id: existing.id }
+    });
+  });
+
+  await tryDrainKnowledgeIndexTasks({
+    limit: Math.max(20, existing.chunks.length)
+  });
 }
 
 export async function collectKnowledgeSourceFiles() {
@@ -216,6 +369,8 @@ export async function importKnowledgeFromFiles(filePaths: string[]) {
     }
   });
 
+  await tryDrainKnowledgeIndexTasks({ limit: 100 });
+
   return { importedFiles, importedChunks, skippedFiles, errors };
 }
 
@@ -231,34 +386,35 @@ export async function updateKnowledgeItem(
 ) {
   const existing = await prisma.knowledgeItem.findUnique({
     where: { id },
-    include: { chunks: true }
+    include: {
+      chunks: {
+        orderBy: { chunkIndex: "asc" }
+      }
+    }
   });
   if (!existing) throw new Error("知识条目不存在");
 
-  const pointIds = existing.chunks.map((chunk) => chunk.qdrantPointId);
-  if (pointIds.length) {
-    await qdrant.delete(COLLECTION_NAME, { wait: true, points: pointIds });
-  }
-  await prisma.knowledgeItem.delete({ where: { id } });
-
   const tags = Array.from(new Set(input.question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5);
 
-  return upsertKnowledgeItem({
-    categoryL1: input.categoryL1,
-    categoryL2: input.categoryL2,
-    question: input.question,
-    answer: input.answer,
-    tags,
-    sourceType: existing.sourceType,
-    sourceTicketId: existing.sourceTicketId ?? undefined,
-    sourceFile: existing.sourceFile ?? undefined,
-    docType: existing.docType ?? undefined,
-    imagePath: existing.imagePath,
-    imagePaths: input.imagePaths ?? [],
-    originalText: `${input.question}\n${input.answer}`,
-    normalizedText: `${input.question}\n${input.answer}`,
-    chunkTexts: [`问题：${input.question}\n答案：${input.answer}`]
-  });
+  return persistKnowledgeItem(
+    {
+      categoryL1: input.categoryL1,
+      categoryL2: input.categoryL2,
+      question: input.question,
+      answer: input.answer,
+      tags,
+      sourceType: existing.sourceType,
+      sourceTicketId: existing.sourceTicketId ?? undefined,
+      sourceFile: existing.sourceFile ?? undefined,
+      docType: existing.docType ?? undefined,
+      imagePath: input.imagePaths?.[0] ?? existing.imagePath ?? null,
+      imagePaths: input.imagePaths ?? [],
+      originalText: `${input.question}\n${input.answer}`,
+      normalizedText: `${input.question}\n${input.answer}`,
+      chunkTexts: [`问题：${input.question}\n答案：${input.answer}`]
+    },
+    existing
+  );
 }
 
 export async function writeTicketResolutionToKnowledge(input: {

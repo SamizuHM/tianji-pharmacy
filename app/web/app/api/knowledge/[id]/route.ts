@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/db";
-import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
-import { updateKnowledgeItem } from "@/lib/services/knowledge";
+import { deleteKnowledgeItem, updateKnowledgeItem } from "@/lib/services/knowledge";
 
 export async function PUT(
   request: NextRequest,
@@ -50,30 +48,14 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const item = await prisma.knowledgeItem.findUnique({
-    where: { id },
-    include: { chunks: true }
-  });
-
-  if (!item) {
-    return NextResponse.json({ error: "知识条目不存在" }, { status: 404 });
-  }
-
-  // 删除 Qdrant 中的向量点
-  const pointIds = item.chunks.map((chunk) => chunk.qdrantPointId);
-  if (pointIds.length) {
-    try {
-      await qdrant.delete(COLLECTION_NAME, {
-        wait: true,
-        points: pointIds
-      });
-    } catch {
-      // Qdrant 点可能已不存在
+  try {
+    await deleteKnowledgeItem(id);
+  } catch (error) {
+    if (error instanceof Error && error.message === "知识条目不存在") {
+      return NextResponse.json({ error: error.message }, { status: 404 });
     }
+    throw error;
   }
-
-  // 删除数据库记录（级联删除 chunks）
-  await prisma.knowledgeItem.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });
 }
