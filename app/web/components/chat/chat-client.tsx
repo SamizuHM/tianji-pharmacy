@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 
 import type { AttachmentItem } from "@pharmacy/shared";
 import { CircleAlert, ImagePlus, LifeBuoy, SendHorizontal, Trash2, X } from "lucide-react";
@@ -12,6 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  formatDurationSeconds,
+  PROGRESS_STEP_LABELS,
+  PROGRESS_STEP_ORDER,
+  type ProgressDonePayload,
+  type ProgressEventPayload,
+  type ProgressStepKey,
+  type ProgressSummaryItem
+} from "@/lib/chat-progress";
 import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
@@ -35,6 +45,20 @@ type StreamDebugPayload = {
   imagePaths?: string[];
 };
 
+type MessageProgressState = {
+  status: "running" | "completed" | "error";
+  steps: Partial<Record<ProgressStepKey, ProgressSummaryItem>>;
+  currentStepKey?: ProgressStepKey;
+  currentStepStartedClientAt?: number;
+  currentElapsedMs: number;
+  totalDurationMs?: number;
+  firstResponseLatencyMs?: number | null;
+  firstTokenLatencyMs?: number | null;
+  reasoningAnswerMs?: number;
+  waitFirstTokenMs?: number;
+  streamAnswerMs?: number;
+};
+
 export function ChatClient(props: {
   conversationId: string;
   conversations: Conversation[];
@@ -48,10 +72,31 @@ export function ChatClient(props: {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [messages, setMessages] = useState<Message[]>(props.messages);
   const [conversations, setConversations] = useState<Conversation[]>(props.conversations);
+  const [progressByMessageId, setProgressByMessageId] = useState<Record<string, MessageProgressState>>({});
+  const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<Record<string, MessageProgressState>>({});
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previousConversationIdRef = useRef(props.conversationId);
 
   useEffect(() => setMessages(props.messages), [props.messages]);
   useEffect(() => setConversations(props.conversations), [props.conversations]);
+  useEffect(() => {
+    const hasRunningProgress = Object.values(progressByMessageId).some((item) => item.status === "running");
+    if (!hasRunningProgress) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setNowMs(Date.now()), 200);
+    return () => window.clearInterval(timer);
+  }, [progressByMessageId]);
+  useEffect(() => {
+    if (previousConversationIdRef.current === props.conversationId) {
+      return;
+    }
+    previousConversationIdRef.current = props.conversationId;
+    setProgressByMessageId({});
+    setFinalProgressByAssistantId({});
+  }, [props.conversationId]);
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === props.conversationId) ?? conversations[0],
@@ -170,6 +215,7 @@ export function ChatClient(props: {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalDebug: StreamDebugPayload = {};
+      let finalProgressState: MessageProgressState | undefined;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -192,6 +238,14 @@ export function ChatClient(props: {
             sourceType?: Message["sourceType"];
             retrievalDebug?: StreamDebugPayload["retrievalDebug"];
             imagePaths?: string[];
+            totalDurationMs?: number;
+            stepsSummary?: ProgressSummaryItem[];
+            assistantMessageId?: string;
+            firstResponseLatencyMs?: number | null;
+            firstTokenLatencyMs?: number | null;
+            reasoningAnswerMs?: number;
+            waitFirstTokenMs?: number;
+            streamAnswerMs?: number;
           };
 
           if (event === "meta" && payload.sourceType) {
@@ -209,12 +263,84 @@ export function ChatClient(props: {
             };
           }
 
+          if (event === "progress") {
+            const progressPayload = payload as ProgressEventPayload;
+            setProgressByMessageId((current) => {
+              const existing = current[optimisticAssistantId] ?? {
+                status: "running" as const,
+                steps: {},
+                currentElapsedMs: 0
+              };
+
+              if (progressPayload.status === "started") {
+                return {
+                  ...current,
+                  [optimisticAssistantId]: {
+                    ...existing,
+                    status: "running",
+                    currentStepKey: progressPayload.stepKey,
+                    currentStepStartedClientAt: Date.now(),
+                    currentElapsedMs: progressPayload.elapsedTotalMs
+                  }
+                };
+              }
+
+              return {
+                ...current,
+                [optimisticAssistantId]: {
+                  ...existing,
+                  status: "running",
+                  steps: {
+                    ...existing.steps,
+                    [progressPayload.stepKey]: {
+                      stepKey: progressPayload.stepKey,
+                      label: progressPayload.label,
+                      startedAtMs: progressPayload.startedAtMs,
+                      endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
+                      durationMs: progressPayload.durationMs ?? 0,
+                      detail: progressPayload.detail
+                    }
+                  },
+                  currentStepKey:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                  currentStepStartedClientAt:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs
+                }
+              };
+            });
+          }
+
           if (event === "delta" && payload.text) {
             setMessages((current) =>
               current.map((item) =>
                 item.id === optimisticAssistantId ? { ...item, contentText: item.contentText + payload.text! } : item
               )
             );
+          }
+
+          if (event === "done" && payload.assistantMessageId) {
+            const donePayload = payload as ProgressDonePayload;
+            const completedState: MessageProgressState = {
+              status: "completed",
+              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              currentElapsedMs: donePayload.totalDurationMs,
+              totalDurationMs: donePayload.totalDurationMs,
+              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
+              firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
+              reasoningAnswerMs: donePayload.reasoningAnswerMs,
+              waitFirstTokenMs: donePayload.waitFirstTokenMs,
+              streamAnswerMs: donePayload.streamAnswerMs
+            };
+            finalProgressState = completedState;
+            setProgressByMessageId((current) => ({
+              ...current,
+              [optimisticAssistantId]: completedState
+            }));
+            setFinalProgressByAssistantId((current) => ({
+              ...current,
+              [donePayload.assistantMessageId]: completedState
+            }));
           }
 
           if (event === "error") {
@@ -230,9 +356,29 @@ export function ChatClient(props: {
             : item
         )
       );
+      if (finalProgressState) {
+        setProgressByMessageId((current) => ({
+          ...current,
+          [optimisticAssistantId]: finalProgressState!
+        }));
+      }
       router.refresh();
     } catch (sendError) {
-      setMessages((current) => current.filter((item) => item.id !== optimisticAssistantId));
+      setProgressByMessageId((current) => {
+        const existing = current[optimisticAssistantId];
+        if (!existing) {
+          return current;
+        }
+        return {
+          ...current,
+          [optimisticAssistantId]: {
+            ...existing,
+            status: "error",
+            currentStepKey: undefined,
+            currentStepStartedClientAt: undefined
+          }
+        };
+      });
       setError(sendError instanceof Error ? sendError.message : "发送失败");
     } finally {
       setSending(false);
@@ -303,6 +449,9 @@ export function ChatClient(props: {
                 }>(message.retrievalDebugJson, {});
                 const retrievalDebug = debugPayload.debug ?? [];
                 const imagePaths = debugPayload.imagePaths ?? [];
+                const progressState = progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
+                const messageText =
+                  message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
 
                 return (
                   <div
@@ -314,7 +463,8 @@ export function ChatClient(props: {
                     <div className="mb-2 flex items-center gap-2">
                       <Badge className={sourceBadgeClass(message.sourceType)}>{sourceLabel(message.sourceType, message.role)}</Badge>
                     </div>
-                    <div className="whitespace-pre-wrap text-sm leading-6">{message.contentText || (message.role === "assistant" ? "正在生成..." : "")}</div>
+                    {message.role === "assistant" && progressState ? <ProgressCard progress={progressState} nowMs={nowMs} /> : null}
+                    <div className="whitespace-pre-wrap text-sm leading-6">{messageText}</div>
                     {imagePaths.length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {imagePaths.map((img, i) => (
@@ -444,4 +594,205 @@ function sourceBadgeClass(sourceType: Message["sourceType"]) {
     return "bg-secondary text-foreground";
   }
   return "";
+}
+
+function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const visibleSteps = PROGRESS_STEP_ORDER.filter(
+    (stepKey) => props.progress.steps[stepKey] || props.progress.currentStepKey === stepKey
+  );
+  const totalDurationMs =
+    props.progress.status === "running" && props.progress.currentStepStartedClientAt
+      ? props.progress.currentElapsedMs + Math.max(0, props.nowMs - props.progress.currentStepStartedClientAt)
+      : props.progress.totalDurationMs ?? props.progress.currentElapsedMs;
+  const title =
+    props.progress.status === "completed"
+      ? "本次处理完成"
+      : props.progress.status === "error"
+        ? "处理已中断"
+        : "处理中";
+  const latestStepLabel =
+    props.progress.status === "running"
+      ? PROGRESS_STEP_LABELS[props.progress.currentStepKey ?? PROGRESS_STEP_ORDER[0]]
+      : title;
+  const currentStepDurationMs =
+    props.progress.status === "running" && props.progress.currentStepStartedClientAt
+      ? Math.max(0, props.nowMs - props.progress.currentStepStartedClientAt)
+      : undefined;
+  const summaryDurationMs = props.progress.status === "running" ? currentStepDurationMs ?? 0 : totalDurationMs;
+  const showDetails = detailsOpen;
+
+  function clearCloseTimer() {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  function openDetails() {
+    clearCloseTimer();
+    setDetailsOpen(true);
+  }
+
+  function scheduleCloseDetails() {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setDetailsOpen(false);
+    }, 100);
+  }
+
+  function updatePopoverPosition() {
+    const trigger = triggerRef.current;
+    if (!trigger) {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const gutter = 12;
+    const width = Math.min(360, Math.max(280, Math.min(rect.width, viewportWidth - gutter * 2)));
+    const left = Math.min(Math.max(gutter, rect.left), viewportWidth - width - gutter);
+    const spaceBelow = viewportHeight - rect.bottom - gutter;
+    const spaceAbove = rect.top - gutter;
+    const maxHeight = Math.min(420, Math.max(180, Math.max(spaceBelow, spaceAbove)));
+    const shouldOpenAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const top = shouldOpenAbove
+      ? Math.max(gutter, rect.top - maxHeight - 8)
+      : Math.min(rect.bottom + 8, viewportHeight - maxHeight - gutter);
+
+    setPopoverPosition({
+      left,
+      top,
+      width,
+      maxHeight
+    });
+  }
+
+  useEffect(() => {
+    return () => clearCloseTimer();
+  }, []);
+
+  useEffect(() => {
+    if (!detailsOpen) {
+      setPopoverPosition(null);
+      return;
+    }
+
+    updatePopoverPosition();
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [detailsOpen, props.nowMs]);
+
+  const detailsPanel =
+    showDetails && popoverPosition && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed z-[1000] overflow-y-auto rounded-2xl border border-border bg-white p-3 shadow-2xl"
+            style={{
+              left: popoverPosition.left,
+              top: popoverPosition.top,
+              width: popoverPosition.width,
+              maxHeight: popoverPosition.maxHeight
+            }}
+            onMouseEnter={openDetails}
+            onMouseLeave={scheduleCloseDetails}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-foreground">{title}</div>
+              <div className="text-xs text-muted">总耗时 {formatDurationSeconds(totalDurationMs)}</div>
+            </div>
+
+            <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
+              <div className="rounded-xl bg-secondary/40 px-3 py-2">
+                <div>首个响应</div>
+                <div className="mt-1 font-medium text-foreground">
+                  {props.progress.firstResponseLatencyMs != null
+                    ? formatDurationSeconds(props.progress.firstResponseLatencyMs)
+                    : "未返回"}
+                </div>
+              </div>
+              <div className="rounded-xl bg-secondary/40 px-3 py-2">
+                <div>首个正文</div>
+                <div className="mt-1 font-medium text-foreground">
+                  {props.progress.firstTokenLatencyMs != null ? formatDurationSeconds(props.progress.firstTokenLatencyMs) : "未返回"}
+                </div>
+              </div>
+              <div className="rounded-xl bg-secondary/40 px-3 py-2">
+                <div>流式输出</div>
+                <div className="mt-1 font-medium text-foreground">
+                  {props.progress.streamAnswerMs != null ? formatDurationSeconds(props.progress.streamAnswerMs) : "未开始"}
+                </div>
+              </div>
+            </div>
+
+            {visibleSteps.length ? (
+              <div className="mt-3 space-y-2 text-sm">
+                {visibleSteps.map((stepKey) => {
+                  const completedStep = props.progress.steps[stepKey];
+                  const isCurrent = props.progress.currentStepKey === stepKey && props.progress.status === "running";
+
+                  return (
+                    <div
+                      key={stepKey}
+                      className={`rounded-xl px-3 py-2 ${
+                        isCurrent ? "bg-primary/10 text-primary" : "bg-secondary/40 text-foreground"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{completedStep?.label ?? PROGRESS_STEP_LABELS[stepKey]}</span>
+                        <span className="text-xs">
+                          {completedStep ? formatDurationSeconds(completedStep.durationMs) : isCurrent ? "进行中" : ""}
+                        </span>
+                      </div>
+                      {completedStep?.detail ? <div className="mt-1 text-xs text-muted">{completedStep.detail}</div> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <div
+      className="mb-3"
+      onMouseEnter={openDetails}
+      onMouseLeave={scheduleCloseDetails}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-white/80 px-3 py-2 text-left"
+        onClick={() => {
+          clearCloseTimer();
+          if (typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches) {
+            setDetailsOpen(true);
+            return;
+          }
+          setDetailsOpen((current) => !current);
+        }}
+      >
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-foreground">{latestStepLabel}</div>
+        </div>
+        <div className="ml-3 shrink-0 text-xs text-muted">{formatDurationSeconds(summaryDurationMs)}</div>
+      </button>
+      {detailsPanel}
+    </div>
+  );
 }
