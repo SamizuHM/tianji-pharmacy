@@ -817,6 +817,18 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 {"ok": false, "message": "最小版本暂未单条重建索引，请使用全量导入。"}
 ```
 
+### 索引维护命令
+
+```bash
+pnpm kb:drain
+pnpm kb:reconcile
+pnpm kb:rebuild
+```
+
+- `kb:drain`：处理 `KnowledgeIndexTask` 待执行任务
+- `kb:reconcile`：清理 `Qdrant - SQLite` 孤儿 point，并回补 `SQLite - Qdrant` 缺失 point
+- `kb:rebuild`：以 SQLite 中现存 `knowledgeChunk` 为唯一权威输入，全量重建 `pharmacy_kb`
+
 ### GET /api/files/[...path]
 
 访问上传的文件。
@@ -954,6 +966,10 @@ docker ps | grep qdrant
 docker restart qdrant
 ```
 
+- 当前项目要求 Qdrant 服务端与 `@qdrant/js-client-rest` 保持兼容
+- `docker-compose.yml` 默认已升级为 `qdrant/qdrant:v1.17.0`
+- 如果你仍在使用旧的 `v1.13.x`，索引写入会被显式拒绝
+
 ### 消息发送返回 500
 
 - 确保 Qdrant collection 存在（首次导入知识后自动创建）
@@ -969,10 +985,11 @@ docker restart qdrant
 
 ### 检索命中分数很高但仍然回退到 LLM
 
-通常是 SQLite 与 Qdrant 索引不同步。建议直接执行：
+通常是 SQLite 与 Qdrant 索引不同步。建议执行：
 
 ```bash
-pnpm kb:import
+pnpm kb:rebuild
+pnpm kb:reconcile
 ```
 
-这样可以把知识表和向量索引重新对齐。
+这样会先按 SQLite 全量重建索引，再清理遗留孤儿 point。

@@ -212,6 +212,23 @@ curl -X POST http://127.0.0.1:3000/api/auth/login
 pnpm kb:import
 ```
 
+索引维护命令：
+
+```bash
+pnpm kb:drain
+pnpm kb:reconcile
+pnpm kb:rebuild
+```
+
+- `kb:drain`：处理当前待投影的索引任务
+- `kb:reconcile`：对账 SQLite 与 Qdrant，删除孤儿 point 并回补缺失 point
+- `kb:rebuild`：以 SQLite 中现存 `knowledgeChunk` 为准，全量重建 `pharmacy_kb`
+
+升级说明：
+
+- 当前代码启用了 Qdrant 版本兼容校验，`docker-compose.yml` 已同步升级到 `qdrant/qdrant:v1.17.0`
+- 如果你从旧版本升级，请在重启容器后执行一次 `pnpm kb:rebuild`
+
 或者登录后打开：
 
 - `/admin/knowledge`
@@ -421,8 +438,9 @@ curl http://127.0.0.1:6333/collections
 - SQLite 里查不到该条知识
 - 最终退回到 LLM 兜底
 
-建议直接执行一次全量重导入：
+建议直接执行一次全量重建：
 
 ```bash
-pnpm kb:import
+pnpm kb:rebuild
+pnpm kb:reconcile
 ```

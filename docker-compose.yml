@@ -1,6 +1,6 @@
 services:
   qdrant:
-    image: qdrant/qdrant:v1.13.2
+    image: qdrant/qdrant:v1.17.0
     container_name: tianji-qdrant
     expose:
       - "6333"
