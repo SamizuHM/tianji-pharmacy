@@ -150,6 +150,7 @@ def chat_multimodal_stream(request: MultiModalChatStreamRequest):
                 model=model_name,
                 messages=messages,
                 stream=True,
+                enable_thinking=False,
             )
             for chunk in response:
                 try:
@@ -265,7 +266,6 @@ def summarize_images_for_retrieval(text: str, image_paths: list[str]) -> str:
     response = client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[{"role": "user", "content": content}],
-        extra_body={"enable_thinking": False},
     )
     return response.choices[0].message.content.strip() if response.choices else ""
 

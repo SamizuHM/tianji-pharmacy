@@ -18,10 +18,8 @@ type ChatContentPart =
 function withThinkingDisabled<T extends Record<string, unknown>>(payload: T) {
   return {
     ...payload,
-    extra_body: {
-      enable_thinking: false
-    }
-  } as T & { extra_body: { enable_thinking: false } };
+    enable_thinking: false
+  } as T & { enable_thinking: false };
 }
 
 async function attachmentToImagePart(filePath: string): Promise<ChatContentPart> {
