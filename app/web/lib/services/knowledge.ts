@@ -105,14 +105,6 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     };
   });
   const staleChunks = existingChunks.filter((chunk) => !chunkPlans.some((plan) => plan.id === chunk.id));
-  const legacyPointDeletes = existingChunks
-    .filter((chunk) => chunkPlans.some((plan) => plan.id === chunk.id) && chunk.qdrantPointId !== chunk.id)
-    .map((chunk) => ({
-      knowledgeItemId: existing?.id ?? itemId,
-      chunkId: chunk.id,
-      pointId: chunk.qdrantPointId,
-      payloadJson: JSON.stringify({ reason: "legacy_point_id_cleanup" })
-    }));
   const taskSources: KnowledgeChunkProjectionSource[] = chunkPlans.map((chunk) => ({
     knowledgeItemId: itemId,
     chunkId: chunk.id,
@@ -203,14 +195,6 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
         chunkId: chunk.id,
         pointId: chunk.qdrantPointId,
         payloadJson: JSON.stringify({ reason: "stale_chunk_delete" })
-      })),
-      ...legacyPointDeletes.map((task) => ({
-        taskType: KnowledgeIndexTaskType.delete,
-        status: KnowledgeIndexTaskStatus.pending,
-        knowledgeItemId: task.knowledgeItemId,
-        chunkId: task.chunkId,
-        pointId: task.pointId,
-        payloadJson: task.payloadJson
       }))
     ];
 
@@ -226,7 +210,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
   });
 
   await tryDrainKnowledgeIndexTasks({
-    limit: Math.max(20, upsertTasks.length + staleChunks.length + legacyPointDeletes.length)
+    limit: Math.max(20, upsertTasks.length + staleChunks.length)
   });
 
   return item;
