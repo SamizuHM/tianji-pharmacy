@@ -5,7 +5,7 @@ import { FIXED_ASSISTANT_SUFFIX } from "@pharmacy/shared";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { PROGRESS_STEP_LABELS, PROGRESS_STEP_ORDER } from "@/lib/chat-progress";
-import { buildConservativePrompt, buildKbStyledPrompt, streamConservativeAnswer, streamKbStyledAnswer } from "@/lib/openai";
+import { buildGeneralPharmacyPrompt, buildKbStyledPrompt, streamGeneralPharmacyAnswer, streamKbStyledAnswer } from "@/lib/openai";
 import { streamMultimodalChat } from "@/lib/retrieval/ml-service";
 import {
   appendConversationMessage,
@@ -245,10 +245,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets
                   })
-                : buildConservativePrompt({
+                : buildGeneralPharmacyPrompt({
                     question: text,
-                    contextSummary: retrieval.contextSummary,
-                    retrievalHints: retrieval.retrievalHints
+                    contextSummary: retrieval.contextSummary
                   });
 
             const multimodalResponse = await streamMultimodalChat({
@@ -280,10 +279,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets
                   })
-                : await streamConservativeAnswer({
+                : await streamGeneralPharmacyAnswer({
                     question: text,
-                    contextSummary: retrieval.contextSummary,
-                    retrievalHints: retrieval.retrievalHints
+                    contextSummary: retrieval.contextSummary
                   });
 
             for await (const chunk of llmStream) {

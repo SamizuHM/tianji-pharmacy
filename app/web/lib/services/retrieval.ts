@@ -48,7 +48,6 @@ export type RetrievalDecision =
       contextSummary: string;
       queryText: string;
       retrievalDebug: RetrievalDebugRecord[];
-      retrievalHints: string[];
     };
 
 type RetrievalProgressHooks = {
@@ -199,10 +198,9 @@ export async function retrieveAnswer(
         sourceType: "llm",
         contextSummary,
         queryText,
-        retrievalDebug,
-        retrievalHints: ranked.slice(0, 3).map((item) => String(item.payload.chunkText ?? ""))
+        retrievalDebug
       } satisfies RetrievalDecision;
     },
-    (result) => (result.sourceType === "kb" ? "知识库命中，进入答案整理" : "未命中知识库，转入通用建议")
+    (result) => (result.sourceType === "kb" ? "知识库命中，进入答案整理" : "未命中知识库，转入通用药店问答")
   );
 }

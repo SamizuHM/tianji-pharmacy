@@ -437,7 +437,7 @@ export function ChatClient(props: {
         <Card className="min-h-[520px]">
           <CardHeader>
             <CardTitle>门店智能问答</CardTitle>
-            <p className="text-sm text-muted">支持纯文字、纯图片、图文混合输入。知识库命中后会做受控润色，未命中时走保守型大模型建议。</p>
+            <p className="text-sm text-muted">支持纯文字、纯图片、图文混合输入。知识库命中后会做受控润色，未命中时走通用药店场景问答。</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">

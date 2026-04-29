@@ -159,12 +159,11 @@ export async function streamKbStyledAnswer(input: {
   });
 }
 
-export async function streamConservativeAnswer(input: {
+export async function streamGeneralPharmacyAnswer(input: {
   question: string;
   contextSummary: string;
-  retrievalHints?: string[];
 }) {
-  const prompt = buildConservativePrompt(input);
+  const prompt = buildGeneralPharmacyPrompt(input);
 
   return streamChatText({
     system: prompt.system,
@@ -191,22 +190,16 @@ export function buildKbStyledPrompt(input: {
   };
 }
 
-export function buildConservativePrompt(input: {
+export function buildGeneralPharmacyPrompt(input: {
   question: string;
   contextSummary: string;
-  retrievalHints?: string[];
 }) {
-  const hints = input.retrievalHints?.length
-    ? "可参考但不可虚构扩展的背景：\n" + input.retrievalHints.join("\n")
-    : "无额外背景。";
-
   return {
     system:
-      "你是药店门店信息化支持助手。回答必须保守、低风险、避免编造。若无法确认，应明确说明不确定，并建议核对门店配置、联系管理员或转人工。不要给出高风险强操作建议。",
+      "你是药店场景智能问答助手。用户问题未命中知识库时，你可以基于通用药店场景知识回答门店信息化、医保/ERP/设备基础排查、药品常识、用药咨询等问题。不要声称答案来自知识库，不要引用或编造未提供的知识库内容。回答要直接、实用、中文表达清晰。涉及用药、疾病、孕婴、儿童、老人、过敏、处方药、不良反应、剂量调整等风险时，必须提示遵药品说明书并咨询执业药师或医生；不得诊断疾病、开处方、替代专业医疗建议或给出高风险强操作。非医疗风险问题不要机械追加仅供参考、咨询医生、转人工等安全句。",
     userText:
       "最近上下文摘要：" + (input.contextSummary || "无") + "\n" +
-      "用户当前问题：" + (input.question || "用户上传了图片，请结合图片与上下文提供保守建议") + "\n" +
-      hints + "\n" +
-      "请输出中文，开头明确写“以下为通用建议：”。"
+      "用户当前问题：" + (input.question || "用户上传了图片，请结合图片与上下文回答") + "\n" +
+      "请输出中文，不要使用“以下为通用建议：”作为固定开头。"
   };
 }
