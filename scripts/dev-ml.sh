@@ -35,4 +35,9 @@ if [ -z "${DASHSCOPE_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
   exit 1
 fi
 
-exec "$PYTHON_BIN" -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001 --app-dir "$ML_DIR"
+exec "$PYTHON_BIN" -m uvicorn app.main:app \
+  --reload \
+  --reload-dir "$ML_DIR/app" \
+  --host 0.0.0.0 \
+  --port 8001 \
+  --app-dir "$ML_DIR"
