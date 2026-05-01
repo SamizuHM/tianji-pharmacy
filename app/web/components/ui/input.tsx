@@ -8,7 +8,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, ...pr
   <input
     ref={ref}
     className={cn(
-      "flex h-10 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none transition focus:border-primary",
+      "flex h-10 w-full rounded border border-border bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary",
       className
     )}
     {...props}
@@ -18,4 +18,3 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, ...pr
 Input.displayName = "Input";
 
 export { Input };
-

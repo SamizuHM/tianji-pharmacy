@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=ZCOOL+XiaoWei&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Work+Sans:wght@500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -15,10 +15,6 @@
 
   body {
     @apply bg-background text-foreground font-sans;
-    background-image:
-      radial-gradient(circle at top left, rgba(242, 198, 109, 0.35), transparent 28%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(246, 244, 238, 1));
-    background-attachment: fixed;
     min-height: 100vh;
   }
 
@@ -26,17 +22,38 @@
   h2,
   h3,
   h4 {
-    @apply font-display tracking-wide;
+    @apply font-display tracking-normal;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
   }
 }
 
 @layer utilities {
   .panel {
-    @apply rounded-2xl border bg-card shadow-soft;
+    @apply rounded-lg border bg-card shadow-soft;
   }
 
   .page-shell {
-    @apply mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 md:px-6;
+    @apply flex min-h-screen flex-col bg-background;
+  }
+
+  .card-shadow {
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }
-

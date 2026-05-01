@@ -7,7 +7,7 @@ export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElem
 }
 
 export function THead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("bg-secondary/60 text-left", className)} {...props} />;
+  return <thead className={cn("bg-slate-50 text-left", className)} {...props} />;
 }
 
 export function TBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
@@ -15,10 +15,9 @@ export function TBody({ className, ...props }: HTMLAttributes<HTMLTableSectionEl
 }
 
 export function TH({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("px-4 py-3 font-medium text-muted", className)} {...props} />;
+  return <th className={cn("px-4 py-3 font-label text-[13px] font-medium text-muted", className)} {...props} />;
 }
 
 export function TD({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("border-t border-border px-4 py-3 align-top", className)} {...props} />;
+  return <td className={cn("border-t border-border px-4 py-3 align-top text-slate-700", className)} {...props} />;
 }
-
