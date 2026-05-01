@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 
 import type { AttachmentItem } from "@pharmacy/shared";
 import {
+  ArrowDown,
   Bot,
   CircleAlert,
   ClipboardPaste,
@@ -92,6 +93,9 @@ export function ChatClient(props: {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousConversationIdRef = useRef(props.conversationId);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   useEffect(() => setMessages(props.messages), [props.messages]);
   useEffect(() => setConversations(props.conversations), [props.conversations]);
@@ -111,7 +115,29 @@ export function ChatClient(props: {
     previousConversationIdRef.current = props.conversationId;
     setProgressByMessageId({});
     setFinalProgressByAssistantId({});
+    // 切换会话时滚动到底部
+    requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight });
+    });
   }, [props.conversationId]);
+
+  // 自动滚动：流式消息返回时，若用户在底部附近则持续滚动
+  useEffect(() => {
+    if (!isNearBottomRef.current) {
+      return;
+    }
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight });
+  }, [messages]);
+
+  function handleScroll() {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      return;
+    }
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollButton(!nearBottom);
+  }
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === props.conversationId) ?? conversations[0],
@@ -431,7 +457,7 @@ export function ChatClient(props: {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-7rem)] gap-5 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
+    <div className="grid h-[calc(100vh-7rem)] gap-5 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
       <Card className="flex min-h-[520px] flex-col overflow-hidden">
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>会话历史</CardTitle>
@@ -466,13 +492,17 @@ export function ChatClient(props: {
         </CardContent>
       </Card>
 
-      <Card className="flex min-h-[640px] flex-col overflow-hidden">
+      <Card className="flex flex-col overflow-hidden">
         <CardHeader>
           <CardTitle>门店智能问答</CardTitle>
           <p className="text-sm text-muted">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
         </CardHeader>
-        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-0">
-          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 py-5">
+        <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 pb-4 pt-5"
+          >
             <div className="flex flex-col gap-4">
               {messages.map((message) => {
                 const attachmentsData = getAttachmentItems(message.attachmentsJson);
@@ -568,9 +598,20 @@ export function ChatClient(props: {
                 );
               })}
             </div>
+
           </div>
 
-          <div className="border-t border-border bg-white p-5">
+          <button
+            type="button"
+            className={`absolute bottom-72 right-6 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 ${
+              showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
+            }`}
+            onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
+          >
+            <ArrowDown className="size-4" />
+          </button>
+
+          <div className="shrink-0 border-t border-border bg-white p-5">
             <div className="rounded-lg border border-blue-100 bg-white shadow-sm">
               <Textarea
                 ref={textareaRef}
