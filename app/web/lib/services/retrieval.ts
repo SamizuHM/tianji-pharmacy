@@ -148,6 +148,18 @@ export async function retrieveAnswer(
         }
 
         const knowledgeItem = chunk.knowledgeItem;
+        if (knowledgeItem.status !== "published") {
+          continue;
+        }
+
+        await prisma.knowledgeItem.update({
+          where: { id: knowledgeItem.id },
+          data: {
+            hitCount: { increment: 1 },
+            lastHitAt: new Date()
+          }
+        });
+
         const imagePaths: string[] = knowledgeItem.imagePathsJson
           ? JSON.parse(knowledgeItem.imagePathsJson)
           : knowledgeItem.imagePath
