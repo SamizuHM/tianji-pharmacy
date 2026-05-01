@@ -183,7 +183,7 @@ export function AppShell(props: {
           </div>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
             <GlobalSearch role={props.role} />
-            <button type="button" className="relative rounded p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
+            <button type="button" className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95">
               <Bell className="size-5" />
               {pendingCounts.human_l1 + pendingCounts.human_l2 > 0 ? (
                 <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
@@ -191,7 +191,7 @@ export function AppShell(props: {
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded px-2 py-1.5 transition hover:bg-slate-100">
+                <button className="flex items-center gap-2 rounded px-2 py-1.5 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98]">
                   <Avatar>
                     <AvatarFallback>{props.displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
@@ -225,12 +225,12 @@ export function AppShell(props: {
       {notifications.length ? (
         <div className="fixed right-4 top-20 z-50 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3">
           {notifications.map((item) => (
-            <div key={item.id} className="rounded-lg border border-border bg-white p-4 shadow-xl">
+            <div key={item.id} className="animate-slide-in-from-top rounded-lg border border-border bg-white p-4 shadow-xl">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold text-slate-900">{item.title}</div>
                 <button
                   type="button"
-                  className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                  className="rounded p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600"
                   onClick={() => setNotifications((current) => current.filter((entry) => entry.id !== item.id))}
                 >
                   <X className="size-4" />
@@ -283,7 +283,7 @@ function SidebarContent(props: {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-between rounded-lg px-4 py-3 text-sm transition",
+                "flex items-center justify-between rounded-lg px-4 py-3 text-sm transition-all duration-150",
                 active
                   ? "border-l-4 border-blue-400 bg-white/10 font-semibold text-white backdrop-blur"
                   : "text-slate-300 hover:bg-white/5 hover:text-white"
@@ -361,7 +361,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
         <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-border bg-white shadow-xl">
           <SearchSection title="工单">
             {results.tickets.map((item) => (
-              <Link key={item.id} href={`${ticketBase}/${item.id}`} className="block rounded px-3 py-2 hover:bg-slate-50" onClick={() => setOpen(false)}>
+              <Link key={item.id} href={`${ticketBase}/${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
                 <div className="text-sm font-medium text-slate-900">{item.ticketNo}</div>
                 <div className="truncate text-xs text-muted">{item.title} · {statusLabel(item.status as never)}</div>
               </Link>
@@ -369,7 +369,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
           </SearchSection>
           <SearchSection title="知识库">
             {results.knowledge.map((item) => (
-              <Link key={item.id} href={`/admin/knowledge?selected=${item.id}`} className="block rounded px-3 py-2 hover:bg-slate-50" onClick={() => setOpen(false)}>
+              <Link key={item.id} href={`/admin/knowledge?selected=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
                 <div className="truncate text-sm font-medium text-slate-900">{item.question}</div>
                 <div className="text-xs text-muted">{item.categoryL1} / {item.categoryL2} · 命中 {item.hitCount}</div>
               </Link>
@@ -378,12 +378,12 @@ function GlobalSearch({ role }: { role: UserRole }) {
           {role === "staff" ? (
             <SearchSection title="会话">
               {results.conversations.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.id}`} className="block rounded px-3 py-2 hover:bg-slate-50" onClick={() => setOpen(false)}>
+                <Link key={item.id} href={`/staff/chat?conversationId=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
                   <div className="truncate text-sm font-medium text-slate-900">{item.title}</div>
                 </Link>
               ))}
               {results.messages.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.conversationId}`} className="block rounded px-3 py-2 hover:bg-slate-50" onClick={() => setOpen(false)}>
+                <Link key={item.id} href={`/staff/chat?conversationId=${item.conversationId}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
                   <div className="truncate text-sm font-medium text-slate-900">{item.contentText}</div>
                   <div className="text-xs text-muted">{item.sourceType}</div>
                 </Link>

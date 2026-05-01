@@ -471,8 +471,8 @@ export function ChatClient(props: {
             {conversations.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition ${
-                  activeConversation?.id === item.id ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"
+                className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
+                  activeConversation?.id === item.id ? "border-blue-200 bg-blue-50 shadow-sm" : "border-transparent hover:bg-slate-50 hover:border-slate-200"
                 }`}
               >
                 <button type="button" onClick={() => router.push(`/staff/chat?conversationId=${item.id}`)} className="flex-1 text-left">
@@ -481,7 +481,7 @@ export function ChatClient(props: {
                 </button>
                 <button
                   type="button"
-                  className="rounded p-1 text-muted transition hover:bg-white hover:text-foreground"
+                  className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
                   onClick={() => deleteConversation(item.id)}
                 >
                   <Trash2 className="size-4" />
@@ -545,7 +545,7 @@ export function ChatClient(props: {
                               key={i}
                               src={`/api/files/${img}`}
                               alt=""
-                              className="max-h-48 cursor-pointer rounded-lg border border-border object-contain transition hover:opacity-80"
+                              className="max-h-48 cursor-pointer rounded-lg border border-border object-contain transition-all duration-200 hover:scale-[1.02] hover:opacity-80 hover:shadow-md"
                               onClick={() => window.open(`/api/files/${img}`, "_blank")}
                             />
                           ))}
@@ -561,14 +561,14 @@ export function ChatClient(props: {
                           ) : null}
                           <button
                             type="button"
-                            className={`rounded p-1.5 hover:bg-blue-50 hover:text-primary ${message.feedback === "helpful" ? "bg-blue-50 text-primary" : ""}`}
+                            className={`rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 ${message.feedback === "helpful" ? "bg-blue-50 text-primary" : ""}`}
                             onClick={() => updateFeedback(message.id, "helpful")}
                           >
                             <ThumbsUp className="size-4" />
                           </button>
                           <button
                             type="button"
-                            className={`rounded p-1.5 hover:bg-red-50 hover:text-red-500 ${message.feedback === "unhelpful" ? "bg-red-50 text-red-500" : ""}`}
+                            className={`rounded p-1.5 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90 ${message.feedback === "unhelpful" ? "bg-red-50 text-red-500" : ""}`}
                             onClick={() => updateFeedback(message.id, "unhelpful")}
                           >
                             <ThumbsDown className="size-4" />
@@ -612,7 +612,7 @@ export function ChatClient(props: {
           </button>
 
           <div className="shrink-0 border-t border-border bg-white p-5">
-            <div className="rounded-lg border border-blue-100 bg-white shadow-sm">
+            <div className="rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md">
               <Textarea
                 ref={textareaRef}
                 placeholder="请输入门店问题，或粘贴截图后补充说明..."
@@ -633,16 +633,16 @@ export function ChatClient(props: {
               />
               <div className="flex flex-wrap gap-2 px-4">
                 {attachments.map((item) => (
-                  <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs">
+                  <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300">
                     {item.name}
-                    <button type="button" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                    <button type="button" className="rounded transition-colors duration-150 hover:bg-red-50 hover:text-red-500" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
                       <X className="size-3" />
                     </button>
                   </span>
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition hover:bg-blue-50">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97]">
                   <ImagePlus className="size-4" />
                   上传图片
                   <input
@@ -658,7 +658,7 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600">
+                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97]">
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>

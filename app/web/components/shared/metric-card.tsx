@@ -24,7 +24,7 @@ export function MetricCard(props: {
   }[props.tone ?? "blue"];
 
   return (
-    <div className="panel flex min-h-[128px] flex-col gap-3 p-5">
+    <div className="panel flex min-h-[128px] flex-col gap-3 p-5 transition-shadow duration-200 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className={cn("flex size-10 items-center justify-center rounded-full", toneClass)}>
           <Icon className="size-5" />

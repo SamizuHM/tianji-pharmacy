@@ -230,7 +230,7 @@ export function KnowledgeTable({
                       <TD>{item.categoryL1}</TD>
                       <TD>{item.categoryL2}</TD>
                       <TD>
-                        <button className="max-w-[240px] truncate text-left font-medium text-slate-900 hover:text-primary" onClick={() => openDetail(item.id)}>
+                        <button className="max-w-[240px] truncate text-left font-medium text-slate-900 transition-colors duration-150 hover:text-primary" onClick={() => openDetail(item.id)}>
                           {item.question}
                         </button>
                         {imagePaths.length ? (
@@ -240,7 +240,7 @@ export function KnowledgeTable({
                                 key={img}
                                 src={`/api/files/${img}`}
                                 alt=""
-                                className="size-10 cursor-pointer rounded border border-border object-cover"
+                                className="size-10 cursor-pointer rounded border border-border object-cover transition-all duration-150 hover:scale-110 hover:shadow-md"
                                 onClick={() => setLightbox({ images: imagePaths, index: i })}
                               />
                             ))}

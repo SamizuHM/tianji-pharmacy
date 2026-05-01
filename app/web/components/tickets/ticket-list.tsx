@@ -65,7 +65,7 @@ export function TicketList(props: {
               key={tab.key}
               type="button"
               className={cn(
-                "rounded px-4 py-2 text-sm font-medium transition",
+                "rounded px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.97]",
                 props.currentStatusGroup === tab.key ? "bg-primary text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
               )}
               onClick={() => update({ statusGroup: tab.key })}
@@ -86,7 +86,7 @@ export function TicketList(props: {
               key={item.key}
               type="button"
               className={cn(
-                "border-b-2 px-4 py-2 text-sm font-medium transition",
+                "border-b-2 px-4 py-2 text-sm font-medium transition-all duration-150",
                 props.currentAssignee === item.key
                   ? "border-primary bg-blue-50 text-primary"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -171,7 +171,7 @@ export function TicketList(props: {
                   <TD className="text-right">
                     <Link
                       href={`${props.basePath}/${ticket.id}`}
-                      className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
                     >
                       查看详情
                     </Link>
