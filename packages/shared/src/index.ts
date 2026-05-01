@@ -1,10 +1,16 @@
 export type UserRole = "staff" | "human_l1" | "human_l2";
 
-export type TicketStatus = "pending_l1" | "pending_l2" | "closed";
+export type TicketStatus = "pending_l1" | "processing_l1" | "pending_l2" | "processing_l2" | "closed";
+
+export type TicketPriority = "low" | "medium" | "high";
 
 export type MessageRole = "user" | "assistant" | "human_l1" | "human_l2" | "system";
 
 export type MessageSourceType = "kb" | "llm" | "manual" | "system";
+
+export type MessageFeedback = "helpful" | "unhelpful";
+
+export type KnowledgeStatus = "draft" | "published" | "archived";
 
 export type InputMode = "text" | "image" | "mixed";
 
@@ -53,4 +59,3 @@ export const FIXED_USERS = [
   { username: "人工处理1", password: "demo123", displayName: "人工处理1", role: "human_l1" as const },
   { username: "人工处理2", password: "demo123", displayName: "人工处理2", role: "human_l2" as const }
 ];
-
