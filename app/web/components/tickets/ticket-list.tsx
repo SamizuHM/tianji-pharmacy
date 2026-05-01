@@ -1,86 +1,189 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { Ticket, User } from "@prisma/client";
+import { CheckCircle2, Clock3, FileText, Filter, Pin, Search, Ticket as TicketIcon } from "lucide-react";
 
-import { Ticket } from "@prisma/client";
-
+import { MetricCard } from "@/components/shared/metric-card";
+import { PaginationBar } from "@/components/shared/pagination-bar";
+import { PriorityBadge, TicketStatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
+import { formatDateTime, roleLabel } from "@/lib/presentation";
+import type { TicketListResult, TicketStatusGroup } from "@/lib/services/tickets";
+import { cn } from "@/lib/utils";
 
-type TicketWithUsers = Ticket & {
-  createdBy?: {
-    displayName: string;
-  };
-  closedBy?: {
-    displayName: string;
-  } | null;
+type TicketRow = Ticket & {
+  createdBy?: User;
+  closedBy?: User | null;
 };
 
 export function TicketList(props: {
   title: string;
   basePath: string;
-  tickets: TicketWithUsers[];
-  currentStatus: string;
+  result: TicketListResult;
+  currentStatusGroup: TicketStatusGroup;
+  currentAssignee: string;
+  q?: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const result = props.result as TicketListResult & { items: TicketRow[] };
+
+  function update(next: Record<string, string>) {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(next).forEach(([key, value]) => {
+      if (!value || value === "all") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  }
+
+  const tabs: Array<{ key: TicketStatusGroup; label: string; count: number }> = [
+    { key: "all", label: "全部工单", count: result.summary.all },
+    { key: "pending", label: "待处理", count: result.summary.pending },
+    { key: "processing", label: "处理中", count: result.summary.processing },
+    { key: "escalated", label: "已升级", count: result.summary.escalated },
+    { key: "closed", label: "已关闭", count: result.summary.closed }
+  ];
+
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <CardTitle>{props.title}</CardTitle>
-          <p className="mt-1 text-sm text-muted">支持筛选待处理、升级中、已关闭工单，并查看完整处理轨迹。</p>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="panel flex flex-wrap gap-1 p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={cn(
+                "rounded px-4 py-2 text-sm font-medium transition",
+                props.currentStatusGroup === tab.key ? "bg-primary text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+              )}
+              onClick={() => update({ statusGroup: tab.key })}
+            >
+              {tab.label}
+              <span className={cn("ml-2 text-xs", props.currentStatusGroup === tab.key ? "text-blue-100" : "text-slate-400")}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
-        <form>
-          <Select
-            defaultValue={props.currentStatus}
-            onChange={(event) => {
-              const url = new URL(window.location.href);
-              url.searchParams.set("status", event.target.value);
-              window.location.href = url.toString();
-            }}
-          >
-            <option value="all">全部状态</option>
-            <option value="pending_l1">待人工1</option>
-            <option value="pending_l2">待人工2</option>
-            <option value="closed">已关闭</option>
+        <div className="panel flex overflow-hidden p-1">
+          {[
+            { key: "human_l1", label: "待人工1", count: result.summary.human_l1 },
+            { key: "human_l2", label: "待人工2", count: result.summary.human_l2 }
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={cn(
+                "border-b-2 px-4 py-2 text-sm font-medium transition",
+                props.currentAssignee === item.key
+                  ? "border-primary bg-blue-50 text-primary"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              )}
+              onClick={() => update({ assignee: props.currentAssignee === item.key ? "all" : item.key })}
+            >
+              {item.label}
+              <span className="ml-2 rounded-full bg-blue-100 px-1.5 text-xs text-primary">{item.count}</span>
+            </button>
+          ))}
+        </div>
+        <form
+          className="ml-auto flex min-w-[280px] flex-1 items-center gap-3 md:max-w-xl"
+          action={(formData) => update({ q: String(formData.get("q") || "") })}
+        >
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input name="q" defaultValue={props.q} placeholder="搜索工单编号、问题摘要、创建人" className="pl-9" />
+          </div>
+          <Button type="submit" variant="outline">
+            <Filter className="size-4" />
+            筛选
+          </Button>
+          <Select value={props.currentAssignee} onChange={(event) => update({ assignee: event.target.value })} className="w-32">
+            <option value="all">全部级别</option>
+            <option value="human_l1">人工1</option>
+            <option value="human_l2">人工2</option>
           </Select>
         </form>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {props.tickets.map((ticket) => (
-          <Link key={ticket.id} href={`${props.basePath}/${ticket.id}`} className="block rounded-2xl border border-border p-4 hover:bg-secondary/40">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>{ticket.ticketNo}</Badge>
-              <Badge className="bg-primary/10 text-primary">{statusLabel(ticket.status)}</Badge>
-              <Badge className="bg-secondary text-foreground">{assigneeLabel(ticket.currentAssigneeRole)}</Badge>
-            </div>
-            <h3 className="mt-3 text-lg font-semibold">{ticket.title}</h3>
-            <p className="mt-2 text-sm text-muted">{ticket.latestUserQuestion}</p>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-              <span>发起人：{ticket.createdBy?.displayName || "-"}</span>
-              <span>关闭人：{ticket.closedBy?.displayName || "未关闭"}</span>
-            </div>
-          </Link>
-        ))}
-        {!props.tickets.length ? <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted">暂无工单</div> : null}
-      </CardContent>
-    </Card>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">今日工单概览</h2>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="待处理" value={result.summary.pending} description="待人工响应" icon={FileText} tone="blue" trend="12.5%" />
+          <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
+          <MetricCard label="已升级" value={result.summary.escalated} description="人工2跟进" icon={Pin} tone="purple" trend="2.3%" />
+          <MetricCard label="已关闭" value={result.summary.closed} description="闭环归档" icon={CheckCircle2} tone="green" trend="18.4%" />
+          <MetricCard label="今日总量" value={result.summary.all} description={props.title} icon={TicketIcon} tone="indigo" />
+        </div>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table className="min-w-[980px]">
+            <THead>
+              <tr>
+                <TH>工单编号</TH>
+                <TH>问题摘要</TH>
+                <TH>问题类型</TH>
+                <TH>当前处理级别</TH>
+                <TH>优先级</TH>
+                <TH>创建人</TH>
+                <TH>创建时间</TH>
+                <TH className="text-right">操作</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {result.items.map((ticket) => (
+                <tr key={ticket.id}>
+                  <TD className="font-medium text-slate-900">{ticket.ticketNo}</TD>
+                  <TD>
+                    <div className="max-w-[280px]">
+                      <div className="truncate font-medium text-slate-900">{ticket.title}</div>
+                      <div className="mt-1 truncate text-xs text-muted">{ticket.latestUserQuestion}</div>
+                    </div>
+                  </TD>
+                  <TD>
+                    <Badge className="border border-blue-100 bg-blue-50 text-primary">{ticket.category}</Badge>
+                  </TD>
+                  <TD>
+                    <div className="flex flex-col gap-1">
+                      <Badge className="border border-purple-100 bg-purple-50 text-purple-600">{roleLabel(ticket.currentAssigneeRole)}</Badge>
+                      <TicketStatusBadge status={ticket.status} />
+                    </div>
+                  </TD>
+                  <TD>
+                    <PriorityBadge priority={ticket.priority} />
+                  </TD>
+                  <TD>{ticket.createdBy?.displayName || "-"}</TD>
+                  <TD>{formatDateTime(ticket.createdAt)}</TD>
+                  <TD className="text-right">
+                    <Link
+                      href={`${props.basePath}/${ticket.id}`}
+                      className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      查看详情
+                    </Link>
+                  </TD>
+                </tr>
+              ))}
+            </TBody>
+          </Table>
+          {!result.items.length ? <div className="px-4 py-12 text-center text-sm text-muted">暂无工单</div> : null}
+        </div>
+        <PaginationBar total={result.total} page={result.page} pageSize={result.pageSize} pageCount={result.pageCount} />
+      </Card>
+    </div>
   );
-}
-
-function statusLabel(status: Ticket["status"]) {
-  switch (status) {
-    case "pending_l1":
-      return "待人工1";
-    case "pending_l2":
-      return "待人工2";
-    case "closed":
-      return "已关闭";
-    default:
-      return status;
-  }
-}
-
-function assigneeLabel(role: Ticket["currentAssigneeRole"]) {
-  return role === "human_l1" ? "当前人工1" : "当前人工2";
 }
