@@ -13,3 +13,28 @@ export async function getRuntimeSettings() {
   };
 }
 
+export type RuntimeSettingsInput = {
+  retrievalTopK: number;
+  rerankTopN: number;
+  kbHitThreshold: number;
+  maxContextTurns: number;
+};
+
+export async function updateRuntimeSettings(input: RuntimeSettingsInput) {
+  const settings = {
+    RETRIEVAL_TOP_K: String(input.retrievalTopK),
+    RERANK_TOP_N: String(input.rerankTopN),
+    KB_HIT_THRESHOLD: String(input.kbHitThreshold),
+    MAX_CONTEXT_TURNS: String(input.maxContextTurns)
+  };
+
+  for (const [key, value] of Object.entries(settings)) {
+    await prisma.appSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value }
+    });
+  }
+
+  return getRuntimeSettings();
+}
