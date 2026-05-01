@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/db";
-import { collectKnowledgeSourceFiles, importKnowledgeFromFiles, upsertKnowledgeItem } from "@/lib/services/knowledge";
+import { collectKnowledgeSourceFiles, importKnowledgeFromFiles, listKnowledgeItems, upsertKnowledgeItem } from "@/lib/services/knowledge";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const items = await prisma.knowledgeItem.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 200
-  });
-  const jobs = await prisma.importJob.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 20
+  const { searchParams } = new URL(request.url);
+  const result = await listKnowledgeItems({
+    q: searchParams.get("q") ?? undefined,
+    category: searchParams.get("category") ?? undefined,
+    status: (searchParams.get("status") as "draft" | "published" | "archived" | "all" | null) ?? "all",
+    page: Number(searchParams.get("page") ?? 1),
+    pageSize: Number(searchParams.get("pageSize") ?? 10)
   });
 
-  return NextResponse.json({ items, jobs });
+  return NextResponse.json(result);
 }
 
 export async function POST(request: NextRequest) {
@@ -33,12 +32,13 @@ export async function POST(request: NextRequest) {
   // 手动新增知识条目
   if (contentType.includes("application/json")) {
     const body = await request.json();
-    const { categoryL1, categoryL2, question, answer, imagePaths } = body as {
+    const { categoryL1, categoryL2, question, answer, imagePaths, status } = body as {
       categoryL1?: string;
       categoryL2?: string;
       question?: string;
       answer?: string;
       imagePaths?: string[];
+      status?: "draft" | "published";
     };
 
     if (!question?.trim() || !answer?.trim()) {
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       categoryL2: categoryL2 || "手动新增",
       question: question.trim(),
       answer: answer.trim(),
+      status: status ?? "published",
       tags: Array.from(new Set(question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5),
       sourceType: "manual",
       docType: "manual",
