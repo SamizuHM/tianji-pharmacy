@@ -72,11 +72,18 @@ class ParseDocumentRequest(BaseModel):
     file_path: str
 
 
+class MultiModalChatMessage(BaseModel):
+    role: str
+    text: str
+    image_paths: list[str] | None = None
+
+
 class MultiModalChatStreamRequest(BaseModel):
     system_prompt: str
-    user_text: str
+    user_text: str | None = None
     image_paths: list[str] | None = None
     model: str | None = None
+    messages: list[MultiModalChatMessage] | None = None
 
 
 # ---------- Clients ----------
@@ -139,8 +146,9 @@ def chat_multimodal_stream(request: MultiModalChatStreamRequest):
 
     messages = _build_multimodal_messages(
         system_prompt=request.system_prompt,
-        user_text=request.user_text,
+        user_text=request.user_text or "",
         image_paths=request.image_paths or [],
+        messages=request.messages or [],
     )
 
     def generate():
@@ -196,15 +204,46 @@ def _encode_image_b64(image_path: str) -> tuple[str, str]:
     return f"data:image/{mime};base64,{b64}", mime
 
 
-def _build_multimodal_messages(system_prompt: str, user_text: str, image_paths: list[str]) -> list[dict[str, Any]]:
+def _build_multimodal_messages(
+    system_prompt: str,
+    user_text: str,
+    image_paths: list[str],
+    messages: list[MultiModalChatMessage] | None = None,
+) -> list[dict[str, Any]]:
+    if not messages:
+        content = _build_multimodal_content(user_text, image_paths)
+        if content and "text" in content[-1]:
+            content[-1]["text"] = f"{system_prompt.strip()}\n\n{content[-1]['text']}".strip()
+        elif system_prompt.strip():
+            content.append({"text": system_prompt.strip()})
+        return [{"role": "user", "content": content}]
+
+    converted_messages: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        role = "assistant" if message.role == "assistant" else "user"
+        text = message.text
+        if index == len(messages) - 1 and role == "user":
+            text = f"{system_prompt.strip()}\n\n{text.strip()}".strip()
+        content = _build_multimodal_content(text, message.image_paths or [])
+        if content:
+            converted_messages.append({"role": role, "content": content})
+
+    return converted_messages
+
+
+def _build_multimodal_content(text: str, image_paths: list[str]) -> list[dict[str, str]]:
     content: list[dict[str, str]] = []
     for image_path in image_paths:
-        data_url, _ = _encode_image_b64(image_path)
+        try:
+            data_url, _ = _encode_image_b64(image_path)
+        except HTTPException:
+            continue
         content.append({"image": data_url})
 
-    merged_text = f"{system_prompt.strip()}\n\n{user_text.strip()}".strip()
-    content.append({"text": merged_text})
-    return [{"role": "user", "content": content}]
+    if text.strip():
+        content.append({"text": text.strip()})
+
+    return content
 
 
 def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[list[float]]]:

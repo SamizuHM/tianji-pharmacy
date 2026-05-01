@@ -6,19 +6,6 @@ import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
 import { enqueueDeletePointTask, tryDrainKnowledgeIndexTasks } from "@/lib/services/knowledge-index";
 import { getRuntimeSettings } from "@/lib/services/settings";
 
-export async function summarizeContext(conversationId: string, maxTurns: number) {
-  const messages = await prisma.chatMessage.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: "desc" },
-    take: maxTurns * 2
-  });
-
-  return messages
-    .reverse()
-    .map((message) => `${message.role === "user" ? "用户" : "系统/助手"}：${message.contentText.slice(0, 200)}`)
-    .join("\n");
-}
-
 type RetrievalDebugRecord = {
   knowledgeItemId: string;
   chunkId: string;
@@ -32,7 +19,6 @@ type RetrievalDebugRecord = {
 export type RetrievalDecision =
   | {
       sourceType: "kb";
-      contextSummary: string;
       queryText: string;
       retrievalDebug: RetrievalDebugRecord[];
       knowledgeItem: {
@@ -45,7 +31,6 @@ export type RetrievalDecision =
     }
   | {
       sourceType: "llm";
-      contextSummary: string;
       queryText: string;
       retrievalDebug: RetrievalDebugRecord[];
     };
@@ -69,17 +54,13 @@ async function runProgressStep<T>(
 }
 
 export async function retrieveAnswer(
-  input: { conversationId: string; question: string; imagePaths: string[] },
+  input: { question: string; imagePaths: string[] },
   hooks?: RetrievalProgressHooks
 ): Promise<RetrievalDecision> {
   const settings = await getRuntimeSettings();
-  const contextSummary = await runProgressStep(hooks, "summarize_context", () =>
-    summarizeContext(input.conversationId, settings.maxContextTurns)
-  );
   const queryText = await runProgressStep(hooks, "rewrite_query", () =>
     buildMultimodalQueryText({
       question: input.question,
-      contextSummary,
       imagePaths: input.imagePaths
     })
   );
@@ -181,7 +162,6 @@ export async function retrieveAnswer(
 
         return {
           sourceType: "kb",
-          contextSummary,
           queryText,
           retrievalDebug,
           knowledgeItem: {
@@ -196,7 +176,6 @@ export async function retrieveAnswer(
 
       return {
         sourceType: "llm",
-        contextSummary,
         queryText,
         retrievalDebug
       } satisfies RetrievalDecision;

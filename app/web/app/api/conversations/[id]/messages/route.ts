@@ -5,7 +5,13 @@ import { FIXED_ASSISTANT_SUFFIX } from "@pharmacy/shared";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { PROGRESS_STEP_LABELS, PROGRESS_STEP_ORDER } from "@/lib/chat-progress";
-import { buildGeneralPharmacyPrompt, buildKbStyledPrompt, streamGeneralPharmacyAnswer, streamKbStyledAnswer } from "@/lib/openai";
+import {
+  buildGeneralPharmacyPrompt,
+  buildKbStyledPrompt,
+  streamGeneralPharmacyAnswer,
+  streamKbStyledAnswer,
+  type ModelChatMessage
+} from "@/lib/openai";
 import { streamMultimodalChat } from "@/lib/retrieval/ml-service";
 import {
   appendConversationMessage,
@@ -14,9 +20,52 @@ import {
   refreshConversationTitle
 } from "@/lib/services/conversations";
 import { retrieveAnswer } from "@/lib/services/retrieval";
+import { getRuntimeSettings } from "@/lib/services/settings";
+import { getAttachmentItems, isImageAttachment } from "@/lib/utils";
 
 function sseChunk(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function toModelHistoryMessages(
+  messages: Awaited<ReturnType<typeof getConversationMessages>>,
+  currentUserMessageId: string
+): ModelChatMessage[] {
+  const historyMessages = messages
+    .filter((message) => message.id !== currentUserMessageId)
+    .map((message): ModelChatMessage | null => {
+      const content = message.contentText.trim();
+      if (!content) {
+        return null;
+      }
+
+      if (message.role === "user") {
+        const imagePaths = getAttachmentItems(message.attachmentsJson)
+          .filter(isImageAttachment)
+          .map((item) => item.path);
+        return {
+          role: "user",
+          content,
+          imagePaths
+        };
+      }
+
+      if (message.role === "assistant" || message.role === "human_l1" || message.role === "human_l2") {
+        return {
+          role: "assistant",
+          content
+        };
+      }
+
+      return null;
+    })
+    .filter((message): message is ModelChatMessage => Boolean(message));
+
+  while (historyMessages[0]?.role === "assistant") {
+    historyMessages.shift();
+  }
+
+  return historyMessages;
 }
 
 function createProgressTracker(onProgress: (payload: unknown) => void) {
@@ -194,7 +243,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
         try {
           progress.startStep("save_input");
-          await appendConversationMessage({
+          const userMessage = await appendConversationMessage({
             conversationId: id,
             role: "user",
             sourceType: "system",
@@ -204,9 +253,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           await refreshConversationTitle(id, text || "图片问题");
           progress.completeStep("save_input");
 
+          progress.startStep("summarize_context");
+          const settings = await getRuntimeSettings();
+          const allMessages = await getConversationMessages(id);
+          const historyMessages = toModelHistoryMessages(allMessages, userMessage.id).slice(-settings.maxContextTurns * 2);
+          while (historyMessages[0]?.role === "assistant") {
+            historyMessages.shift();
+          }
+          progress.completeStep("summarize_context", historyMessages.length ? `已加载 ${historyMessages.length} 条历史消息` : "无历史消息");
+
           const retrieval = await retrieveAnswer(
             {
-              conversationId: id,
               question: text,
               imagePaths: attachmentImagePaths
             },
@@ -235,25 +292,33 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           );
           progress.startStep("await_first_token");
 
-          if (attachmentImagePaths.length > 0) {
+          const hasGenerationImages =
+            attachmentImagePaths.length > 0 || historyMessages.some((message) => Boolean(message.imagePaths?.length));
+
+          if (hasGenerationImages) {
             const prompt =
               retrieval.sourceType === "kb"
                 ? buildKbStyledPrompt({
                     question: text,
-                    contextSummary: retrieval.contextSummary,
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets
                   })
                 : buildGeneralPharmacyPrompt({
-                    question: text,
-                    contextSummary: retrieval.contextSummary
+                    question: text
                   });
+            const messages: ModelChatMessage[] = [
+              ...historyMessages,
+              {
+                role: "user",
+                content: prompt.userText,
+                imagePaths: attachmentImagePaths
+              }
+            ];
 
             const multimodalResponse = await streamMultimodalChat({
               systemPrompt: prompt.system,
-              userText: prompt.userText,
-              imagePaths: attachmentImagePaths
+              messages
             });
             const reader = multimodalResponse.body!.getReader();
             const decoder = new TextDecoder();
@@ -274,14 +339,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
               retrieval.sourceType === "kb"
                 ? await streamKbStyledAnswer({
                     question: text,
-                    contextSummary: retrieval.contextSummary,
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
-                    referenceSnippets: retrieval.referenceSnippets
+                    referenceSnippets: retrieval.referenceSnippets,
+                    historyMessages
                   })
                 : await streamGeneralPharmacyAnswer({
                     question: text,
-                    contextSummary: retrieval.contextSummary
+                    historyMessages
                   });
 
             for await (const chunk of llmStream) {

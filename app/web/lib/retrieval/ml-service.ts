@@ -1,4 +1,5 @@
 import { env } from "@/lib/env";
+import type { ModelChatMessage } from "@/lib/openai";
 
 export type ParsedKnowledgeItem = {
   categoryL1: string;
@@ -116,8 +117,9 @@ export async function parseDocument(filePath: string) {
 
 export async function streamMultimodalChat(input: {
   systemPrompt: string;
-  userText: string;
-  imagePaths: string[];
+  userText?: string;
+  imagePaths?: string[];
+  messages?: ModelChatMessage[];
   model?: string;
 }) {
   const response = await fetch(`${env.ML_SERVICE_URL}/chat-multimodal-stream`, {
@@ -129,6 +131,11 @@ export async function streamMultimodalChat(input: {
       system_prompt: input.systemPrompt,
       user_text: input.userText,
       image_paths: input.imagePaths,
+      messages: input.messages?.map((message) => ({
+        role: message.role,
+        text: message.content,
+        image_paths: message.imagePaths ?? []
+      })),
       model: input.model
     })
   });
