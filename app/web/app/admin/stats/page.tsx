@@ -1,25 +1,21 @@
-import Link from "next/link";
 import { BarChart3, Bot, CheckCircle2, Database, FileText, MessageSquare, Search, Ticket } from "lucide-react";
 
-import { AppShell } from "@/components/layout/app-shell";
 import { MetricCard } from "@/components/shared/metric-card";
 import { TicketStatusBadge } from "@/components/shared/status-badge";
+import { MiniPager } from "@/components/stats/mini-pager";
 import { TrendChart } from "@/components/stats/trend-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
-import { requireUser } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/presentation";
 import { getStatsSummary, getTrendData, listHistoryMessages, listHistoryTickets } from "@/lib/services/stats";
-import { getPendingTicketCounts } from "@/lib/services/tickets";
 
 export default async function AdminStatsPage(props: {
   searchParams: Promise<{ q?: string; messagePage?: string; ticketPage?: string }>;
 }) {
-  const user = await requireUser();
   const searchParams = await props.searchParams;
-  const [summary, trends, messages, tickets, pendingCounts] = await Promise.all([
+  const [summary, trends, messages, tickets] = await Promise.all([
     getStatsSummary(),
     getTrendData(),
     listHistoryMessages({
@@ -31,8 +27,7 @@ export default async function AdminStatsPage(props: {
       q: searchParams.q,
       page: Number(searchParams.ticketPage ?? 1),
       pageSize: 5
-    }),
-    getPendingTicketCounts()
+    })
   ]);
 
   const kbRate = Math.round(summary.kbHitRate * 1000) / 10;
@@ -40,14 +35,7 @@ export default async function AdminStatsPage(props: {
   const transferRate = summary.totalQuestions ? Math.round((summary.transferCount / summary.totalQuestions) * 1000) / 10 : 0;
 
   return (
-    <AppShell
-      role={user.role}
-      displayName={user.displayName}
-      title="统计分析"
-      description="查看问答命中、工单闭环和最近 7 天趋势。"
-      initialPendingCounts={pendingCounts}
-    >
-      <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5">
         <form className="ml-auto flex w-full max-w-md items-center gap-3">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -116,7 +104,7 @@ export default async function AdminStatsPage(props: {
           <Card className="overflow-hidden">
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>历史问答</CardTitle>
-              <MiniPager param="messagePage" current={messages.page} pageCount={messages.pageCount} searchParams={searchParams} />
+              <MiniPager param="messagePage" current={messages.page} pageCount={messages.pageCount} />
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -147,7 +135,7 @@ export default async function AdminStatsPage(props: {
           <Card className="overflow-hidden">
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>历史工单</CardTitle>
-              <MiniPager param="ticketPage" current={tickets.page} pageCount={tickets.pageCount} searchParams={searchParams} />
+              <MiniPager param="ticketPage" current={tickets.page} pageCount={tickets.pageCount} />
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -180,7 +168,6 @@ export default async function AdminStatsPage(props: {
           数据统计仅包含近两年记录，每日 00:00 更新。
         </div>
       </div>
-    </AppShell>
   );
 }
 
@@ -193,33 +180,3 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-function MiniPager({
-  param,
-  current,
-  pageCount,
-  searchParams
-}: {
-  param: "messagePage" | "ticketPage";
-  current: number;
-  pageCount: number;
-  searchParams: { q?: string; messagePage?: string; ticketPage?: string };
-}) {
-  const prev = Math.max(1, current - 1);
-  const next = Math.min(pageCount, current + 1);
-  const buildHref = (page: number) => {
-    const params = new URLSearchParams();
-    if (searchParams.q) params.set("q", searchParams.q);
-    if (searchParams.messagePage) params.set("messagePage", searchParams.messagePage);
-    if (searchParams.ticketPage) params.set("ticketPage", searchParams.ticketPage);
-    params.set(param, String(page));
-    return `/admin/stats?${params.toString()}`;
-  };
-
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted">
-      <Link className="rounded border border-border px-2 py-1 hover:bg-slate-50" href={buildHref(prev)}>上一页</Link>
-      <span>{current}/{pageCount}</span>
-      <Link className="rounded border border-border px-2 py-1 hover:bg-slate-50" href={buildHref(next)}>下一页</Link>
-    </div>
-  );
-}

@@ -7,6 +7,7 @@ import { Archive, FileText, Image as ImageIcon, Pencil, Search, Trash2 } from "l
 import { ImageLightbox } from "@/components/knowledge/image-lightbox";
 import { KnowledgeEditForm } from "@/components/knowledge/knowledge-admin";
 import { PaginationBar } from "@/components/shared/pagination-bar";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { KnowledgeStatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,8 @@ export function KnowledgeTable({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [pending, startTransition] = useTransition();
+  const [bulkPending, startBulkTransition] = useTransition();
+  const [navPending, startNavTransition] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
@@ -70,11 +72,6 @@ export function KnowledgeTable({
   const [detail, setDetail] = useState<KnowledgeDetail | null>(null);
 
   const allSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
-
-  useEffect(() => {
-    const selected = searchParams.get("selected");
-    setDetailId(selected);
-  }, [searchParams]);
 
   useEffect(() => {
     if (!detailId) {
@@ -110,19 +107,17 @@ export function KnowledgeTable({
       }
     });
     params.set("page", "1");
-    router.push(`?${params.toString()}`);
+    startNavTransition(() => {
+      router.push(`?${params.toString()}`);
+    });
   }
 
   function openDetail(id: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("selected", id);
-    router.push(`?${params.toString()}`);
+    setDetailId(id);
   }
 
   function closeDetail() {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("selected");
-    router.push(`?${params.toString()}`);
+    setDetailId(null);
   }
 
   function toggleAll(checked: boolean) {
@@ -142,7 +137,7 @@ export function KnowledgeTable({
       return;
     }
 
-    startTransition(async () => {
+    startBulkTransition(async () => {
       await fetch("/api/knowledge/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,26 +161,26 @@ export function KnowledgeTable({
           </div>
           <Button type="submit" variant="outline">搜索</Button>
         </form>
-        <Select value={category ?? "all"} onChange={(event) => update({ category: event.target.value })} className="w-40">
+        <Select value={category ?? "all"} disabled={navPending} onChange={(event) => update({ category: event.target.value })} className="w-40">
           <option value="all">全部分类</option>
           {categoryOptions.map((item) => (
             <option key={item} value={item}>{item}</option>
           ))}
         </Select>
-        <Select value={status ?? "all"} onChange={(event) => update({ status: event.target.value })} className="w-32">
+        <Select value={status ?? "all"} disabled={navPending} onChange={(event) => update({ status: event.target.value })} className="w-32">
           <option value="all">全部状态</option>
           <option value="published">已发布</option>
           <option value="draft">草稿</option>
           <option value="archived">已归档</option>
         </Select>
-        <Button variant="outline" disabled={!selectedIds.length || pending} onClick={() => runBulk("publish")}>
+        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("publish")}>
           发布
         </Button>
-        <Button variant="outline" disabled={!selectedIds.length || pending} onClick={() => runBulk("archive")}>
+        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("archive")}>
           <Archive className="size-4" />
           归档
         </Button>
-        <Button variant="outline" disabled={!selectedIds.length || pending} onClick={() => runBulk("delete")}>
+        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("delete")}>
           <Trash2 className="size-4" />
           删除
         </Button>
@@ -209,7 +204,9 @@ export function KnowledgeTable({
             </tr>
           </THead>
           <TBody>
-            {items.map((item) => {
+            {navPending ? (
+              <TableSkeleton columns={9} rows={5} />
+            ) : items.map((item) => {
               const imagePaths: string[] = item.imagePathsJson
                 ? JSON.parse(item.imagePathsJson)
                 : item.imagePath
@@ -278,10 +275,23 @@ export function KnowledgeTable({
             })}
           </TBody>
         </Table>
-        {!items.length ? <div className="px-4 py-12 text-center text-sm text-muted">暂无知识条目</div> : null}
+        {!items.length && !navPending ? <div className="px-4 py-12 text-center text-sm text-muted">暂无知识条目</div> : null}
       </div>
 
-      <PaginationBar total={total} page={page} pageSize={pageSize} pageCount={pageCount} />
+      <PaginationBar
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        pageCount={pageCount}
+        isPending={navPending}
+        onNavigate={(params) => {
+          const merged = new URLSearchParams(searchParams.toString());
+          Object.entries(params).forEach(([key, value]) => merged.set(key, value));
+          startNavTransition(() => {
+            router.push(`?${merged.toString()}`);
+          });
+        }}
+      />
 
       <Sheet open={Boolean(detailId)} onOpenChange={(open) => (!open ? closeDetail() : undefined)}>
         <SheetContent className="max-w-xl">

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Ticket, User } from "@prisma/client";
 import { CheckCircle2, Clock3, FileText, Filter, Pin, Search, Ticket as TicketIcon } from "lucide-react";
+import { useTransition } from "react";
 
 import { MetricCard } from "@/components/shared/metric-card";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { PriorityBadge, TicketStatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +35,7 @@ export function TicketList(props: {
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
   const result = props.result as TicketListResult & { items: TicketRow[] };
 
   function update(next: Record<string, string>) {
@@ -45,7 +48,9 @@ export function TicketList(props: {
       }
     });
     params.set("page", "1");
-    router.push(`?${params.toString()}`);
+    startTransition(() => {
+      router.push(`?${params.toString()}`);
+    });
   }
 
   const tabs: Array<{ key: TicketStatusGroup; label: string; count: number }> = [
@@ -110,7 +115,7 @@ export function TicketList(props: {
             <Filter className="size-4" />
             筛选
           </Button>
-          <Select value={props.currentAssignee} onChange={(event) => update({ assignee: event.target.value })} className="w-32">
+          <Select value={props.currentAssignee} disabled={isPending} onChange={(event) => update({ assignee: event.target.value })} className="w-32">
             <option value="all">全部级别</option>
             <option value="human_l1">人工1</option>
             <option value="human_l2">人工2</option>
@@ -120,7 +125,7 @@ export function TicketList(props: {
 
       <div>
         <h2 className="mb-3 text-base font-semibold text-slate-900">今日工单概览</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-5", isPending && "opacity-60")}>
           <MetricCard label="待处理" value={result.summary.pending} description="待人工响应" icon={FileText} tone="blue" trend="12.5%" />
           <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
           <MetricCard label="已升级" value={result.summary.escalated} description="人工2跟进" icon={Pin} tone="purple" trend="2.3%" />
@@ -145,44 +150,61 @@ export function TicketList(props: {
               </tr>
             </THead>
             <TBody>
-              {result.items.map((ticket) => (
-                <tr key={ticket.id}>
-                  <TD className="font-medium text-slate-900">{ticket.ticketNo}</TD>
-                  <TD>
-                    <div className="max-w-[280px]">
-                      <div className="truncate font-medium text-slate-900">{ticket.title}</div>
-                      <div className="mt-1 truncate text-xs text-muted">{ticket.latestUserQuestion}</div>
-                    </div>
-                  </TD>
-                  <TD>
-                    <Badge className="border border-blue-100 bg-blue-50 text-primary">{ticket.category}</Badge>
-                  </TD>
-                  <TD>
-                    <div className="flex flex-col gap-1">
-                      <Badge className="border border-purple-100 bg-purple-50 text-purple-600">{roleLabel(ticket.currentAssigneeRole)}</Badge>
-                      <TicketStatusBadge status={ticket.status} />
-                    </div>
-                  </TD>
-                  <TD>
-                    <PriorityBadge priority={ticket.priority} />
-                  </TD>
-                  <TD>{ticket.createdBy?.displayName || "-"}</TD>
-                  <TD>{formatDateTime(ticket.createdAt)}</TD>
-                  <TD className="text-right">
-                    <Link
-                      href={`${props.basePath}/${ticket.id}`}
-                      className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
-                    >
-                      查看详情
-                    </Link>
-                  </TD>
-                </tr>
-              ))}
+              {isPending ? (
+                <TableSkeleton columns={8} rows={5} />
+              ) : (
+                result.items.map((ticket) => (
+                  <tr key={ticket.id}>
+                    <TD className="font-medium text-slate-900">{ticket.ticketNo}</TD>
+                    <TD>
+                      <div className="max-w-[280px]">
+                        <div className="truncate font-medium text-slate-900">{ticket.title}</div>
+                        <div className="mt-1 truncate text-xs text-muted">{ticket.latestUserQuestion}</div>
+                      </div>
+                    </TD>
+                    <TD>
+                      <Badge className="border border-blue-100 bg-blue-50 text-primary">{ticket.category}</Badge>
+                    </TD>
+                    <TD>
+                      <div className="flex flex-col gap-1">
+                        <Badge className="border border-purple-100 bg-purple-50 text-purple-600">{roleLabel(ticket.currentAssigneeRole)}</Badge>
+                        <TicketStatusBadge status={ticket.status} />
+                      </div>
+                    </TD>
+                    <TD>
+                      <PriorityBadge priority={ticket.priority} />
+                    </TD>
+                    <TD>{ticket.createdBy?.displayName || "-"}</TD>
+                    <TD>{formatDateTime(ticket.createdAt)}</TD>
+                    <TD className="text-right">
+                      <Link
+                        href={`${props.basePath}/${ticket.id}`}
+                        className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                      >
+                        查看详情
+                      </Link>
+                    </TD>
+                  </tr>
+                ))
+              )}
             </TBody>
           </Table>
           {!result.items.length ? <div className="px-4 py-12 text-center text-sm text-muted">暂无工单</div> : null}
         </div>
-        <PaginationBar total={result.total} page={result.page} pageSize={result.pageSize} pageCount={result.pageCount} />
+        <PaginationBar
+          total={result.total}
+          page={result.page}
+          pageSize={result.pageSize}
+          pageCount={result.pageCount}
+          isPending={isPending}
+          onNavigate={(params) => {
+            const merged = new URLSearchParams(searchParams.toString());
+            Object.entries(params).forEach(([key, value]) => merged.set(key, value));
+            startTransition(() => {
+              router.push(`?${merged.toString()}`);
+            });
+          }}
+        />
       </Card>
     </div>
   );

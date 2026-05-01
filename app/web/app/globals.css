@@ -96,6 +96,10 @@
     animation: fade-in 200ms ease-out;
   }
 
+  .animate-fade-out {
+    animation: fade-out 200ms ease-out;
+  }
+
   .animate-slide-in-from-right {
     animation: slide-in-from-right 300ms cubic-bezier(0.16, 1, 0.3, 1);
   }

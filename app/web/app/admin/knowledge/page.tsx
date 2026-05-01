@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/layout/app-shell";
 import {
   KnowledgeImportButton,
   KnowledgeCreateForm
@@ -6,16 +5,13 @@ import {
 import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { MetricCard } from "@/components/shared/metric-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { listKnowledgeItems } from "@/lib/services/knowledge";
-import { getPendingTicketCounts } from "@/lib/services/tickets";
 import { BookOpen, CheckSquare, Image, PlusSquare } from "lucide-react";
 
 export default async function AdminKnowledgePage(props: { searchParams: Promise<{ q?: string; category?: string; status?: string; page?: string; pageSize?: string }> }) {
-  const user = await requireUser();
   const searchParams = await props.searchParams;
-  const [knowledgeResult, jobs, pendingCounts] = await Promise.all([
+  const [knowledgeResult, jobs] = await Promise.all([
     listKnowledgeItems({
       q: searchParams.q,
       category: searchParams.category,
@@ -26,8 +22,7 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
     prisma.importJob.findMany({
       orderBy: { createdAt: "desc" },
       take: 20
-    }),
-    getPendingTicketCounts()
+    })
   ]);
 
   const serializedItems = knowledgeResult.items.map((item) => ({
@@ -48,13 +43,7 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
   }));
 
   return (
-    <AppShell
-      role={user.role}
-      displayName={user.displayName}
-      title="知识库管理"
-      description="导入知识文档、手动新增知识条目、查看和管理已有知识。"
-      initialPendingCounts={pendingCounts}
-    >
+    <>
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="知识条目数" value={knowledgeResult.summary.total} description="全量知识沉淀" icon={BookOpen} tone="blue" trend="12.6%" />
         <MetricCard label="图片知识数" value={knowledgeResult.summary.imageCount} description="多模态资料" icon={Image} tone="green" trend="15.3%" />
@@ -132,6 +121,6 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
           </Card>
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

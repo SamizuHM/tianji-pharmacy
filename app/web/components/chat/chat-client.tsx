@@ -598,7 +598,6 @@ export function ChatClient(props: {
                 );
               })}
             </div>
-
           </div>
 
           <button

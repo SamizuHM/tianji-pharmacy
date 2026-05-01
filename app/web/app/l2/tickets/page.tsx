@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/layout/app-shell";
 import { TicketList } from "@/components/tickets/ticket-list";
 import { requireUser } from "@/lib/auth/session";
 import { getPendingTicketCounts, listTickets } from "@/lib/services/tickets";
@@ -21,21 +20,13 @@ export default async function L2TicketsPage(props: { searchParams: Promise<{ sta
   ]);
 
   return (
-    <AppShell
-      role={user.role}
-      displayName={user.displayName}
-      title="人工处理2工单台"
-      description="专门处理升级工单，并负责最终闭环。"
-      initialPendingCounts={pendingCounts}
-    >
-      <TicketList
-        title={`人工处理2工单列表（待处理 ${pendingCounts.human_l2}）`}
-        basePath="/l2/tickets"
-        result={result}
-        currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all"}
-        currentAssignee={searchParams.assignee ?? "all"}
-        q={searchParams.q}
-      />
-    </AppShell>
+    <TicketList
+      title={`人工处理2工单列表（待处理 ${pendingCounts.human_l2}）`}
+      basePath="/l2/tickets"
+      result={result}
+      currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all"}
+      currentAssignee={searchParams.assignee ?? "all"}
+      q={searchParams.q}
+    />
   );
 }

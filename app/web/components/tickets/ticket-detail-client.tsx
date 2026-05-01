@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { AttachmentItem } from "@pharmacy/shared";
 import { Ticket, TicketMessage } from "@prisma/client";
-import { ArrowUpRight, CheckCircle2, MessageSquareReply, Upload } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Loader2, MessageSquareReply, Upload } from "lucide-react";
 
 import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { PriorityBadge, TicketStatusBadge } from "@/components/shared/status-badge";
@@ -184,29 +184,29 @@ export function TicketDetailClient(props: {
               {props.role === "human_l1" && props.ticket.status !== "closed" ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-left text-orange-600 transition hover:bg-orange-100"
+                  className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-left text-orange-600 transition hover:bg-orange-100 disabled:opacity-60"
                   onClick={escalate}
                   disabled={pending}
                 >
                   <span>
-                    <span className="block text-sm font-medium">升级到人工处理2</span>
+                    <span className="block text-sm font-medium">{pending ? "升级中..." : "升级到人工处理2"}</span>
                     <span className="text-xs text-muted">升级给更高级别的人工处理者</span>
                   </span>
-                  <ArrowUpRight className="size-5" />
+                  {pending ? <Loader2 className="size-5 animate-spin" /> : <ArrowUpRight className="size-5" />}
                 </button>
               ) : null}
               {props.role !== "staff" && props.ticket.status !== "closed" ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-emerald-600 transition hover:bg-emerald-100"
+                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-emerald-600 transition hover:bg-emerald-100 disabled:opacity-60"
                   onClick={closeTicket}
                   disabled={pending || !resolutionText.trim()}
                 >
                   <span>
-                    <span className="block text-sm font-medium">关闭工单</span>
+                    <span className="block text-sm font-medium">{pending ? "关闭中..." : "关闭工单"}</span>
                     <span className="text-xs text-muted">问题已解决，关闭并归档工单</span>
                   </span>
-                  <CheckCircle2 className="size-5" />
+                  {pending ? <Loader2 className="size-5 animate-spin" /> : <CheckCircle2 className="size-5" />}
                 </button>
               ) : null}
             </CardContent>
@@ -276,7 +276,7 @@ export function TicketDetailClient(props: {
                 ))}
               </div>
               <Button variant="secondary" onClick={postReply} disabled={pending || props.ticket.status === "closed"}>
-                发送处理回复
+                {pending ? "发送中..." : "发送处理回复"}
               </Button>
               {props.role !== "staff" && props.ticket.status !== "closed" ? (
                 <>
@@ -286,7 +286,7 @@ export function TicketDetailClient(props: {
                     onChange={(event) => setResolutionText(event.target.value)}
                   />
                   <Button onClick={closeTicket} disabled={pending || !resolutionText.trim()}>
-                    关闭工单并写回知识库
+                    {pending ? "关闭中..." : "关闭工单并写回知识库"}
                   </Button>
                 </>
               ) : null}
