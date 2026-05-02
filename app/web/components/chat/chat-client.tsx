@@ -47,7 +47,7 @@ type Conversation = {
 
 type Message = {
   id: string;
-  role: "user" | "assistant" | "human_l1" | "human_l2" | "system";
+  role: "user" | "assistant" | "agent" | "system";
   sourceType: "kb" | "llm" | "manual" | "system";
   contentText: string;
   attachmentsJson: string | null;
@@ -733,8 +733,8 @@ function BookOpenIcon() {
 }
 
 function sourceLabel(sourceType: Message["sourceType"], role: Message["role"]) {
-  if (role === "human_l1" || role === "human_l2") {
-    return "人工处理";
+  if (role === "agent") {
+    return "人工客服";
   }
 
   switch (sourceType) {

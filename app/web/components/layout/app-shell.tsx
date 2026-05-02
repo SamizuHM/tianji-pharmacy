@@ -36,30 +36,24 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger }
 import { roleLabel, statusLabel } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
-const navByRole: Record<
-  UserRole,
-  Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>
-> = {
-  staff: [
-    { href: "/staff/chat", label: "问答工作台", icon: MessageCircle },
-    { href: "/staff/tickets", label: "人工工单", icon: Tickets },
+function getNavItems(role: UserRole, userDepartmentName?: string | null): Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }> {
+  if (role === "staff") {
+    return [
+      { href: "/staff/chat", label: "问答工作台", icon: MessageCircle },
+      { href: "/staff/tickets", label: "人工工单", icon: Tickets },
+      { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
+      { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
+      { href: "/admin/settings", label: "系统设置", icon: Settings }
+    ];
+  }
+  const countKey: "pendingClaim" | "escalated" = userDepartmentName ? "escalated" : "pendingClaim";
+  return [
+    { href: "/agent/tickets", label: "人工工单", icon: Tickets, countKey },
     { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
     { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
     { href: "/admin/settings", label: "系统设置", icon: Settings }
-  ],
-  human_l1: [
-    { href: "/l1/tickets", label: "人工工单", icon: Tickets, countKey: "pendingClaim" },
-    { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
-    { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
-    { href: "/admin/settings", label: "系统设置", icon: Settings }
-  ],
-  human_l2: [
-    { href: "/l2/tickets", label: "人工工单", icon: Tickets, countKey: "escalated" },
-    { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
-    { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
-    { href: "/admin/settings", label: "系统设置", icon: Settings }
-  ]
-};
+  ];
+}
 
 type PendingCounts = {
   pendingClaim: number;
@@ -86,6 +80,7 @@ export function AppShell(props: {
   title: string;
   description?: string;
   initialPendingCounts?: PendingCounts;
+  userDepartmentName?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -93,7 +88,7 @@ export function AppShell(props: {
     props.initialPendingCounts ?? { pendingClaim: 0, escalated: 0 }
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const navItems = useMemo(() => navByRole[props.role], [props.role]);
+  const navItems = useMemo(() => getNavItems(props.role, props.userDepartmentName), [props.role, props.userDepartmentName]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
@@ -342,7 +337,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
     };
   }, [query]);
 
-  const ticketBase = role === "staff" ? "/staff/tickets" : role === "human_l1" ? "/l1/tickets" : "/l2/tickets";
+  const ticketBase = role === "staff" ? "/staff/tickets" : "/agent/tickets";
 
   return (
     <div className="relative hidden w-full max-w-md md:block">

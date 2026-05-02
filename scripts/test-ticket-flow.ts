@@ -42,24 +42,24 @@ async function main() {
 
   // 1. 获取用户
   const staffUser = await prisma.user.findUnique({ where: { username: "药店工作人员" } });
-  const l1User1 = await prisma.user.findUnique({ where: { username: "人工处理1" } });
-  const l1User2 = await prisma.user.findUnique({ where: { username: "人工处理2" } });
+  const agentUser1 = await prisma.user.findUnique({ where: { username: "人工处理1" } });
+  const agentUser2 = await prisma.user.findUnique({ where: { username: "人工处理2" } });
   const deptUser = await prisma.user.findUnique({ where: { username: "营运-张伟" } });
 
-  if (!staffUser || !l1User1 || !l1User2 || !deptUser) {
+  if (!staffUser || !agentUser1 || !agentUser2 || !deptUser) {
     console.error("缺少测试用户");
     return;
   }
 
   console.log(`staff: ${staffUser.displayName} (${staffUser.id})`);
-  console.log(`L1-1: ${l1User1.displayName} (${l1User1.id})`);
-  console.log(`L1-2: ${l1User2.displayName} (${l1User2.id})`);
+  console.log(`Agent-1: ${agentUser1.displayName} (${agentUser1.id})`);
+  console.log(`Agent-2: ${agentUser2.displayName} (${agentUser2.id})`);
   console.log(`营运-张伟: ${deptUser.displayName} (${deptUser.id})\n`);
 
   // 2. 登录所有用户
   const staffCookie = await login("药店工作人员");
-  const l1Cookie1 = await login("人工处理1");
-  const l1Cookie2 = await login("人工处理2");
+  const agentCookie1 = await login("人工处理1");
+  const agentCookie2 = await login("人工处理2");
   const deptCookie = await login("营运-张伟");
   console.log("✓ 所有用户登录成功\n");
 
@@ -70,6 +70,9 @@ async function main() {
       data: { title: "测试会话", userId: staffUser.id }
     });
   }
+
+  // 清除旧消息避免冲突
+  await prisma.chatMessage.deleteMany({ where: { conversationId: conversation.id } });
 
   await prisma.chatMessage.createMany({
     data: [
@@ -97,38 +100,38 @@ async function main() {
   console.log();
 
   // 5. 查看待认领列表
-  console.log("--- 测试2: L1 查看待认领列表 ---");
-  const listRes = await api("/api/tickets?statusGroup=pending", l1Cookie1);
+  console.log("--- 测试2: Agent 查看待认领列表 ---");
+  const listRes = await api("/api/tickets?statusGroup=pending", agentCookie1);
   console.log(`状态: ${listRes.status}`);
   console.log(`待认领数量: ${listRes.data.total}`);
   console.log();
 
-  // 6. L1-1 认领工单
-  console.log("--- 测试3: L1-1 认领工单 ---");
-  const claimRes = await api(`/api/tickets/${ticketId}/claim`, l1Cookie1, { method: "POST" });
+  // 6. Agent-1 认领工单
+  console.log("--- 测试3: Agent-1 认领工单 ---");
+  const claimRes = await api(`/api/tickets/${ticketId}/claim`, agentCookie1, { method: "POST" });
   console.log(`状态: ${claimRes.status}`);
   console.log(`工单状态: ${claimRes.data.ticket?.status}`);
   console.log();
 
-  // 7. L1-2 尝试认领同一工单（应失败）
-  console.log("--- 测试4: L1-2 并发认领（应返回409） ---");
-  const claimRes2 = await api(`/api/tickets/${ticketId}/claim`, l1Cookie2, { method: "POST" });
+  // 7. Agent-2 尝试认领同一工单（应失败）
+  console.log("--- 测试4: Agent-2 并发认领（应返回409） ---");
+  const claimRes2 = await api(`/api/tickets/${ticketId}/claim`, agentCookie2, { method: "POST" });
   console.log(`状态: ${claimRes2.status} (期望 409)`);
   console.log(`错误: ${claimRes2.data.error}`);
   console.log();
 
-  // 8. L1-1 回复工单
-  console.log("--- 测试5: L1-1 回复工单 ---");
-  const replyRes = await api(`/api/tickets/${ticketId}/reply`, l1Cookie1, {
+  // 8. Agent-1 回复工单
+  console.log("--- 测试5: Agent-1 回复工单 ---");
+  const replyRes = await api(`/api/tickets/${ticketId}/reply`, agentCookie1, {
     method: "POST",
     body: JSON.stringify({ content: "已排查，医保网络正常，建议重启读卡器后重试" })
   });
   console.log(`状态: ${replyRes.status}`);
   console.log();
 
-  // 9. L1-1 升级到营运部
-  console.log("--- 测试6: L1-1 升级到营运部 ---");
-  const escalateRes = await api(`/api/tickets/${ticketId}/escalate`, l1Cookie1, {
+  // 9. Agent-1 升级到营运部
+  console.log("--- 测试6: Agent-1 升级到营运部 ---");
+  const escalateRes = await api(`/api/tickets/${ticketId}/escalate`, agentCookie1, {
     method: "POST",
     body: JSON.stringify({ targetDept: "营运部" })
   });
@@ -162,9 +165,9 @@ async function main() {
   console.log(`状态: ${submitRes.status}`);
   console.log();
 
-  // 13. L1-1 尝试关闭（应失败，只有staff能关）
-  console.log("--- 测试10: L1-1 尝试关闭（应返回403） ---");
-  const closeFailRes = await api(`/api/tickets/${ticketId}/close`, l1Cookie1, {
+  // 13. Agent-1 尝试关闭（应失败，只有staff能关）
+  console.log("--- 测试10: Agent 尝试关闭（应返回403） ---");
+  const closeFailRes = await api(`/api/tickets/${ticketId}/close`, agentCookie1, {
     method: "POST",
     body: JSON.stringify({ resolutionText: "测试" })
   });

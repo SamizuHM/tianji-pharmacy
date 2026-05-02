@@ -9,15 +9,13 @@ datasource db {
 
 enum UserRole {
   staff
-  human_l1
-  human_l2
+  agent
 }
 
 enum MessageRole {
   user
   assistant
-  human_l1
-  human_l2
+  agent
   system
 }
 

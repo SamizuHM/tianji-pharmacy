@@ -4,10 +4,8 @@ export function roleLabel(role: UserRole) {
   switch (role) {
     case "staff":
       return "药店工作人员";
-    case "human_l1":
-      return "人工处理1";
-    case "human_l2":
-      return "人工处理2";
+    case "agent":
+      return "人工客服";
     default:
       return role;
   }

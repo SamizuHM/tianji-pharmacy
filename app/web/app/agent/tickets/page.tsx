@@ -2,8 +2,8 @@ import { TicketList } from "@/components/tickets/ticket-list";
 import { requireUser } from "@/lib/auth/session";
 import { getPendingTicketCounts, listTickets } from "@/lib/services/tickets";
 
-export default async function L1TicketsPage(props: { searchParams: Promise<{ status?: string; statusGroup?: string; q?: string; page?: string; pageSize?: string }> }) {
-  const user = await requireUser(["human_l1"]);
+export default async function AgentTicketsPage(props: { searchParams: Promise<{ status?: string; statusGroup?: string; q?: string; page?: string; pageSize?: string }> }) {
+  const user = await requireUser(["agent"]);
   const searchParams = await props.searchParams;
   const [result, pendingCounts] = await Promise.all([
     listTickets({
@@ -21,8 +21,8 @@ export default async function L1TicketsPage(props: { searchParams: Promise<{ sta
 
   return (
     <TicketList
-      title={`人工处理工单列表（待认领 ${pendingCounts.pendingClaim}）`}
-      basePath="/l1/tickets"
+      title={`工单列表（待认领 ${pendingCounts.pendingClaim}，已升级 ${pendingCounts.escalated}）`}
+      basePath="/agent/tickets"
       result={result}
       currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all"}
       q={searchParams.q}

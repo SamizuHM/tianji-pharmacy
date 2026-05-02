@@ -13,15 +13,14 @@ function clampPageSize(value: number | undefined) {
 }
 
 export async function getStatsSummary() {
-  const [totalQuestions, kbHits, llmAnswers, totalTickets, closedTickets, human1Closed, human2Closed, transferCount] =
+  const [totalQuestions, kbHits, llmAnswers, totalTickets, closedTickets, agentClosed, transferCount] =
     await Promise.all([
       prisma.chatMessage.count({ where: { role: "user" } }),
       prisma.chatMessage.count({ where: { role: "assistant", sourceType: "kb" } }),
       prisma.chatMessage.count({ where: { role: "assistant", sourceType: "llm" } }),
       prisma.ticket.count(),
       prisma.ticket.count({ where: { status: "closed" } }),
-      prisma.ticket.count({ where: { status: "closed", closedBy: { role: "human_l1" } } }),
-      prisma.ticket.count({ where: { status: "closed", closedBy: { role: "human_l2" } } }),
+      prisma.ticket.count({ where: { status: "closed", closedBy: { role: "agent" } } }),
       prisma.ticket.count()
     ]);
 
@@ -32,8 +31,7 @@ export async function getStatsSummary() {
     transferCount,
     totalTickets,
     closedTickets,
-    human1Closed,
-    human2Closed,
+    agentClosed,
     kbHitRate: totalQuestions ? kbHits / totalQuestions : 0,
     closedRate: totalTickets ? closedTickets / totalTickets : 0
   };

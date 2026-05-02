@@ -5,7 +5,7 @@ import { escalateTicket } from "@/lib/services/tickets";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "human_l1") {
+  if (!user || user.role !== "agent") {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

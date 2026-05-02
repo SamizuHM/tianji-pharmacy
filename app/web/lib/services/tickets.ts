@@ -73,7 +73,7 @@ function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId" | "use
     return { createdByUserId: params.userId };
   }
 
-  // human_l1: can see pending_claim (to claim), their own claimed, escalated to their dept/person, and closed
+  // agent: can see pending_claim (to claim), their own claimed, escalated to their dept/person, and closed
   const conditions: Prisma.TicketWhereInput[] = [
     { status: "pending_claim" },
     { claimedByUserId: params.userId },
@@ -184,7 +184,7 @@ export async function createTicketFromConversation(input: {
     message: `工单 ${ticket.ticketNo} 待认领：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["human_l1"]
+    targetRoles: ["agent"]
   });
 
   return ticket;
@@ -322,7 +322,7 @@ export async function replyTicket(input: {
   });
 
   // Transition pending_claim/escalated to processing when a human replies
-  if ((input.senderRole === "human_l1" || input.senderRole === "human_l2") &&
+  if (input.senderRole === "agent" &&
       (ticket.status === "pending_claim" || ticket.status === "escalated")) {
     await prisma.ticket.update({
       where: { id: input.ticketId },
@@ -332,7 +332,7 @@ export async function replyTicket(input: {
         firstRespondedAt: ticket.firstRespondedAt ?? new Date()
       }
     });
-  } else if (input.senderRole === "human_l1" || input.senderRole === "human_l2") {
+  } else if (input.senderRole === "agent") {
     await prisma.ticket.update({
       where: { id: input.ticketId },
       data: {
@@ -418,7 +418,7 @@ export async function escalateTicket(input: {
     message: `工单 ${ticket.ticketNo} 已升级至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["human_l1"]
+    targetRoles: ["agent"]
   });
 
   return updated;
@@ -544,7 +544,7 @@ export async function closeTicket(input: {
     message: `工单 ${ticket.ticketNo} 已完成处理并关闭`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["human_l1"],
+    targetRoles: ["agent"],
     targetUserIds: [ticket.createdByUserId, ticket.claimedByUserId].filter(Boolean) as string[]
   });
 

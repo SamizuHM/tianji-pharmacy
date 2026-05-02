@@ -94,10 +94,8 @@ function senderLabel(role: string) {
   switch (role) {
     case "user":
       return "药店工作人员";
-    case "human_l1":
-      return "人工处理";
-    case "human_l2":
-      return "人工处理";
+    case "agent":
+      return "人工客服";
     case "system":
       return "系统";
     default:

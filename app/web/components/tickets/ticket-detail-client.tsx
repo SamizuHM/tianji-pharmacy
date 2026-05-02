@@ -33,8 +33,9 @@ type Department = {
 };
 
 export function TicketDetailClient(props: {
-  role: "staff" | "human_l1" | "human_l2";
+  role: "staff" | "agent";
   userId: string;
+  userDepartmentName?: string | null;
   ticket: Ticket & {
     createdBy: { displayName: string };
     closedBy: { displayName: string } | null;
@@ -148,14 +149,14 @@ export function TicketDetailClient(props: {
 
   const isClaimant = props.ticket.claimedBy && props.ticket.claimedByUserId === props.userId;
   const isCreator = props.ticket.createdByUserId === props.userId;
-  const canClaim = props.role === "human_l1" && (props.ticket.status === "pending_claim" || props.ticket.status === "escalated");
+  const isFrontlineAgent = props.role === "agent" && !props.userDepartmentName;
+  const canClaim = props.role === "agent" && (props.ticket.status === "pending_claim" || props.ticket.status === "escalated");
   const canReply = props.ticket.status !== "closed" && (
     (props.role === "staff" && isCreator) ||
-    (props.role === "human_l1" && (isClaimant || props.ticket.status === "pending_claim")) ||
-    (props.role === "human_l2" && (isClaimant || props.ticket.status === "escalated"))
+    (props.role === "agent" && (isClaimant || props.ticket.status === "pending_claim" || props.ticket.status === "escalated"))
   );
-  const canEscalate = props.role === "human_l1" && isClaimant && props.ticket.status === "processing";
-  const canSubmitResolution = (props.role === "human_l1" || props.role === "human_l2") &&
+  const canEscalate = isFrontlineAgent && isClaimant && props.ticket.status === "processing";
+  const canSubmitResolution = props.role === "agent" &&
     (isClaimant || props.ticket.claimedByUserId === props.userId) &&
     props.ticket.status !== "closed" &&
     !props.ticket.resolutionSubmittedAt;
@@ -513,10 +514,8 @@ function senderLabel(role: TicketMessage["senderRole"]) {
   switch (role) {
     case "user":
       return "药店工作人员";
-    case "human_l1":
-      return "人工处理";
-    case "human_l2":
-      return "人工处理";
+    case "agent":
+      return "人工客服";
     default:
       return "系统";
   }

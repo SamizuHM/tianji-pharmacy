@@ -50,7 +50,7 @@ function toModelHistoryMessages(
         };
       }
 
-      if (message.role === "assistant" || message.role === "human_l1" || message.role === "human_l2") {
+      if (message.role === "assistant" || message.role === "agent") {
         return {
           role: "assistant",
           content

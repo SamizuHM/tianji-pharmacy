@@ -97,10 +97,8 @@ export function roleHome(role: UserRole) {
   switch (role) {
     case "staff":
       return "/staff/chat";
-    case "human_l1":
-      return "/l1/tickets";
-    case "human_l2":
-      return "/l2/tickets";
+    case "agent":
+      return "/agent/tickets";
     default:
       return "/login";
   }

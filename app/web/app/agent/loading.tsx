@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function L2Loading() {
+export default function AgentLoading() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex gap-3">
