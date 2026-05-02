@@ -269,7 +269,7 @@ def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[l
             resp = MultiModalEmbedding.call(
                 model="tongyi-embedding-vision-flash-2026-03-06",
                 input=input_data,
-                dimension=1024,
+                dimension=768,
             )
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"多模态 Embedding 调用失败：{exc}") from exc
