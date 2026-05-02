@@ -23,8 +23,12 @@ for i in $(seq 1 90); do
   sleep 2
 done
 
-echo "[0/3] Syncing database schema..."
-npx prisma db push --skip-generate
+if [ -f "$INIT_MARKER" ]; then
+  echo "Database already initialized, skipping schema sync."
+else
+  echo "[0/3] Syncing database schema..."
+  npx prisma db push --skip-generate
+fi
 
 if [ ! -f "$INIT_MARKER" ]; then
   echo "=== First-time initialization ==="
