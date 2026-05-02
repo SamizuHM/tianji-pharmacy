@@ -5,7 +5,8 @@ import { broadcastTicketNotification, getPendingTicketCounts } from "@/lib/notif
 import { generateTicketKnowledgeDraftWithModel, type TicketKnowledgeMaterialForModel } from "@/lib/openai";
 import { appendConversationMessage } from "@/lib/services/conversations";
 import { upsertKnowledgeItem } from "@/lib/services/knowledge";
-import { getAttachmentItems } from "@/lib/utils";
+import type { AttachmentItem } from "@pharmacy/shared";
+import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
 
 export type TicketStatusGroup = "all" | "pending" | "processing" | "escalated" | "closed";
@@ -239,6 +240,7 @@ export async function createTicketFromConversation(input: {
       sourceType: item.sourceType,
       contentText: item.contentText,
       attachmentsJson: item.attachmentsJson,
+      retrievalDebugJson: item.retrievalDebugJson,
       createdAt: item.createdAt.toISOString()
     }))
   );
@@ -270,13 +272,26 @@ export async function createTicketFromConversation(input: {
       },
       ...messages.map((message) => {
         const attachments = getAttachmentItems(message.attachmentsJson);
+        let allAttachments = attachments;
+        if (message.role === "assistant" && message.retrievalDebugJson) {
+          const debug = safeJsonParse<{ imagePaths?: string[] }>(message.retrievalDebugJson, {});
+          if (debug.imagePaths?.length) {
+            const kbImages: AttachmentItem[] = debug.imagePaths.map((path) => ({
+              name: path.split("/").pop() ?? path,
+              path,
+              mimeType: "image/png",
+              size: 0
+            }));
+            allAttachments = [...attachments, ...kbImages];
+          }
+        }
         return {
           ticketId: ticket.id,
           senderRole: message.role,
           senderUserId: message.role === "user" ? input.createdByUserId : undefined,
-          messageType: attachments.length ? "image" as const : "text" as const,
+          messageType: allAttachments.length ? "image" as const : "text" as const,
           content: message.contentText,
-          attachments: attachments.length ? JSON.stringify(attachments) : undefined
+          attachments: allAttachments.length ? JSON.stringify(allAttachments) : undefined
         };
       })
     ]

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, UploadCloud } from "lucide-react";
+import { FileText, RefreshCw, UploadCloud } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -441,6 +441,40 @@ export function KnowledgeItemDetail({
         open={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
       />
+    </div>
+  );
+}
+
+export function RebuildIndexButton() {
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function rebuild() {
+    if (!confirm("确认重建全量向量索引？这会删除 Qdrant 中所有向量并重新生成，耗时较长。")) return;
+    setPending(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/knowledge/rebuild-index", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setResult(`重建完成，共处理 ${data.rebuiltChunks} 个分块`);
+      } else {
+        setResult(data.error || "重建失败");
+      }
+    } catch {
+      setResult("请求失败");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button size="sm" variant="outline" onClick={rebuild} disabled={pending}>
+        <RefreshCw className={`mr-1 size-3.5 ${pending ? "animate-spin" : ""}`} />
+        {pending ? "重建中..." : "重建索引"}
+      </Button>
+      {result ? <span className="text-xs text-muted">{result}</span> : null}
     </div>
   );
 }

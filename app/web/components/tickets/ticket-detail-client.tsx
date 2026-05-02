@@ -167,7 +167,7 @@ export function TicketDetailClient(props: {
   );
   const canReply = props.ticket.status !== "closed" && (
     (props.role === "staff" && isCreator) ||
-    (props.role === "agent" && (isClaimant || (isFrontlineAgent && props.ticket.status === "pending_claim") || props.ticket.status === "escalated"))
+    (props.role === "agent" && isClaimant)
   );
   const canEscalate = isFrontlineAgent && isClaimant && props.ticket.status === "processing";
   const canSubmitResolution = props.role === "agent" &&
@@ -176,7 +176,7 @@ export function TicketDetailClient(props: {
     !props.ticket.resolutionSubmittedAt;
   const canClose = props.role === "staff" && isCreator &&
     props.ticket.status !== "closed" && props.ticket.resolutionSubmittedAt;
-  const canGenerateKnowledge = props.role === "agent" && props.ticket.status !== "closed";
+  const canGenerateKnowledge = props.role === "agent" && Boolean(isClaimant) && props.ticket.status !== "closed";
   const latestKnowledgeDraft = props.ticket.knowledgeDrafts[0] ?? null;
   const canCloseWithWriteback = canClose &&
     props.ticket.knowledgeStatus === "pending_writeback" &&

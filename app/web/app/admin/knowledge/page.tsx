@@ -1,6 +1,7 @@
 import {
   KnowledgeDocumentUpload,
-  KnowledgeCreateForm
+  KnowledgeCreateForm,
+  RebuildIndexButton
 } from "@/components/knowledge/knowledge-admin";
 import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { MetricCard } from "@/components/shared/metric-card";
@@ -80,9 +81,12 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
         </Card>
 
         <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>索引状态</CardTitle>
-            <CardDescription className="mt-1">最近导入记录和知识库发布概况。</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle>索引状态</CardTitle>
+              <CardDescription className="mt-1">最近导入记录和知识库发布概况。</CardDescription>
+            </div>
+            <RebuildIndexButton />
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-border bg-slate-50 p-4">
