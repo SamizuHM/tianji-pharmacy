@@ -130,7 +130,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
                     ┌──────────────────┐     ┌─────────────────┐
                     │ ML Service (8001) │────▶│  DashScope API  │
                     │                  │     │  - qwen3.5-27b   │
-                    │ /embed           │     │  - qwen3-vl-embedding │
+                    │ /embed           │     │  - tongyi-embedding-vision-flash-2026-03-06 │
                     │ /rerank          │     │  - qwen3-vl-rerank    │
                     │ /parse-document  │     │  - MultiModalConversation │
                     │ /chat-multimodal-stream │└─────────────────┘
@@ -212,7 +212,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 ### POST /embed
 
-将文本列表转换为向量，兼容现有文本调用，底层仍走多模态 embedding 模型 `qwen3-vl-embedding`。
+将文本列表转换为向量，兼容现有文本调用，底层仍走多模态 embedding 模型 `tongyi-embedding-vision-flash-2026-03-06`。
 
 **请求**：
 ```json

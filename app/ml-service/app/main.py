@@ -267,7 +267,7 @@ def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[l
 
         try:
             resp = MultiModalEmbedding.call(
-                model="qwen3-vl-embedding",
+                model="tongyi-embedding-vision-flash-2026-03-06",
                 input=input_data,
                 dimension=1024,
             )

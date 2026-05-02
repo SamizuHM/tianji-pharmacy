@@ -105,7 +105,7 @@ embedMultimodal([
 
 ML Service 侧使用：
 
-- `qwen3-vl-embedding`
+- `tongyi-embedding-vision-flash-2026-03-06`
 - 维度：`1024`
 
 召回目标：
