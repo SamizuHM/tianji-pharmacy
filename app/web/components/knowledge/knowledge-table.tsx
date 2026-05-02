@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { formatDateTime, parseTags } from "@/lib/presentation";
+import { getFileUrl } from "@/lib/utils";
 
 type KnowledgeItemRow = {
   id: string;
@@ -235,7 +236,7 @@ export function KnowledgeTable({
                             {imagePaths.slice(0, 2).map((img, i) => (
                               <img
                                 key={img}
-                                src={`/api/files/${img}`}
+                                src={getFileUrl(img)}
                                 alt=""
                                 className="size-10 cursor-pointer rounded border border-border object-cover transition-all duration-150 hover:scale-110 hover:shadow-md"
                                 onClick={() => setLightbox({ images: imagePaths, index: i })}

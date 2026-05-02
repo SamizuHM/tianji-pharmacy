@@ -438,7 +438,12 @@ export async function collectKnowledgeSourceFiles() {
   return Array.from(files);
 }
 
-export async function importKnowledgeFromFiles(filePaths: string[]) {
+export async function importKnowledgeFromFiles(
+  filePaths: string[],
+  options?: {
+    sourceFileNameByPath?: Record<string, string>;
+  }
+) {
   let importedFiles = 0;
   let importedChunks = 0;
   let skippedFiles = 0;
@@ -461,6 +466,7 @@ export async function importKnowledgeFromFiles(filePaths: string[]) {
       }
 
       for (const item of parsed.items) {
+        const sourceFile = options?.sourceFileNameByPath?.[filePath] ?? item.sourceFile;
         await upsertKnowledgeItem({
           categoryL1: item.categoryL1,
           categoryL2: item.categoryL2,
@@ -468,7 +474,7 @@ export async function importKnowledgeFromFiles(filePaths: string[]) {
           answer: item.answer,
           tags: item.tags,
           sourceType: item.docType.startsWith("image") ? "image_doc" : "seed_doc",
-          sourceFile: item.sourceFile,
+          sourceFile,
           docType: item.docType,
           imagePath: item.imagePath,
           imagePaths: item.imagePaths,

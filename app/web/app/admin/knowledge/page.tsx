@@ -1,13 +1,14 @@
 import {
-  KnowledgeImportButton,
+  KnowledgeDocumentUpload,
   KnowledgeCreateForm
 } from "@/components/knowledge/knowledge-admin";
 import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { MetricCard } from "@/components/shared/metric-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prisma } from "@/lib/db";
 import { listKnowledgeItems } from "@/lib/services/knowledge";
-import { BookOpen, CheckSquare, Image, PlusSquare } from "lucide-react";
+import { BookOpen, CheckSquare, FileUp, Image, PlusSquare, Target } from "lucide-react";
 
 export default async function AdminKnowledgePage(props: { searchParams: Promise<{ q?: string; category?: string; status?: string; page?: string; pageSize?: string }> }) {
   const searchParams = await props.searchParams;
@@ -51,22 +52,68 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
         <MetricCard label="已发布" value={knowledgeResult.summary.published} description="可被检索命中" icon={CheckSquare} tone="orange" />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>导入操作</CardTitle>
+      <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle>知识入库</CardTitle>
+              <CardDescription className="mt-1">上传业务文档或手动维护单条标准问答。</CardDescription>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded bg-blue-50 text-primary">
+              <FileUp className="size-5" />
+            </div>
           </CardHeader>
           <CardContent className="min-w-0">
-            <KnowledgeImportButton />
+            <Tabs defaultValue="upload">
+              <TabsList>
+                <TabsTrigger value="upload">导入文档</TabsTrigger>
+                <TabsTrigger value="manual">新增知识</TabsTrigger>
+              </TabsList>
+              <TabsContent value="upload" className="mt-4">
+                <KnowledgeDocumentUpload />
+              </TabsContent>
+              <TabsContent value="manual" className="mt-4">
+                <KnowledgeCreateForm />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
         <Card className="min-w-0">
           <CardHeader>
-            <CardTitle>新增知识</CardTitle>
+            <CardTitle>索引状态</CardTitle>
+            <CardDescription className="mt-1">最近导入记录和知识库发布概况。</CardDescription>
           </CardHeader>
-          <CardContent className="min-w-0">
-            <KnowledgeCreateForm />
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-slate-50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded bg-emerald-50 text-emerald-600">
+                  <Target className="size-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-slate-900">发布率</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">
+                    {knowledgeResult.summary.total ? Math.round((knowledgeResult.summary.published / knowledgeResult.summary.total) * 1000) / 10 : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-semibold text-slate-900">最近导入</div>
+              <div className="space-y-2">
+                {jobs.slice(0, 4).map((job) => (
+                  <div key={job.id} className="rounded border border-border bg-white px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-medium text-slate-900">{job.status}</span>
+                      <span className="text-xs text-muted">{new Date(job.createdAt).toLocaleString("zh-CN")}</span>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-muted">{job.summary || "-"}</div>
+                  </div>
+                ))}
+                {!jobs.length ? <div className="rounded border border-dashed border-border px-3 py-6 text-center text-sm text-muted">暂无导入记录</div> : null}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -75,6 +122,7 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
         <Card className="min-w-0">
           <CardHeader>
             <CardTitle>知识条目 ({knowledgeResult.total})</CardTitle>
+            <CardDescription className="mt-1">按分类、状态和关键词筛选，选中条目后可查看详情。</CardDescription>
           </CardHeader>
           <CardContent className="min-w-0 overflow-x-auto">
             <KnowledgeTable
@@ -91,36 +139,6 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
           </CardContent>
         </Card>
       </div>
-
-      {jobs.length > 0 && (
-        <div className="mt-6">
-          <Card className="min-w-0">
-            <CardHeader>
-              <CardTitle>导入记录</CardTitle>
-            </CardHeader>
-            <CardContent className="min-w-0 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="pb-2 pr-4 font-medium">时间</th>
-                    <th className="pb-2 pr-4 font-medium">状态</th>
-                    <th className="pb-2 font-medium">摘要</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job.id} className="border-b border-border/50">
-                      <td className="py-2 pr-4">{new Date(job.createdAt).toLocaleString("zh-CN")}</td>
-                      <td className="py-2 pr-4">{job.status}</td>
-                      <td className="py-2">{job.summary?.slice(0, 100) || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </>
   );
 }

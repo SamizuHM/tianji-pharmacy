@@ -460,6 +460,11 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
     image_map: dict[int, list[str]] = {}
     para_idx = 0
 
+    def attach_images(line_index: int, image_paths: list[str]) -> None:
+        if not image_paths:
+            return
+        image_map.setdefault(line_index, []).extend(image_paths)
+
     for element in document.element.body:
         tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
@@ -480,9 +485,10 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
 
             if text:
                 lines.append(text)
-                if para_images:
-                    image_map[para_idx] = para_images
+                attach_images(para_idx, para_images)
                 para_idx += 1
+            elif para_images:
+                attach_images(para_idx, para_images)
 
         elif tag == "tbl":
             # 提取表格内容为 \t 分隔行
@@ -510,9 +516,10 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
 
                 if any(ct for ct in cell_texts):
                     lines.append("\t".join(cell_texts))
-                    if row_images:
-                        image_map[para_idx] = row_images
+                    attach_images(para_idx, row_images)
                     para_idx += 1
+                elif row_images:
+                    attach_images(para_idx, row_images)
 
     return "\n".join(lines), image_map
 
@@ -765,16 +772,26 @@ def parse_explicit_label_items(
     tags: list[str] = []
     items: list[dict[str, Any]] = []
 
+    def flush_item(end_line: int) -> None:
+        nonlocal question, answer, tags, question_line
+        if not question or not answer:
+            return
+        imgs = _get_images_for_range(image_map, question_line, end_line)
+        items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
+        question = ""
+        answer = ""
+        question_line = -1
+        tags = []
+
     for i, line in enumerate(lines):
         if line.startswith("一级分类："):
+            flush_item(i)
             category_l1 = line.replace("一级分类：", "", 1).strip()
         elif line.startswith("二级分类："):
+            flush_item(i)
             category_l2 = line.replace("二级分类：", "", 1).strip()
         elif line.startswith("具体问题："):
-            if question and answer:
-                imgs = _get_images_for_range(image_map, question_line, i)
-                items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
-                tags = []
+            flush_item(i)
             question = line.replace("具体问题：", "", 1).strip()
             answer = ""
             question_line = i
@@ -783,9 +800,7 @@ def parse_explicit_label_items(
         elif line.startswith("标签："):
             tags = [item.strip() for item in re.split(r"[，,、]", line.replace("标签：", "", 1)) if item.strip()]
 
-    if question and answer:
-        imgs = _get_images_for_range(image_map, question_line, len(lines))
-        items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
+    flush_item(len(lines))
 
     return items
 

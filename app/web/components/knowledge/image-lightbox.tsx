@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { getFileUrl } from "@/lib/utils";
+
 type ImageLightboxProps = {
   images: string[];
   initialIndex?: number;
@@ -43,7 +45,7 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={`/api/files/${images[index]}`}
+          src={getFileUrl(images[index])}
           alt={`图片 ${index + 1}`}
           className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
         />

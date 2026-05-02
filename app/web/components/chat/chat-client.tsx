@@ -37,7 +37,7 @@ import {
   type ProgressStepKey,
   type ProgressSummaryItem
 } from "@/lib/chat-progress";
-import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
+import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
   id: string;
@@ -543,10 +543,10 @@ export function ChatClient(props: {
                           {imagePaths.map((img, i) => (
                             <img
                               key={i}
-                              src={`/api/files/${img}`}
+                              src={getFileUrl(img)}
                               alt=""
                               className="max-h-48 cursor-pointer rounded-lg border border-border object-contain transition-all duration-200 hover:scale-[1.02] hover:opacity-80 hover:shadow-md"
-                              onClick={() => window.open(`/api/files/${img}`, "_blank")}
+                              onClick={() => window.open(getFileUrl(img), "_blank")}
                             />
                           ))}
                         </div>
