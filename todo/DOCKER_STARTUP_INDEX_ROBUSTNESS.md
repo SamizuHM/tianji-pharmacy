@@ -6,6 +6,18 @@
 
 因此，在从 0 clone 到新设备并执行 `docker compose up -d --build` 时，只要环境变量、外网、DashScope、ML 服务和 Qdrant 都正常，系统大概率可以启动；但它还不能保证长期运行中自动从 Qdrant 空库、半导入、导入失败或 pending index task 中自愈。
 
+## 当前现状
+
+当前版本已经具备一部分一致性基础设施，但还没有形成完整闭环：
+
+1. SQLite 侧已经有 `KnowledgeItem`、`KnowledgeChunk` 和 `KnowledgeIndexTask`，并且 `qdrantPointId` 由 chunk id 稳定派生。
+2. 知识写入链路会在 SQLite 事务内同时写主数据和索引 outbox，避免“主数据写成功但任务丢失”。
+3. `drainKnowledgeIndexTasks` 支持失败重试和指数退避，`reconcileKnowledgeIndex` 和 `rebuildKnowledgeIndex` 也已经存在。
+4. 检索链路不会直接信任 Qdrant payload，会回 SQLite 校验 chunk 和知识条目状态。
+5. 但是当前没有常驻 worker，也没有启动级自动对账与自动重建，`docker-entrypoint.sh` 仍通过 HTTP API 做首次知识导入，初始化标记也不能代表索引健康。
+
+结论是：现在属于“有局部保障，但没有完整自动一致性机制”的阶段，不适合把 Qdrant 一致性理解为已闭环。
+
 ## 当前风险
 
 1. `docker-entrypoint.sh` 使用 HTTP 登录再调用 `/api/knowledge` 做首次导入。
@@ -32,6 +44,10 @@
 
    它没有验证 DashScope API Key、Embedding 模型、Rerank 模型是否实际可用。首次导入依赖 embedding，外部模型不可用时仍可能进入部分失败状态。
 
+7. 管理命令存在，但默认不执行。
+
+   `pnpm kb:drain`、`pnpm kb:reconcile`、`pnpm kb:rebuild` 都是人工运维入口，当前启动流程没有自动串起来，所以日常运行时仍然依赖人工补偿。
+
 ## 目标状态
 
 Docker 启动后应满足：
@@ -44,6 +60,7 @@ Docker 启动后应满足：
 6. 每次启动都 reconcile SQLite 与 Qdrant。
 7. 如果 SQLite chunk 数量大于 0，但 Qdrant point 数量明显不一致，应自动 rebuild 或显式失败退出。
 8. Qdrant 丢失 volume 后，只要 SQLite 仍在，系统能自动恢复索引。
+9. 启动完成后，系统应能明确区分 `ready`、`degraded`、`unhealthy` 三种状态，而不是只看服务进程是否活着。
 
 ## 推荐改造
 
@@ -136,6 +153,18 @@ ready: 服务可对外提供问答
 degraded: 服务可运行但知识索引异常
 unhealthy: 必须人工介入或自动重启
 ```
+
+### 7. 补充一致性验收脚本
+
+建议新增一个可直接执行的验收脚本，用来在启动后做统一检查：
+
+1. SQLite `knowledgeChunk` 总数。
+2. Qdrant `pharmacy_kb` point 总数。
+3. `KnowledgeIndexTask` 的 `pending`、`processing`、`failed` 数量。
+4. 最近一次 `reconcile` / `rebuild` 的执行结果。
+5. ML embedding 是否可用。
+
+这个脚本的目标不是替代业务查询，而是把“索引是否健康”变成一个明确的运维判断入口。
 
 ## 验收标准
 
