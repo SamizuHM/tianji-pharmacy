@@ -29,10 +29,9 @@ enum MessageSourceType {
 }
 
 enum TicketStatus {
-  pending_l1
-  processing_l1
-  pending_l2
-  processing_l2
+  pending_claim
+  processing
+  escalated
   closed
 }
 
@@ -84,18 +83,31 @@ enum KnowledgeIndexTaskStatus {
   completed
 }
 
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  users       User[]
+}
+
 model User {
   id            String         @id @default(cuid())
   username      String         @unique
   displayName   String
   passwordHash  String
   role          UserRole
+  departmentId  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  department    Department?    @relation(fields: [departmentId], references: [id])
   sessions      Session[]
   conversations Conversation[]
   createdTickets Ticket[]      @relation("TicketCreatedBy")
   closedTickets Ticket[]       @relation("TicketClosedBy")
+  claimedTickets Ticket[]      @relation("TicketClaimedBy")
+  escalatedTickets Ticket[]    @relation("TicketEscalatedTo")
+  submittedResolutions Ticket[] @relation("TicketResolutionSubmittedBy")
   ticketMessages TicketMessage[]
 }
 
@@ -139,34 +151,42 @@ model ChatMessage {
 }
 
 model Ticket {
-  id                   String         @id @default(cuid())
-  ticketNo             String         @unique
-  status               TicketStatus
-  priority             TicketPriority @default(medium)
-  currentAssigneeRole  UserRole
-  createdByUserId      String
-  conversationId       String?
-  title                String
-  category             String         @default("门店问答")
-  tagsJson             String?
-  latestUserQuestion   String
-  inputMode            String
-  aiAnswerSnapshot     String
-  conversationSnapshot String
-  resolutionText       String?
-  firstRespondedAt     DateTime?
-  escalatedAt          DateTime?
-  satisfactionScore    Int?
-  closedByUserId       String?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
-  closedAt             DateTime?
-  createdBy            User           @relation("TicketCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  closedBy             User?          @relation("TicketClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
-  conversation         Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  messages             TicketMessage[]
+  id                          String         @id @default(cuid())
+  ticketNo                    String         @unique
+  status                      TicketStatus
+  priority                    TicketPriority @default(medium)
+  createdByUserId             String
+  conversationId              String?
+  title                       String
+  category                    String         @default("门店问答")
+  tagsJson                    String?
+  latestUserQuestion          String
+  inputMode                   String
+  aiAnswerSnapshot            String
+  conversationSnapshot        String
+  resolutionText              String?
+  firstRespondedAt            DateTime?
+  escalatedAt                 DateTime?
+  escalatedToDept             String?
+  escalatedToUserId           String?
+  satisfactionScore           Int?
+  claimedByUserId             String?
+  resolutionSubmittedAt       DateTime?
+  resolutionSubmittedByUserId String?
+  closedByUserId              String?
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  closedAt                    DateTime?
+  createdBy                   User           @relation("TicketCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  closedBy                    User?          @relation("TicketClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  claimedBy                   User?          @relation("TicketClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  escalatedToUser             User?          @relation("TicketEscalatedTo", fields: [escalatedToUserId], references: [id], onDelete: SetNull)
+  resolutionSubmittedBy       User?          @relation("TicketResolutionSubmittedBy", fields: [resolutionSubmittedByUserId], references: [id], onDelete: SetNull)
+  conversation                Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messages                    TicketMessage[]
 
-  @@index([status, currentAssigneeRole, createdAt])
+  @@index([status, createdAt])
+  @@index([claimedByUserId])
   @@index([priority, createdAt])
   @@index([category])
 }

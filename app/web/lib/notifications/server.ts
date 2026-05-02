@@ -5,12 +5,12 @@ import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 type PendingCounts = {
-  human_l1: number;
-  human_l2: number;
+  pendingClaim: number;
+  escalated: number;
 };
 
 type TicketNotificationEvent = {
-  type: "ticket_created" | "ticket_assigned_l1" | "ticket_escalated_l2" | "ticket_replied" | "ticket_closed";
+  type: "ticket_created" | "ticket_claimed" | "ticket_escalated" | "ticket_replied" | "ticket_closed" | "ticket_resolution_submitted";
   title: string;
   message: string;
   ticketId: string;
@@ -64,22 +64,16 @@ function pushEvent(client: ClientMeta, event: string, data: StreamEvent) {
 }
 
 export async function getPendingTicketCounts() {
-  const [human_l1, human_l2] = await Promise.all([
+  const [pendingClaim, escalated] = await Promise.all([
     prisma.ticket.count({
-      where: {
-        status: "pending_l1",
-        currentAssigneeRole: "human_l1"
-      }
+      where: { status: "pending_claim" }
     }),
     prisma.ticket.count({
-      where: {
-        status: "pending_l2",
-        currentAssigneeRole: "human_l2"
-      }
+      where: { status: "escalated" }
     })
   ]);
 
-  return { human_l1, human_l2 };
+  return { pendingClaim, escalated };
 }
 
 export async function createNotificationStream(input: { userId: string; role: UserRole }) {

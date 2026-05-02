@@ -15,14 +15,12 @@ export function roleLabel(role: UserRole) {
 
 export function statusLabel(status: TicketStatus) {
   switch (status) {
-    case "pending_l1":
-      return "待人工1";
-    case "processing_l1":
-      return "人工1处理中";
-    case "pending_l2":
-      return "待人工2";
-    case "processing_l2":
-      return "人工2处理中";
+    case "pending_claim":
+      return "待认领";
+    case "processing":
+      return "处理中";
+    case "escalated":
+      return "已升级";
     case "closed":
       return "已关闭";
     default:
@@ -32,12 +30,12 @@ export function statusLabel(status: TicketStatus) {
 
 export function statusTone(status: TicketStatus) {
   switch (status) {
-    case "pending_l1":
-    case "pending_l2":
+    case "pending_claim":
       return "border-orange-100 bg-orange-50 text-orange-600";
-    case "processing_l1":
-    case "processing_l2":
+    case "processing":
       return "border-blue-100 bg-blue-50 text-blue-600";
+    case "escalated":
+      return "border-purple-100 bg-purple-50 text-purple-600";
     case "closed":
       return "border-emerald-100 bg-emerald-50 text-emerald-600";
     default:

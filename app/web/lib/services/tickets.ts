@@ -12,9 +12,9 @@ export type TicketStatusGroup = "all" | "pending" | "processing" | "escalated" |
 export type TicketListParams = {
   role: UserRole;
   userId: string;
+  userDepartmentName?: string | null;
   status?: TicketStatus | "all";
   statusGroup?: TicketStatusGroup;
-  assignee?: UserRole | "all";
   q?: string;
   page?: number;
   pageSize?: number;
@@ -23,9 +23,9 @@ export type TicketListParams = {
 export type TicketListResult = Awaited<ReturnType<typeof listTickets>>;
 
 const statusGroups: Record<Exclude<TicketStatusGroup, "all">, TicketStatus[]> = {
-  pending: ["pending_l1", "pending_l2"],
-  processing: ["processing_l1", "processing_l2"],
-  escalated: ["pending_l2", "processing_l2"],
+  pending: ["pending_claim"],
+  processing: ["processing"],
+  escalated: ["escalated"],
   closed: ["closed"]
 };
 
@@ -68,16 +68,27 @@ function deriveTicketPriority(text: string): TicketPriority {
   return "low";
 }
 
-function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId">): Prisma.TicketWhereInput {
+function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName">): Prisma.TicketWhereInput {
   if (params.role === "staff") {
     return { createdByUserId: params.userId };
   }
 
-  if (params.role === "human_l1") {
-    return { OR: [{ currentAssigneeRole: "human_l1" }, { status: "closed" }] };
-  }
+  // human_l1: can see pending_claim (to claim), their own claimed, escalated to their dept/person, and closed
+  const conditions: Prisma.TicketWhereInput[] = [
+    { status: "pending_claim" },
+    { claimedByUserId: params.userId },
+    { status: "closed" }
+  ];
 
-  return { OR: [{ currentAssigneeRole: "human_l2" }, { status: "closed", escalatedAt: { not: null } }] };
+  // escalated tickets visible to target department members or target user
+  if (params.userDepartmentName) {
+    conditions.push({ status: "escalated", escalatedToDept: params.userDepartmentName });
+  }
+  conditions.push({ status: "escalated", escalatedToUserId: params.userId });
+  // escalated with no specific target (shouldn't happen, but fallback)
+  conditions.push({ status: "escalated", escalatedToDept: null, escalatedToUserId: null });
+
+  return { OR: conditions };
 }
 
 function buildTicketWhere(params: TicketListParams): Prisma.TicketWhereInput {
@@ -88,10 +99,6 @@ function buildTicketWhere(params: TicketListParams): Prisma.TicketWhereInput {
     and.push({ status: params.status });
   } else if (params.statusGroup && params.statusGroup !== "all") {
     and.push({ status: { in: statusGroups[params.statusGroup] } });
-  }
-
-  if (params.assignee && params.assignee !== "all") {
-    and.push({ currentAssigneeRole: params.assignee });
   }
 
   if (q) {
@@ -138,9 +145,8 @@ export async function createTicketFromConversation(input: {
   const ticket = await prisma.ticket.create({
     data: {
       ticketNo: buildTicketNo(),
-      status: "pending_l1",
+      status: "pending_claim",
       priority: deriveTicketPriority(latestUser.contentText),
-      currentAssigneeRole: "human_l1",
       createdByUserId: input.createdByUserId,
       conversationId: input.conversationId,
       title,
@@ -159,7 +165,7 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "system",
         messageType: "system",
-        content: "系统已创建工单，默认流转至人工处理1。"
+        content: "系统已创建工单，等待人工客服认领。"
       },
       {
         ticketId: ticket.id,
@@ -175,10 +181,48 @@ export async function createTicketFromConversation(input: {
   await broadcastTicketNotification({
     type: "ticket_created",
     title: "收到新的人工工单",
-    message: `工单 ${ticket.ticketNo} 已进入人工处理1待办：${ticket.title}`,
+    message: `工单 ${ticket.ticketNo} 待认领：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
     targetRoles: ["human_l1"]
+  });
+
+  return ticket;
+}
+
+export async function claimTicket(input: {
+  ticketId: string;
+  userId: string;
+  userDisplayName: string;
+}) {
+  // Optimistic lock: only claim if status is pending_claim or escalated
+  const ticket = await prisma.ticket.update({
+    where: {
+      id: input.ticketId,
+      status: { in: ["pending_claim", "escalated"] }
+    },
+    data: {
+      status: "processing",
+      claimedByUserId: input.userId
+    }
+  });
+
+  await prisma.ticketMessage.create({
+    data: {
+      ticketId: input.ticketId,
+      senderRole: "system",
+      messageType: "system",
+      content: `${input.userDisplayName} 已认领工单。`
+    }
+  });
+
+  await broadcastTicketNotification({
+    type: "ticket_claimed",
+    title: "工单已被认领",
+    message: `工单 ${ticket.ticketNo} 已被 ${input.userDisplayName} 认领`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetUserIds: [ticket.createdByUserId]
   });
 
   return ticket;
@@ -190,12 +234,13 @@ export async function listTickets(params: TicketListParams) {
   const where = buildTicketWhere(params);
   const roleWhere = baseTicketWhere(params);
 
-  const [items, total, all, pending, processing, escalated, closed, human_l1, human_l2] = await Promise.all([
+  const [items, total, all, pending, processing, escalated, closed, myTickets] = await Promise.all([
     prisma.ticket.findMany({
       where,
       include: {
         createdBy: true,
-        closedBy: true
+        closedBy: true,
+        claimedBy: true
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -203,12 +248,11 @@ export async function listTickets(params: TicketListParams) {
     }),
     prisma.ticket.count({ where }),
     prisma.ticket.count({ where: roleWhere }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: { in: statusGroups.pending } }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: { in: statusGroups.processing } }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: { in: statusGroups.escalated } }] } }),
+    prisma.ticket.count({ where: { AND: [roleWhere, { status: "pending_claim" }] } }),
+    prisma.ticket.count({ where: { AND: [roleWhere, { status: "processing" }] } }),
+    prisma.ticket.count({ where: { AND: [roleWhere, { status: "escalated" }] } }),
     prisma.ticket.count({ where: { AND: [roleWhere, { status: "closed" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { currentAssigneeRole: "human_l1", status: { not: "closed" } }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { currentAssigneeRole: "human_l2", status: { not: "closed" } }] } })
+    prisma.ticket.count({ where: { AND: [roleWhere, { claimedByUserId: params.userId, status: { not: "closed" } }] } })
   ]);
 
   return {
@@ -223,8 +267,7 @@ export async function listTickets(params: TicketListParams) {
       processing,
       escalated,
       closed,
-      human_l1,
-      human_l2
+      myTickets
     }
   };
 }
@@ -235,6 +278,9 @@ export async function getTicketDetail(ticketId: string) {
     include: {
       createdBy: true,
       closedBy: true,
+      claimedBy: true,
+      escalatedToUser: true,
+      resolutionSubmittedBy: true,
       messages: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -275,12 +321,21 @@ export async function replyTicket(input: {
     }
   });
 
-  if (input.senderRole === "human_l1" || input.senderRole === "human_l2") {
-    const nextStatus = input.senderRole === "human_l1" ? "processing_l1" : "processing_l2";
+  // Transition pending_claim/escalated to processing when a human replies
+  if ((input.senderRole === "human_l1" || input.senderRole === "human_l2") &&
+      (ticket.status === "pending_claim" || ticket.status === "escalated")) {
     await prisma.ticket.update({
       where: { id: input.ticketId },
       data: {
-        status: nextStatus,
+        status: "processing",
+        claimedByUserId: ticket.claimedByUserId ?? input.senderUserId,
+        firstRespondedAt: ticket.firstRespondedAt ?? new Date()
+      }
+    });
+  } else if (input.senderRole === "human_l1" || input.senderRole === "human_l2") {
+    await prisma.ticket.update({
+      where: { id: input.ticketId },
+      data: {
         firstRespondedAt: ticket.firstRespondedAt ?? new Date()
       }
     });
@@ -305,8 +360,9 @@ export async function replyTicket(input: {
         : `工单 ${ticket.ticketNo} 有新的人工处理回复`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: input.senderRole === "user" ? [ticket.currentAssigneeRole] : undefined,
-    targetUserIds: input.senderRole === "user" ? undefined : [ticket.createdByUserId]
+    targetUserIds: input.senderRole === "user"
+      ? (ticket.claimedByUserId ? [ticket.claimedByUserId] : [])
+      : [ticket.createdByUserId]
   });
 
   return message;
@@ -315,13 +371,35 @@ export async function replyTicket(input: {
 export async function escalateTicket(input: {
   ticketId: string;
   senderUserId: string;
+  senderDisplayName: string;
+  targetDept: string;
+  targetUserId?: string;
 }) {
-  const ticket = await prisma.ticket.update({
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!ticket) {
+    throw new Error("工单不存在");
+  }
+
+  if (ticket.claimedByUserId !== input.senderUserId) {
+    throw new Error("只有工单认领人才能升级工单");
+  }
+
+  const targetLabel = input.targetUserId
+    ? `${input.targetDept} 的指定人员`
+    : input.targetDept;
+
+  const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
-      status: "pending_l2",
-      currentAssigneeRole: "human_l2",
-      escalatedAt: new Date()
+      status: "escalated",
+      escalatedAt: new Date(),
+      escalatedToDept: input.targetDept,
+      escalatedToUserId: input.targetUserId ?? null,
+      // Clear claim so target can re-claim
+      claimedByUserId: null
     }
   });
 
@@ -330,28 +408,73 @@ export async function escalateTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: "系统已将工单升级至人工处理2。"
+      content: `${input.senderDisplayName} 已将工单升级至${targetLabel}。`
     }
   });
 
   await broadcastTicketNotification({
-    type: "ticket_escalated_l2",
-    title: "工单已升级到人工2",
-    message: `工单 ${ticket.ticketNo} 已升级到人工处理2：${ticket.title}`,
+    type: "ticket_escalated",
+    title: "工单已升级",
+    message: `工单 ${ticket.ticketNo} 已升级至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["human_l2"]
+    targetRoles: ["human_l1"]
   });
 
-  return ticket;
+  return updated;
+}
+
+export async function submitResolution(input: {
+  ticketId: string;
+  userId: string;
+  resolutionText: string;
+}) {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!ticket) {
+    throw new Error("工单不存在");
+  }
+
+  if (ticket.status === "closed") {
+    throw new Error("工单已关闭");
+  }
+
+  const updated = await prisma.ticket.update({
+    where: { id: input.ticketId },
+    data: {
+      resolutionText: input.resolutionText,
+      resolutionSubmittedAt: new Date(),
+      resolutionSubmittedByUserId: input.userId
+    }
+  });
+
+  await prisma.ticketMessage.create({
+    data: {
+      ticketId: input.ticketId,
+      senderRole: "system",
+      messageType: "system",
+      content: "处理方案已提交，等待药店工作人员确认关闭。"
+    }
+  });
+
+  await broadcastTicketNotification({
+    type: "ticket_resolution_submitted",
+    title: "工单处理方案已提交",
+    message: `工单 ${ticket.ticketNo} 的处理方案已提交，等待确认关闭`,
+    ticketId: ticket.id,
+    ticketNo: ticket.ticketNo,
+    targetUserIds: [ticket.createdByUserId]
+  });
+
+  return updated;
 }
 
 export async function closeTicket(input: {
   ticketId: string;
-  senderRole: MessageRole;
-  senderUserId: string;
-  resolutionText: string;
-  attachments?: string;
+  closedByUserId: string;
+  resolutionText?: string;
 }) {
   const existingTicket = await prisma.ticket.findUnique({
     where: { id: input.ticketId }
@@ -365,42 +488,36 @@ export async function closeTicket(input: {
     throw new Error("工单已关闭");
   }
 
+  const resolutionText = input.resolutionText || existingTicket.resolutionText;
+  if (!resolutionText) {
+    throw new Error("关闭工单需要处理方案，请等待人工客服提交");
+  }
+
   const ticket = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
       status: "closed",
-      resolutionText: input.resolutionText,
-      closedByUserId: input.senderUserId,
+      resolutionText,
+      closedByUserId: input.closedByUserId,
       closedAt: new Date()
     }
   });
 
-  await prisma.ticketMessage.createMany({
-    data: [
-      {
-        ticketId: input.ticketId,
-        senderRole: input.senderRole,
-        senderUserId: input.senderUserId,
-        messageType: input.attachments ? "image" : "text",
-        content: input.resolutionText,
-        attachments: input.attachments
-      },
-      {
-        ticketId: input.ticketId,
-        senderRole: "system",
-        messageType: "system",
-        content: `工单已由 ${input.senderRole === "human_l1" ? "人工处理1" : "人工处理2"} 关闭，并写回知识库。`
-      }
-    ]
+  await prisma.ticketMessage.create({
+    data: {
+      ticketId: input.ticketId,
+      senderRole: "system",
+      messageType: "system",
+      content: "药店工作人员已确认关闭工单，处理方案已写回知识库。"
+    }
   });
 
   if (ticket.conversationId) {
     await appendConversationMessage({
       conversationId: ticket.conversationId,
-      role: input.senderRole,
-      sourceType: "manual",
-      contentText: input.resolutionText,
-      attachmentsJson: input.attachments ?? null
+      role: "system",
+      sourceType: "system",
+      contentText: `工单已关闭。处理方案：${resolutionText}`
     });
   }
 
@@ -417,7 +534,7 @@ export async function closeTicket(input: {
     ticketId: ticket.id,
     question: ticket.latestUserQuestion,
     contextSummary: ticket.conversationSnapshot,
-    resolution: input.resolutionText,
+    resolution: resolutionText,
     imagePaths
   });
 
@@ -427,8 +544,8 @@ export async function closeTicket(input: {
     message: `工单 ${ticket.ticketNo} 已完成处理并关闭`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["human_l1", "human_l2"],
-    targetUserIds: [ticket.createdByUserId]
+    targetRoles: ["human_l1"],
+    targetUserIds: [ticket.createdByUserId, ticket.claimedByUserId].filter(Boolean) as string[]
   });
 
   return ticket;

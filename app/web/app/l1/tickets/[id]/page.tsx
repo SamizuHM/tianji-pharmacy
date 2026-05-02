@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { TicketDetailClient } from "@/components/tickets/ticket-detail-client";
 import { requireUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 import { getTicketDetail } from "@/lib/services/tickets";
 
 export default async function L1TicketDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -13,5 +14,15 @@ export default async function L1TicketDetailPage(props: { params: Promise<{ id: 
     notFound();
   }
 
-  return <TicketDetailClient role="human_l1" ticket={ticket} />;
+  const departments = await prisma.department.findMany({
+    include: {
+      users: {
+        select: { id: true, displayName: true },
+        orderBy: { displayName: "asc" }
+      }
+    },
+    orderBy: { name: "asc" }
+  });
+
+  return <TicketDetailClient role="human_l1" userId={user.id} ticket={ticket} departments={departments} />;
 }

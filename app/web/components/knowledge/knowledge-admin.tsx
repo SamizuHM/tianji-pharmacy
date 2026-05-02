@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,16 @@ export function KnowledgeImportButton() {
 
 export function KnowledgeCreateForm() {
   const router = useRouter();
-  const [categoryL1, setCategoryL1] = useState("");
-  const [categoryL2, setCategoryL2] = useState("");
-  const [question, setQuestion] = useState("");
-  const [answerHtml, setAnswerHtml] = useState("");
+  const searchParams = useSearchParams();
+  const initialQuestion = searchParams.get("question") || "";
+  const initialAnswer = searchParams.get("answer") || "";
+  const initialCategoryL1 = searchParams.get("categoryL1") || "";
+  const initialCategoryL2 = searchParams.get("categoryL2") || "";
+
+  const [categoryL1, setCategoryL1] = useState(initialCategoryL1);
+  const [categoryL2, setCategoryL2] = useState(initialCategoryL2);
+  const [question, setQuestion] = useState(initialQuestion);
+  const [answerHtml, setAnswerHtml] = useState(initialAnswer ? buildEditorHtml(initialAnswer, []) : "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 

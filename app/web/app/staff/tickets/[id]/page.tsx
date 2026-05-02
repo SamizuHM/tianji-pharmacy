@@ -13,5 +13,5 @@ export default async function StaffTicketDetailPage(props: { params: Promise<{ i
     notFound();
   }
 
-  return <TicketDetailClient role="staff" ticket={ticket} />;
+  return <TicketDetailClient role="staff" userId={user.id} ticket={ticket} />;
 }

@@ -19,9 +19,7 @@ export async function GET(request: Request) {
   const ticketRoleWhere =
     user.role === "staff"
       ? { createdByUserId: user.id }
-      : user.role === "human_l1"
-        ? { OR: [{ currentAssigneeRole: "human_l1" as const }, { status: "closed" as const }] }
-        : { OR: [{ currentAssigneeRole: "human_l2" as const }, { status: "closed" as const, escalatedAt: { not: null } }] };
+      : { OR: [{ status: "pending_claim" as const }, { claimedByUserId: user.id }, { status: "escalated" as const }, { status: "closed" as const }] };
 
   const [tickets, knowledge, conversations, messages] = await Promise.all([
     prisma.ticket.findMany({
@@ -42,8 +40,7 @@ export async function GET(request: Request) {
         id: true,
         ticketNo: true,
         title: true,
-        status: true,
-        currentAssigneeRole: true
+        status: true
       },
       orderBy: { updatedAt: "desc" },
       take: 6

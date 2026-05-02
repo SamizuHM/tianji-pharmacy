@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 
 const navByRole: Record<
   UserRole,
-  Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "human_l1" | "human_l2" }>
+  Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>
 > = {
   staff: [
     { href: "/staff/chat", label: "问答工作台", icon: MessageCircle },
@@ -48,13 +48,13 @@ const navByRole: Record<
     { href: "/admin/settings", label: "系统设置", icon: Settings }
   ],
   human_l1: [
-    { href: "/l1/tickets", label: "人工工单", icon: Tickets, countKey: "human_l1" },
+    { href: "/l1/tickets", label: "人工工单", icon: Tickets, countKey: "pendingClaim" },
     { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
     { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
     { href: "/admin/settings", label: "系统设置", icon: Settings }
   ],
   human_l2: [
-    { href: "/l2/tickets", label: "人工工单", icon: Tickets, countKey: "human_l2" },
+    { href: "/l2/tickets", label: "人工工单", icon: Tickets, countKey: "escalated" },
     { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
     { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
     { href: "/admin/settings", label: "系统设置", icon: Settings }
@@ -62,8 +62,8 @@ const navByRole: Record<
 };
 
 type PendingCounts = {
-  human_l1: number;
-  human_l2: number;
+  pendingClaim: number;
+  escalated: number;
 };
 
 type NotificationItem = {
@@ -74,7 +74,7 @@ type NotificationItem = {
 };
 
 type SearchResult = {
-  tickets: Array<{ id: string; ticketNo: string; title: string; status: string; currentAssigneeRole: UserRole }>;
+  tickets: Array<{ id: string; ticketNo: string; title: string; status: string }>;
   knowledge: Array<{ id: string; question: string; categoryL1: string; categoryL2: string; hitCount: number }>;
   conversations: Array<{ id: string; title: string }>;
   messages: Array<{ id: string; conversationId: string; contentText: string; sourceType: string }>;
@@ -90,7 +90,7 @@ export function AppShell(props: {
 }) {
   const pathname = usePathname();
   const [pendingCounts, setPendingCounts] = useState<PendingCounts>(
-    props.initialPendingCounts ?? { human_l1: 0, human_l2: 0 }
+    props.initialPendingCounts ?? { pendingClaim: 0, escalated: 0 }
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const navItems = useMemo(() => navByRole[props.role], [props.role]);
@@ -185,7 +185,7 @@ export function AppShell(props: {
             <GlobalSearch role={props.role} />
             <button type="button" className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95">
               <Bell className="size-5" />
-              {pendingCounts.human_l1 + pendingCounts.human_l2 > 0 ? (
+              {pendingCounts.pendingClaim + pendingCounts.escalated > 0 ? (
                 <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
               ) : null}
             </button>
@@ -246,7 +246,7 @@ export function AppShell(props: {
 }
 
 function DesktopSidebar(props: {
-  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "human_l1" | "human_l2" }>;
+  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
   pathname: string;
   pendingCounts: PendingCounts;
 }) {
@@ -258,7 +258,7 @@ function DesktopSidebar(props: {
 }
 
 function SidebarContent(props: {
-  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "human_l1" | "human_l2" }>;
+  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
   pathname: string;
   pendingCounts: PendingCounts;
 }) {

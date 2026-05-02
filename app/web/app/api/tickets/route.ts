@@ -11,22 +11,20 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") as
-    | "pending_l1"
-    | "processing_l1"
-    | "pending_l2"
-    | "processing_l2"
+    | "pending_claim"
+    | "processing"
+    | "escalated"
     | "closed"
     | "all"
     | null;
   const statusGroup = searchParams.get("statusGroup") as TicketStatusGroup | null;
-  const assignee = searchParams.get("assignee") as "human_l1" | "human_l2" | "all" | null;
 
   const result = await listTickets({
     role: user.role,
     userId: user.id,
+    userDepartmentName: (user as { department?: { name: string } | null }).department?.name ?? null,
     status: status ?? "all",
     statusGroup: statusGroup ?? "all",
-    assignee: assignee ?? "all",
     q: searchParams.get("q") ?? undefined,
     page: Number(searchParams.get("page") ?? 1),
     pageSize: Number(searchParams.get("pageSize") ?? 10)

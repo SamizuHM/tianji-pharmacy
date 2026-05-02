@@ -4,7 +4,7 @@ import path from "node:path";
 
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
-import { FIXED_USERS } from "@pharmacy/shared";
+import { DEPARTMENTS, FIXED_USERS } from "@pharmacy/shared";
 
 const prisma = new PrismaClient({
   datasources: {
@@ -15,20 +15,33 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  const departmentMap: Record<string, string> = {};
+  for (const dept of DEPARTMENTS) {
+    const record = await prisma.department.upsert({
+      where: { name: dept.name },
+      update: { description: dept.description },
+      create: { name: dept.name, description: dept.description }
+    });
+    departmentMap[dept.name] = record.id;
+  }
+
   for (const user of FIXED_USERS) {
     const passwordHash = await bcrypt.hash(user.password, 10);
+    const departmentId = user.department ? departmentMap[user.department] : null;
     await prisma.user.upsert({
       where: { username: user.username },
       update: {
         displayName: user.displayName,
         passwordHash,
-        role: user.role
+        role: user.role,
+        departmentId
       },
       create: {
         username: user.username,
         displayName: user.displayName,
         passwordHash,
-        role: user.role
+        role: user.role,
+        departmentId
       }
     });
   }

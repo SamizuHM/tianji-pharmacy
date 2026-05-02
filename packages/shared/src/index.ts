@@ -1,6 +1,6 @@
 export type UserRole = "staff" | "human_l1" | "human_l2";
 
-export type TicketStatus = "pending_l1" | "processing_l1" | "pending_l2" | "processing_l2" | "closed";
+export type TicketStatus = "pending_claim" | "processing" | "escalated" | "closed";
 
 export type TicketPriority = "low" | "medium" | "high";
 
@@ -54,8 +54,24 @@ export type KnowledgeImportResult = {
 
 export const FIXED_ASSISTANT_SUFFIX = "如以上操作仍无法解决，建议您转人工进行咨询";
 
+export const DEPARTMENTS = [
+  { name: "营运部", description: "门店运营、日常管理" },
+  { name: "采购部", description: "商品采购、供应商管理" },
+  { name: "培训部", description: "员工培训、业务学习" },
+  { name: "人事部", description: "人事管理、考勤排班" },
+  { name: "财务部", description: "财务结算、发票管理" },
+  { name: "医保办", description: "医保政策、结算对接" }
+];
+
 export const FIXED_USERS = [
-  { username: "药店工作人员", password: "demo123", displayName: "药店工作人员", role: "staff" as const },
-  { username: "人工处理1", password: "demo123", displayName: "人工处理1", role: "human_l1" as const },
-  { username: "人工处理2", password: "demo123", displayName: "人工处理2", role: "human_l2" as const }
+  { username: "药店工作人员", password: "demo123", displayName: "药店工作人员", role: "staff" as const, department: null as string | null },
+  { username: "人工处理1", password: "demo123", displayName: "人工处理1", role: "human_l1" as const, department: null },
+  { username: "人工处理2", password: "demo123", displayName: "人工处理2", role: "human_l1" as const, department: null },
+  { username: "人工处理3", password: "demo123", displayName: "人工处理3", role: "human_l1" as const, department: null },
+  { username: "营运-张伟", password: "demo123", displayName: "张伟", role: "human_l1" as const, department: "营运部" },
+  { username: "采购-李娜", password: "demo123", displayName: "李娜", role: "human_l1" as const, department: "采购部" },
+  { username: "培训-王芳", password: "demo123", displayName: "王芳", role: "human_l1" as const, department: "培训部" },
+  { username: "人事-赵敏", password: "demo123", displayName: "赵敏", role: "human_l1" as const, department: "人事部" },
+  { username: "财务-刘洋", password: "demo123", displayName: "刘洋", role: "human_l1" as const, department: "财务部" },
+  { username: "医保办-陈静", password: "demo123", displayName: "陈静", role: "human_l1" as const, department: "医保办" }
 ];

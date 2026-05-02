@@ -14,15 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
-import { formatDateTime, roleLabel } from "@/lib/presentation";
+import { formatDateTime } from "@/lib/presentation";
 import type { TicketListResult, TicketStatusGroup } from "@/lib/services/tickets";
 import { cn } from "@/lib/utils";
 
 type TicketRow = Ticket & {
   createdBy?: User;
   closedBy?: User | null;
+  claimedBy?: User | null;
 };
 
 export function TicketList(props: {
@@ -30,8 +30,8 @@ export function TicketList(props: {
   basePath: string;
   result: TicketListResult;
   currentStatusGroup: TicketStatusGroup;
-  currentAssignee: string;
   q?: string;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,7 +55,7 @@ export function TicketList(props: {
 
   const tabs: Array<{ key: TicketStatusGroup; label: string; count: number }> = [
     { key: "all", label: "全部工单", count: result.summary.all },
-    { key: "pending", label: "待处理", count: result.summary.pending },
+    { key: "pending", label: "待认领", count: result.summary.pending },
     { key: "processing", label: "处理中", count: result.summary.processing },
     { key: "escalated", label: "已升级", count: result.summary.escalated },
     { key: "closed", label: "已关闭", count: result.summary.closed }
@@ -82,27 +82,6 @@ export function TicketList(props: {
             </button>
           ))}
         </div>
-        <div className="panel flex overflow-hidden p-1">
-          {[
-            { key: "human_l1", label: "待人工1", count: result.summary.human_l1 },
-            { key: "human_l2", label: "待人工2", count: result.summary.human_l2 }
-          ].map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={cn(
-                "border-b-2 px-4 py-2 text-sm font-medium transition-all duration-150",
-                props.currentAssignee === item.key
-                  ? "border-primary bg-blue-50 text-primary"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              )}
-              onClick={() => update({ assignee: props.currentAssignee === item.key ? "all" : item.key })}
-            >
-              {item.label}
-              <span className="ml-2 rounded-full bg-blue-100 px-1.5 text-xs text-primary">{item.count}</span>
-            </button>
-          ))}
-        </div>
         <form
           className="ml-auto flex min-w-[280px] flex-1 items-center gap-3 md:max-w-xl"
           action={(formData) => update({ q: String(formData.get("q") || "") })}
@@ -115,20 +94,15 @@ export function TicketList(props: {
             <Filter className="size-4" />
             筛选
           </Button>
-          <Select value={props.currentAssignee} disabled={isPending} onChange={(event) => update({ assignee: event.target.value })} className="w-32">
-            <option value="all">全部级别</option>
-            <option value="human_l1">人工1</option>
-            <option value="human_l2">人工2</option>
-          </Select>
         </form>
       </div>
 
       <div>
         <h2 className="mb-3 text-base font-semibold text-slate-900">今日工单概览</h2>
         <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-5", isPending && "opacity-60")}>
-          <MetricCard label="待处理" value={result.summary.pending} description="待人工响应" icon={FileText} tone="blue" trend="12.5%" />
+          <MetricCard label="待认领" value={result.summary.pending} description="等待人工响应" icon={FileText} tone="blue" trend="12.5%" />
           <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
-          <MetricCard label="已升级" value={result.summary.escalated} description="人工2跟进" icon={Pin} tone="purple" trend="2.3%" />
+          <MetricCard label="已升级" value={result.summary.escalated} description="部门跟进" icon={Pin} tone="purple" trend="2.3%" />
           <MetricCard label="已关闭" value={result.summary.closed} description="闭环归档" icon={CheckCircle2} tone="green" trend="18.4%" />
           <MetricCard label="今日总量" value={result.summary.all} description={props.title} icon={TicketIcon} tone="indigo" />
         </div>
@@ -142,7 +116,8 @@ export function TicketList(props: {
                 <TH>工单编号</TH>
                 <TH>问题摘要</TH>
                 <TH>问题类型</TH>
-                <TH>当前处理级别</TH>
+                <TH>状态</TH>
+                <TH>处理人</TH>
                 <TH>优先级</TH>
                 <TH>创建人</TH>
                 <TH>创建时间</TH>
@@ -151,7 +126,7 @@ export function TicketList(props: {
             </THead>
             <TBody>
               {isPending ? (
-                <TableSkeleton columns={8} rows={5} />
+                <TableSkeleton columns={9} rows={5} />
               ) : (
                 result.items.map((ticket) => (
                   <tr key={ticket.id}>
@@ -166,10 +141,10 @@ export function TicketList(props: {
                       <Badge className="border border-blue-100 bg-blue-50 text-primary">{ticket.category}</Badge>
                     </TD>
                     <TD>
-                      <div className="flex flex-col gap-1">
-                        <Badge className="border border-purple-100 bg-purple-50 text-purple-600">{roleLabel(ticket.currentAssigneeRole)}</Badge>
-                        <TicketStatusBadge status={ticket.status} />
-                      </div>
+                      <TicketStatusBadge status={ticket.status} />
+                    </TD>
+                    <TD>
+                      {ticket.claimedBy?.displayName || (ticket.status === "pending_claim" ? "待认领" : "-")}
                     </TD>
                     <TD>
                       <PriorityBadge priority={ticket.priority} />
@@ -177,12 +152,14 @@ export function TicketList(props: {
                     <TD>{ticket.createdBy?.displayName || "-"}</TD>
                     <TD>{formatDateTime(ticket.createdAt)}</TD>
                     <TD className="text-right">
-                      <Link
-                        href={`${props.basePath}/${ticket.id}`}
-                        className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
-                      >
-                        查看详情
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`${props.basePath}/${ticket.id}`}
+                          className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                        >
+                          查看详情
+                        </Link>
+                      </div>
                     </TD>
                   </tr>
                 ))
