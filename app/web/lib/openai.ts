@@ -127,6 +127,93 @@ export async function buildMultimodalQueryText(input: { question: string; imageP
   return text || input.question || "用户上传了图片，请根据图片内容推断检索关键词";
 }
 
+function extractJsonObject(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate = fenced ?? text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("大模型未返回有效 JSON");
+  }
+  return candidate.slice(start, end + 1);
+}
+
+export type TicketKnowledgeMaterialForModel = {
+  id: string;
+  roleLabel: string;
+  sourceLabel: string;
+  contentText: string;
+  createdAt: string;
+  imagePaths: string[];
+};
+
+export type GeneratedTicketKnowledgeDraft = {
+  categoryL1: string;
+  categoryL2: string;
+  question: string;
+  answer: string;
+  tags: string[];
+};
+
+export async function generateTicketKnowledgeDraftWithModel(input: {
+  ticketNo: string;
+  title: string;
+  materials: TicketKnowledgeMaterialForModel[];
+}) {
+  const imagePaths = Array.from(new Set(input.materials.flatMap((item) => item.imagePaths)));
+  const materialText = input.materials
+    .map((item, index) => {
+      const imageNote = item.imagePaths.length ? `\n附件图片：${item.imagePaths.join("、")}` : "";
+      return [
+        `素材 ${index + 1}`,
+        `角色：${item.roleLabel}`,
+        `来源：${item.sourceLabel}`,
+        `时间：${item.createdAt}`,
+        `内容：${item.contentText || "无文字内容"}` + imageNote
+      ].join("\n");
+    })
+    .join("\n\n");
+
+  const userContent: ChatContentPart[] = [
+    {
+      type: "text",
+      text:
+        "工单编号：" + input.ticketNo + "\n" +
+        "工单标题：" + input.title + "\n\n" +
+        "客服勾选的有效素材如下：\n" + materialText + "\n\n" +
+        "请输出严格 JSON，不要输出 Markdown，不要解释。"
+    }
+  ];
+
+  for (const imagePath of imagePaths) {
+    userContent.push(await attachmentToImagePart(imagePath));
+  }
+
+  const text = await completeText({
+    system:
+      "你是药店客服工单知识沉淀助手。你的任务是把客服勾选的对话和附件整理成一条可复用的知识库 QA。" +
+      "只能基于给定素材和图片内容整理，不得编造未出现的事实、政策、剂量、操作步骤或风险结论。" +
+      "不要提及具体工单、具体用户、客服姓名、聊天过程或“根据对话”。" +
+      "问题要改写成门店今后可能会问的标准问题；答案要清晰、可执行、适合直接进入知识库。" +
+      "如素材涉及用药、疾病、儿童、孕妇、老人、处方药、不良反应或剂量风险，答案必须提示遵说明书并咨询执业药师或医生。" +
+      "输出 JSON 字段必须为 categoryL1、categoryL2、question、answer、tags；tags 为字符串数组，最多 5 个。",
+    userContent
+  });
+
+  const parsed = JSON.parse(extractJsonObject(text)) as Partial<GeneratedTicketKnowledgeDraft>;
+  if (!parsed.question?.trim() || !parsed.answer?.trim()) {
+    throw new Error("大模型生成的知识草稿缺少问题或答案");
+  }
+
+  return {
+    categoryL1: parsed.categoryL1?.trim() || "人工经验沉淀",
+    categoryL2: parsed.categoryL2?.trim() || "工单闭环新增",
+    question: parsed.question.trim(),
+    answer: parsed.answer.trim(),
+    tags: Array.isArray(parsed.tags) ? parsed.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 5) : []
+  } satisfies GeneratedTicketKnowledgeDraft;
+}
+
 export async function streamKbStyledAnswer(input: {
   question: string;
   referenceQuestion: string;

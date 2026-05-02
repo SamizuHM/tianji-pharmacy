@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import type { AttachmentItem } from "@pharmacy/shared";
-import { Ticket, TicketMessage } from "@prisma/client";
-import { ArrowUpRight, BookOpen, CheckCircle2, Loader2, MessageSquareReply, Send, Upload } from "lucide-react";
+import { Ticket, TicketKnowledgeDraft, TicketMessage } from "@prisma/client";
+import { ArrowUpRight, BookOpen, Loader2, MessageSquareReply, Send, Upload } from "lucide-react";
 
 import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { PriorityBadge, TicketStatusBadge } from "@/components/shared/status-badge";
@@ -14,16 +14,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime, parseTags, roleLabel } from "@/lib/presentation";
+import { formatDateTime, parseTags } from "@/lib/presentation";
 import { getAttachmentItems } from "@/lib/utils";
 
-import { MessageSelector } from "./message-selector";
 import { OrgTreeSelect } from "./org-tree-select";
 
 type TicketMessageWithSender = TicketMessage & {
   senderUser?: {
     displayName: string;
   } | null;
+};
+
+type TicketKnowledgeDraftWithUser = TicketKnowledgeDraft & {
+  generatedBy?: { displayName: string } | null;
+};
+
+type KnowledgeMaterial = {
+  id: string;
+  role: string;
+  roleLabel: string;
+  sourceLabel: string;
+  contentText: string;
+  attachments: AttachmentItem[];
+  createdAt: string;
 };
 
 type Department = {
@@ -43,6 +56,7 @@ export function TicketDetailClient(props: {
     escalatedToUser: { displayName: string } | null;
     resolutionSubmittedBy: { displayName: string } | null;
     messages: TicketMessageWithSender[];
+    knowledgeDrafts: TicketKnowledgeDraftWithUser[];
   };
   departments?: Department[];
 }) {
@@ -54,7 +68,6 @@ export function TicketDetailClient(props: {
   const [error, setError] = useState("");
   const [showEscalate, setShowEscalate] = useState(false);
   const [showKnowledgeEntry, setShowKnowledgeEntry] = useState(false);
-  const [closeResolutionText, setCloseResolutionText] = useState(props.ticket.resolutionText || "");
 
   async function uploadFiles(fileList: FileList) {
     const formData = new FormData();
@@ -134,9 +147,7 @@ export function TicketDetailClient(props: {
   function closeTicket() {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/close`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolutionText: closeResolutionText })
+        method: "POST"
       });
       const data = await response.json();
       if (!response.ok) {
@@ -162,6 +173,11 @@ export function TicketDetailClient(props: {
     !props.ticket.resolutionSubmittedAt;
   const canClose = props.role === "staff" && isCreator &&
     props.ticket.status !== "closed" && props.ticket.resolutionSubmittedAt;
+  const canGenerateKnowledge = props.role === "agent" && props.ticket.status !== "closed";
+  const latestKnowledgeDraft = props.ticket.knowledgeDrafts[0] ?? null;
+  const canCloseWithWriteback = canClose &&
+    props.ticket.knowledgeStatus === "pending_writeback" &&
+    Boolean(latestKnowledgeDraft);
 
   const tags = parseTags(props.ticket.tagsJson);
 
@@ -285,18 +301,20 @@ export function TicketDetailClient(props: {
                   <Send className="size-5" />
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="flex items-center justify-between rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-left text-purple-600 transition hover:bg-purple-100 disabled:opacity-60"
-                onClick={() => setShowKnowledgeEntry(!showKnowledgeEntry)}
-                disabled={pending}
-              >
-                <span>
-                  <span className="block text-sm font-medium">录入知识库</span>
-                  <span className="text-xs text-muted">从工单消息中选择内容创建知识条目</span>
-                </span>
-                <BookOpen className="size-5" />
-              </button>
+              {canGenerateKnowledge ? (
+                <button
+                  type="button"
+                  className="flex items-center justify-between rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-left text-purple-600 transition hover:bg-purple-100 disabled:opacity-60"
+                  onClick={() => setShowKnowledgeEntry(!showKnowledgeEntry)}
+                  disabled={pending}
+                >
+                  <span>
+                    <span className="block text-sm font-medium">生成待入库答案</span>
+                    <span className="text-xs text-muted">客服勾选有效对话和附件，整理优质答案</span>
+                  </span>
+                  <BookOpen className="size-5" />
+                </button>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -317,23 +335,14 @@ export function TicketDetailClient(props: {
           {showKnowledgeEntry ? (
             <Card>
               <CardContent className="p-5">
-                <MessageSelector
-                  messages={props.ticket.messages.map((m) => ({
-                    id: m.id,
-                    senderRole: m.senderRole,
-                    senderUser: m.senderUser,
-                    content: m.content,
-                    createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt)
-                  }))}
-                  onConfirm={(selected) => {
-                    const params = new URLSearchParams({
-                      question: selected.question,
-                      answer: selected.answer
-                    });
-                    window.open(`/admin/knowledge?create=1&${params.toString()}`, "_blank");
+                <KnowledgeDraftBuilder
+                  ticketId={props.ticket.id}
+                  canGenerate={canGenerateKnowledge}
+                  initialDraft={latestKnowledgeDraft}
+                  onGenerated={() => {
                     setShowKnowledgeEntry(false);
+                    router.refresh();
                   }}
-                  onCancel={() => setShowKnowledgeEntry(false)}
                 />
               </CardContent>
             </Card>
@@ -342,10 +351,14 @@ export function TicketDetailClient(props: {
           {/* Knowledge writeback info */}
           <Card className="border-blue-100 bg-blue-50/60">
             <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-slate-900">关闭后将自动写回知识库</h3>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                工单关闭后，系统会自动提炼本次问答中的关键信息，写回知识库，帮助更多门店解决类似问题。
-              </p>
+              <h3 className="text-sm font-semibold text-slate-900">知识写回状态：{knowledgeStatusLabel(props.ticket.knowledgeStatus)}</h3>
+              {latestKnowledgeDraft ? (
+                <KnowledgeDraftPreview draft={latestKnowledgeDraft} />
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  当前工单尚未生成待入库答案。客服需要先勾选有效历史对话和附件，生成优质答案后，门店才能关闭并写回知识库。
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -416,11 +429,16 @@ export function TicketDetailClient(props: {
                 </Alert>
                 <Textarea
                   placeholder="可编辑处理方案（可选）"
-                  value={closeResolutionText}
-                  onChange={(event) => setCloseResolutionText(event.target.value)}
+                  value={props.ticket.resolutionText || ""}
+                  readOnly
                 />
-                <Button onClick={closeTicket} disabled={pending}>
-                  {pending ? "关闭中..." : "确认关闭工单并写回知识库"}
+                {!canCloseWithWriteback ? (
+                  <Alert className="border-orange-200 bg-orange-50 text-orange-700">
+                    客服尚未生成待入库答案，暂不能关闭写回知识库。
+                  </Alert>
+                ) : null}
+                <Button onClick={closeTicket} disabled={pending || !canCloseWithWriteback}>
+                  {pending ? "关闭中..." : "关闭工单写回知识库"}
                 </Button>
               </CardContent>
             </Card>
@@ -473,6 +491,174 @@ export function TicketDetailClient(props: {
   );
 }
 
+function KnowledgeDraftBuilder(props: {
+  ticketId: string;
+  canGenerate: boolean;
+  initialDraft: TicketKnowledgeDraftWithUser | null;
+  onGenerated: () => void;
+}) {
+  const [materials, setMaterials] = useState<KnowledgeMaterial[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMaterials() {
+      setLoading(true);
+      setError("");
+      const response = await fetch(`/api/tickets/${props.ticketId}/knowledge-materials`);
+      const data = await response.json();
+      if (cancelled) return;
+      if (!response.ok) {
+        setError(data.error || "加载对话素材失败");
+        setLoading(false);
+        return;
+      }
+      setMaterials(data.materials || []);
+      setLoading(false);
+    }
+    loadMaterials();
+    return () => {
+      cancelled = true;
+    };
+  }, [props.ticketId]);
+
+  function toggle(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function generateDraft() {
+    setGenerating(true);
+    setError("");
+    const response = await fetch(`/api/tickets/${props.ticketId}/knowledge-draft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedMaterialIds: Array.from(selectedIds) })
+    });
+    const data = await response.json();
+    setGenerating(false);
+    if (!response.ok) {
+      setError(data.error || "生成待入库答案失败");
+      return;
+    }
+    props.onGenerated();
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="text-sm font-semibold text-slate-900">生成待入库答案</div>
+        <p className="mt-1 text-xs leading-5 text-muted">
+          勾选本次工单中真正有效的问题、回答和附件，由大模型整理成一条可写入知识库的优质 QA。
+        </p>
+      </div>
+
+      {props.initialDraft ? <KnowledgeDraftPreview draft={props.initialDraft} /> : null}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Loader2 className="size-4 animate-spin" />
+          加载历史对话...
+        </div>
+      ) : (
+        <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-white">
+          {materials.map((material) => {
+            const checked = selectedIds.has(material.id);
+            return (
+              <label
+                key={material.id}
+                className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-slate-50"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1 shrink-0"
+                  checked={checked}
+                  onChange={() => toggle(material.id)}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{material.roleLabel}</Badge>
+                    <Badge className="bg-slate-100 text-slate-600">{material.sourceLabel}</Badge>
+                    <span className="text-[11px] text-muted">{formatDateTime(material.createdAt)}</span>
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-700">{material.contentText}</div>
+                  <AttachmentGallery attachments={material.attachments} linkClassName="rounded border border-border px-3 py-2 text-xs" />
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
+
+      <Button
+        size="sm"
+        disabled={!props.canGenerate || generating || selectedIds.size === 0}
+        onClick={generateDraft}
+      >
+        {generating ? <Loader2 className="size-4 animate-spin" /> : null}
+        {generating ? "生成中..." : `生成待入库答案（${selectedIds.size} 条）`}
+      </Button>
+    </div>
+  );
+}
+
+function KnowledgeDraftPreview({ draft }: { draft: TicketKnowledgeDraftWithUser }) {
+  const tags = parseTags(draft.tagsJson);
+  const imagePaths = parseTags(draft.imagePathsJson);
+  const attachments: AttachmentItem[] = imagePaths.map((path) => ({
+    name: path.split("/").pop() || path,
+    path,
+    mimeType: "image/*",
+    size: 0
+  }));
+
+  return (
+    <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Badge className="bg-blue-100 text-primary">待入库</Badge>
+        <span className="text-xs text-muted">
+          {draft.generatedBy?.displayName ? `生成：${draft.generatedBy.displayName}` : "客服已生成"}
+        </span>
+      </div>
+      <div className="text-xs text-muted">分类</div>
+      <div className="mt-1 font-medium text-slate-900">{draft.categoryL1} / {draft.categoryL2}</div>
+      <div className="mt-3 text-xs text-muted">问题</div>
+      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800">{draft.question}</div>
+      <div className="mt-3 text-xs text-muted">优质答案</div>
+      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800">{draft.answer}</div>
+      {tags.length ? (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {tags.map((tag) => <Badge key={tag} className="bg-slate-100 text-slate-600">{tag}</Badge>)}
+        </div>
+      ) : null}
+      <AttachmentGallery attachments={attachments} linkClassName="rounded border border-border px-3 py-2 text-xs" />
+    </div>
+  );
+}
+
+function knowledgeStatusLabel(status: Ticket["knowledgeStatus"]) {
+  switch (status) {
+    case "pending_writeback":
+      return "待写回";
+    case "written":
+      return "已入库";
+    default:
+      return "未入库";
+  }
+}
+
 function InfoBlock({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
@@ -514,6 +700,8 @@ function senderLabel(role: TicketMessage["senderRole"]) {
   switch (role) {
     case "user":
       return "药店工作人员";
+    case "assistant":
+      return "系统大模型";
     case "agent":
       return "人工客服";
     default:

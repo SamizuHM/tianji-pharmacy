@@ -2,6 +2,8 @@ export type UserRole = "staff" | "agent";
 
 export type TicketStatus = "pending_claim" | "processing" | "escalated" | "closed";
 
+export type TicketKnowledgeStatus = "not_ready" | "pending_writeback" | "written";
+
 export type TicketPriority = "low" | "medium" | "high";
 
 export type MessageRole = "user" | "assistant" | "agent" | "system";

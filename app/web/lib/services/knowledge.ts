@@ -577,30 +577,3 @@ export async function bulkUpdateKnowledgeItems(input: {
 
   return { affected: result.count };
 }
-
-export async function writeTicketResolutionToKnowledge(input: {
-  question: string;
-  contextSummary: string;
-  resolution: string;
-  ticketId: string;
-  imagePaths?: string[];
-}) {
-  const standardAnswer = input.resolution.trim();
-  const question = input.question.trim() || `工单 ${input.ticketId} 闭环问题`;
-
-  return upsertKnowledgeItem({
-    categoryL1: "人工经验沉淀",
-    categoryL2: "工单闭环新增",
-    question,
-    answer: standardAnswer,
-    tags: ["人工闭环", "工单回写", ...Array.from(new Set(question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5)],
-    sourceType: "manual_ticket",
-    sourceTicketId: input.ticketId,
-    docType: "manual_ticket",
-    imagePath: input.imagePaths?.[0] ?? null,
-    imagePaths: input.imagePaths ?? [],
-    originalText: `${question}\n${input.contextSummary}\n${standardAnswer}`,
-    normalizedText: `${question}\n${input.contextSummary}\n${standardAnswer}`,
-    chunkTexts: [`问题：${question}\n背景：${input.contextSummary}\n标准答案：${standardAnswer}`]
-  });
-}

@@ -45,6 +45,12 @@ enum TicketMessageType {
   system
 }
 
+enum TicketKnowledgeStatus {
+  not_ready
+  pending_writeback
+  written
+}
+
 enum MessageFeedback {
   helpful
   unhelpful
@@ -107,6 +113,7 @@ model User {
   escalatedTickets Ticket[]    @relation("TicketEscalatedTo")
   submittedResolutions Ticket[] @relation("TicketResolutionSubmittedBy")
   ticketMessages TicketMessage[]
+  generatedKnowledgeDrafts TicketKnowledgeDraft[]
 }
 
 model Session {
@@ -168,6 +175,7 @@ model Ticket {
   escalatedToDept             String?
   escalatedToUserId           String?
   satisfactionScore           Int?
+  knowledgeStatus             TicketKnowledgeStatus @default(not_ready)
   claimedByUserId             String?
   resolutionSubmittedAt       DateTime?
   resolutionSubmittedByUserId String?
@@ -182,11 +190,13 @@ model Ticket {
   resolutionSubmittedBy       User?          @relation("TicketResolutionSubmittedBy", fields: [resolutionSubmittedByUserId], references: [id], onDelete: SetNull)
   conversation                Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   messages                    TicketMessage[]
+  knowledgeDrafts             TicketKnowledgeDraft[]
 
   @@index([status, createdAt])
   @@index([claimedByUserId])
   @@index([priority, createdAt])
   @@index([category])
+  @@index([knowledgeStatus])
 }
 
 model TicketMessage {
@@ -202,6 +212,28 @@ model TicketMessage {
   senderUser    User?             @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, createdAt])
+}
+
+model TicketKnowledgeDraft {
+  id                  String                @id @default(cuid())
+  ticketId            String
+  selectedMaterialsJson String
+  categoryL1          String
+  categoryL2          String
+  question            String
+  answer              String
+  tagsJson            String?
+  imagePathsJson      String?
+  generatedByUserId   String
+  confirmedAt         DateTime?
+  writtenKnowledgeItemId String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  ticket              Ticket                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  generatedBy         User                  @relation(fields: [generatedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([writtenKnowledgeItemId])
 }
 
 model KnowledgeItem {
