@@ -12,7 +12,8 @@ export async function GET() {
 
   const stream = await createNotificationStream({
     userId: user.id,
-    role: user.role
+    role: user.role,
+    userDepartmentName: user.department?.name ?? null
   });
 
   return new Response(stream, {

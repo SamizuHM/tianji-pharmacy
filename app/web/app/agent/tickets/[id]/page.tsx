@@ -3,14 +3,19 @@ import { notFound } from "next/navigation";
 import { TicketDetailClient } from "@/components/tickets/ticket-detail-client";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { getTicketDetail } from "@/lib/services/tickets";
+import { canAccessTicket, getTicketDetail } from "@/lib/services/tickets";
 
 export default async function AgentTicketDetailPage(props: { params: Promise<{ id: string }> }) {
   const user = await requireUser(["agent"]);
   const { id } = await props.params;
   const ticket = await getTicketDetail(id);
 
-  if (!ticket) {
+  if (!ticket || !canAccessTicket({
+    role: user.role,
+    userId: user.id,
+    userDepartmentName: user.department?.name ?? null,
+    ticket
+  })) {
     notFound();
   }
 

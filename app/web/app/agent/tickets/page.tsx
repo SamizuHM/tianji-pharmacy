@@ -16,7 +16,11 @@ export default async function AgentTicketsPage(props: { searchParams: Promise<{ 
       page: Number(searchParams.page ?? 1),
       pageSize: Number(searchParams.pageSize ?? 10)
     }),
-    getPendingTicketCounts()
+    getPendingTicketCounts({
+      role: user.role,
+      userId: user.id,
+      userDepartmentName: user.department?.name ?? null
+    })
   ]);
 
   return (

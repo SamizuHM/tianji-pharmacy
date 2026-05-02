@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { getTicketDetail, getTicketKnowledgeMaterials } from "@/lib/services/tickets";
+import { canAccessTicket, getTicketDetail, getTicketKnowledgeMaterials } from "@/lib/services/tickets";
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -15,20 +15,13 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "工单不存在" }, { status: 404 });
   }
 
-  if (user.role === "staff" && ticket.createdByUserId !== user.id) {
+  if (!canAccessTicket({
+    role: user.role,
+    userId: user.id,
+    userDepartmentName: user.department?.name ?? null,
+    ticket
+  })) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
-  }
-  if (user.role === "agent") {
-    const userDepartmentName = user.department?.name ?? null;
-    const canAccess =
-      ticket.status === "pending_claim" ||
-      ticket.status === "closed" ||
-      ticket.claimedByUserId === user.id ||
-      ticket.escalatedToUserId === user.id ||
-      (ticket.status === "escalated" && ticket.escalatedToDept === userDepartmentName);
-    if (!canAccess) {
-      return NextResponse.json({ error: "无权限" }, { status: 403 });
-    }
   }
 
   const materials = await getTicketKnowledgeMaterials(id);

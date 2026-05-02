@@ -122,17 +122,59 @@ function tagsFromDraft(question: string, tags: string[]) {
   return Array.from(new Set([...tags, ...deriveTags(question)])).slice(0, 5);
 }
 
+export function canAccessTicket(input: {
+  role: UserRole;
+  userId: string;
+  userDepartmentName?: string | null;
+  ticket: {
+    status: TicketStatus;
+    createdByUserId: string;
+    claimedByUserId?: string | null;
+    escalatedToDept?: string | null;
+    escalatedToUserId?: string | null;
+  };
+}) {
+  if (input.role === "staff") {
+    return input.ticket.createdByUserId === input.userId;
+  }
+
+  if (input.ticket.status === "closed" || input.ticket.claimedByUserId === input.userId) {
+    return true;
+  }
+
+  if (!input.userDepartmentName && input.ticket.status === "pending_claim") {
+    return true;
+  }
+
+  if (input.ticket.status !== "escalated") {
+    return false;
+  }
+
+  if (input.ticket.escalatedToUserId === input.userId) {
+    return true;
+  }
+
+  if (input.userDepartmentName && input.ticket.escalatedToDept === input.userDepartmentName) {
+    return true;
+  }
+
+  return !input.userDepartmentName && !input.ticket.escalatedToDept && !input.ticket.escalatedToUserId;
+}
+
 function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName">): Prisma.TicketWhereInput {
   if (params.role === "staff") {
     return { createdByUserId: params.userId };
   }
 
-  // agent: can see pending_claim (to claim), their own claimed, escalated to their dept/person, and closed
+  // 一级客服（无部门）看待认领工单；二级专家只看升级到自己部门/自己的工单。
   const conditions: Prisma.TicketWhereInput[] = [
-    { status: "pending_claim" },
     { claimedByUserId: params.userId },
     { status: "closed" }
   ];
+
+  if (!params.userDepartmentName) {
+    conditions.push({ status: "pending_claim" });
+  }
 
   // escalated tickets visible to target department members or target user
   if (params.userDepartmentName) {
@@ -256,8 +298,30 @@ export async function claimTicket(input: {
   ticketId: string;
   userId: string;
   userDisplayName: string;
+  userDepartmentName?: string | null;
 }) {
-  // Optimistic lock: only claim if status is pending_claim or escalated
+  const existing = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!existing) {
+    throw new Error("工单不存在");
+  }
+
+  if (existing.status === "pending_claim" && input.userDepartmentName) {
+    throw new Error("二级专家客服不能认领待认领工单，请等待一级人工客服升级后处理");
+  }
+
+  if (existing.status === "escalated") {
+    const matchedUser = existing.escalatedToUserId === input.userId;
+    const matchedDept = Boolean(input.userDepartmentName && existing.escalatedToDept === input.userDepartmentName);
+    const untargeted = !existing.escalatedToUserId && !existing.escalatedToDept;
+    if (!matchedUser && !matchedDept && !untargeted) {
+      throw new Error("当前工单未升级到你的部门或账号，不能认领");
+    }
+  }
+
+  // Optimistic lock: only claim if status is pending_claim or escalated.
   const ticket = await prisma.ticket.update({
     where: {
       id: input.ticketId,
@@ -508,6 +572,10 @@ export async function submitResolution(input: {
 
   if (ticket.status === "closed") {
     throw new Error("工单已关闭");
+  }
+
+  if (ticket.claimedByUserId !== input.userId) {
+    throw new Error("只有当前认领人可以提交处理方案");
   }
 
   const updated = await prisma.ticket.update({

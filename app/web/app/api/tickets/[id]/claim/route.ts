@@ -14,7 +14,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     const ticket = await claimTicket({
       ticketId: id,
       userId: user.id,
-      userDisplayName: user.displayName
+      userDisplayName: user.displayName,
+      userDepartmentName: user.department?.name ?? null
     });
     return NextResponse.json({ ticket });
   } catch (error) {

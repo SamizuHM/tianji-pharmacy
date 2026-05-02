@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { generateTicketKnowledgeDraft, getTicketDetail } from "@/lib/services/tickets";
+import { canAccessTicket, generateTicketKnowledgeDraft, getTicketDetail } from "@/lib/services/tickets";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -14,13 +14,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!ticket) {
     return NextResponse.json({ error: "工单不存在" }, { status: 404 });
   }
-  const userDepartmentName = user.department?.name ?? null;
-  const canAccess =
-    ticket.status === "pending_claim" ||
-    ticket.claimedByUserId === user.id ||
-    ticket.escalatedToUserId === user.id ||
-    (ticket.status === "escalated" && ticket.escalatedToDept === userDepartmentName);
-  if (!canAccess) {
+  if (!canAccessTicket({
+    role: user.role,
+    userId: user.id,
+    userDepartmentName: user.department?.name ?? null,
+    ticket
+  })) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

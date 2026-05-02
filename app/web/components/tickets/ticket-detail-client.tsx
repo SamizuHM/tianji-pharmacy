@@ -161,10 +161,13 @@ export function TicketDetailClient(props: {
   const isClaimant = props.ticket.claimedBy && props.ticket.claimedByUserId === props.userId;
   const isCreator = props.ticket.createdByUserId === props.userId;
   const isFrontlineAgent = props.role === "agent" && !props.userDepartmentName;
-  const canClaim = props.role === "agent" && (props.ticket.status === "pending_claim" || props.ticket.status === "escalated");
+  const canClaim = props.role === "agent" && (
+    (isFrontlineAgent && props.ticket.status === "pending_claim") ||
+    props.ticket.status === "escalated"
+  );
   const canReply = props.ticket.status !== "closed" && (
     (props.role === "staff" && isCreator) ||
-    (props.role === "agent" && (isClaimant || props.ticket.status === "pending_claim" || props.ticket.status === "escalated"))
+    (props.role === "agent" && (isClaimant || (isFrontlineAgent && props.ticket.status === "pending_claim") || props.ticket.status === "escalated"))
   );
   const canEscalate = isFrontlineAgent && isClaimant && props.ticket.status === "processing";
   const canSubmitResolution = props.role === "agent" &&

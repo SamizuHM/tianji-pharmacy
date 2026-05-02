@@ -19,7 +19,17 @@ export async function GET(request: Request) {
   const ticketRoleWhere =
     user.role === "staff"
       ? { createdByUserId: user.id }
-      : { OR: [{ status: "pending_claim" as const }, { claimedByUserId: user.id }, { status: "escalated" as const }, { status: "closed" as const }] };
+      : {
+          OR: [
+            ...(user.department ? [] : [{ status: "pending_claim" as const }]),
+            { claimedByUserId: user.id },
+            ...(user.department
+              ? [{ status: "escalated" as const, escalatedToDept: user.department.name }]
+              : [{ status: "escalated" as const, escalatedToDept: null, escalatedToUserId: null }]),
+            { status: "escalated" as const, escalatedToUserId: user.id },
+            { status: "closed" as const }
+          ]
+        };
 
   const [tickets, knowledge, conversations, messages] = await Promise.all([
     prisma.ticket.findMany({

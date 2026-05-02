@@ -33,6 +33,7 @@ type ClientMeta = {
   id: string;
   userId: string;
   role: UserRole;
+  userDepartmentName?: string | null;
   controller: ReadableStreamDefaultController<Uint8Array>;
 };
 
@@ -63,20 +64,39 @@ function pushEvent(client: ClientMeta, event: string, data: StreamEvent) {
   }
 }
 
-export async function getPendingTicketCounts() {
+export async function getPendingTicketCounts(input?: {
+  role?: UserRole;
+  userId?: string;
+  userDepartmentName?: string | null;
+}) {
+  const pendingClaimWhere =
+    input?.role === "agent" && input.userDepartmentName
+      ? { id: "__never__" }
+      : { status: "pending_claim" as const };
+  const escalatedWhere =
+    input?.role === "agent" && input.userDepartmentName
+      ? {
+          status: "escalated" as const,
+          OR: [
+            { escalatedToDept: input.userDepartmentName },
+            ...(input.userId ? [{ escalatedToUserId: input.userId }] : [])
+          ]
+        }
+      : { status: "escalated" as const };
+
   const [pendingClaim, escalated] = await Promise.all([
     prisma.ticket.count({
-      where: { status: "pending_claim" }
+      where: pendingClaimWhere
     }),
     prisma.ticket.count({
-      where: { status: "escalated" }
+      where: escalatedWhere
     })
   ]);
 
   return { pendingClaim, escalated };
 }
 
-export async function createNotificationStream(input: { userId: string; role: UserRole }) {
+export async function createNotificationStream(input: { userId: string; role: UserRole; userDepartmentName?: string | null }) {
   const clientId = crypto.randomUUID();
   const clientStore = getClientStore();
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -87,11 +107,12 @@ export async function createNotificationStream(input: { userId: string; role: Us
         id: clientId,
         userId: input.userId,
         role: input.role,
+        userDepartmentName: input.userDepartmentName,
         controller
       };
       clientStore.set(clientId, client);
 
-      const pendingCounts = await getPendingTicketCounts();
+      const pendingCounts = await getPendingTicketCounts(input);
       pushEvent(client, "snapshot", {
         type: "snapshot",
         pendingCounts,
@@ -129,13 +150,6 @@ export async function broadcastTicketNotification(event: Omit<TicketNotification
     return;
   }
 
-  const pendingCounts = await getPendingTicketCounts();
-  const payload: TicketNotificationEvent = {
-    ...event,
-    pendingCounts,
-    createdAt: new Date().toISOString()
-  };
-
   for (const client of clientStore.values()) {
     if (event.targetUserIds?.length && !event.targetUserIds.includes(client.userId)) {
       if (!event.targetRoles?.includes(client.role)) {
@@ -145,6 +159,16 @@ export async function broadcastTicketNotification(event: Omit<TicketNotification
     if (!event.targetUserIds?.length && event.targetRoles?.length && !event.targetRoles.includes(client.role)) {
       continue;
     }
+    const pendingCounts = await getPendingTicketCounts({
+      role: client.role,
+      userId: client.userId,
+      userDepartmentName: client.userDepartmentName
+    });
+    const payload: TicketNotificationEvent = {
+      ...event,
+      pendingCounts,
+      createdAt: new Date().toISOString()
+    };
     pushEvent(client, "ticket", payload);
   }
 }
