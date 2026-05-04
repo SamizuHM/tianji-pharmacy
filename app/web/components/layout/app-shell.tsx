@@ -153,8 +153,8 @@ export function AppShell(props: {
   return (
     <div className="min-h-screen bg-background text-slate-900">
       <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} />
-      <div className="min-h-screen lg:pl-64">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:top-4 lg:mx-4 lg:mt-4 lg:rounded-2xl lg:border lg:px-6 lg:shadow-[0_12px_32px_rgba(15,23,42,0.07)]">
+      <div className="min-h-screen lg:pl-60 lg:pt-4">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:top-4 lg:mx-4 lg:rounded-2xl lg:border lg:px-6 lg:shadow-[0_12px_32px_rgba(15,23,42,0.07)]">
           <div className="flex min-w-0 items-center gap-3">
             <Sheet>
               <SheetTrigger asChild>
@@ -214,7 +214,7 @@ export function AppShell(props: {
             </DropdownMenu>
           </div>
         </header>
-        <main className="min-w-0 p-4 lg:p-6">{props.children}</main>
+        <main className="min-w-0 p-4 lg:px-4 lg:py-6">{props.children}</main>
       </div>
 
       {notifications.length ? (
