@@ -503,6 +503,17 @@ export function ChatClient(props: {
             onScroll={handleScroll}
             className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 pb-4 pt-5"
           >
+            {!messages.length ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary">
+                  <Sparkles className="size-7" />
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-slate-900">门店智能问答</h3>
+                <p className="mt-2 max-w-xs text-sm text-muted">
+                  在下方输入您的门店相关问题，支持文字、图片与图文混合输入
+                </p>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-4">
               {messages.map((message) => {
                 const attachmentsData = getAttachmentItems(message.attachmentsJson);
