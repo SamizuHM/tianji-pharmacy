@@ -42,7 +42,7 @@ tianji-pharmacy/
 - 向量库：Qdrant
 - 模型接入：
   - 多模态问答与图片理解：OpenAI-compatible `qwen3.5-27b`
-  - Embedding：DashScope 多模态 `tongyi-embedding-vision-flash-2026-03-06`
+  - Embedding：DashScope 多模态 `qwen3-vl-embedding`
   - Rerank：DashScope 多模态 `qwen3-vl-rerank`
 
 ## 环境要求
