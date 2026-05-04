@@ -1,27 +1,27 @@
-# SQLite 与 Qdrant 知识索引一致性说明
+# PostgreSQL 与 Qdrant 知识索引一致性说明
 
 ## 核心原则
 
 本项目的知识库一致性模型是：
 
 ```text
-SQLite = 权威主数据
+数据库 = 权威主数据
 Qdrant = 可删除、可重建的派生向量索引
 ```
 
 开发时必须坚持以下约束：
 
-1. 业务真相只看 SQLite，不看 Qdrant。
+1. 业务真相只看 数据库，不看 Qdrant。
 2. `knowledgeItem` 和 `knowledgeChunk` 是知识库主数据。
 3. Qdrant 只负责向量召回，不承载业务真相。
-4. Qdrant point 可以随时从 SQLite 全量重建。
-5. 任何对齐、修复、重建都必须以 SQLite 为准。
-6. 不允许为了迁就 Qdrant 状态反向删除或修改 SQLite 主数据。
+4. Qdrant point 可以随时从 数据库 全量重建。
+5. 任何对齐、修复、重建都必须以 数据库 为准。
+6. 不允许为了迁就 Qdrant 状态反向删除或修改 数据库 主数据。
 
-如果 SQLite 与 Qdrant 不一致，正确修复方向永远是：
+如果 PostgreSQL 与 Qdrant 不一致，正确修复方向永远是：
 
 ```text
-按 SQLite 修复 Qdrant
+按 数据库 修复 Qdrant
 ```
 
 ## 数据结构职责
@@ -49,7 +49,7 @@ Qdrant = 可删除、可重建的派生向量索引
 
 关键字段：
 
-- `id`：SQLite chunk 主键。
+- `id`：数据库 chunk 主键。
 - `knowledgeItemId`：所属知识条目。
 - `chunkText`：用于 embedding 和检索的文本。
 - `qdrantPointId`：对应 Qdrant point id。
@@ -65,7 +65,7 @@ buildStablePointId(chunkId)
 
 ### `KnowledgeIndexTask`
 
-SQLite outbox 表，记录待投影到 Qdrant 的索引任务。
+数据库 outbox 表，记录待投影到 Qdrant 的索引任务。
 
 关键字段：
 
@@ -79,7 +79,7 @@ SQLite outbox 表，记录待投影到 Qdrant 的索引任务。
 - `lastError`
 - `availableAt`
 
-它的作用是把“主数据写入 SQLite”和“派生索引写入 Qdrant”解耦。SQLite 事务提交后，即使 Qdrant 短暂失败，也可以留下可重试任务。
+它的作用是把“主数据写入 数据库”和“派生索引写入 Qdrant”解耦。数据库 事务提交后，即使 Qdrant 短暂失败，也可以留下可重试任务。
 
 ## 写入链路
 
@@ -93,8 +93,8 @@ SQLite outbox 表，记录待投影到 Qdrant 的索引任务。
 → 生成或复用 knowledgeChunk.id
 → 计算稳定 qdrantPointId
 → 生成 embedding payload
-→ SQLite 事务内 upsert knowledgeItem / knowledgeChunk
-→ SQLite 事务内写 KnowledgeIndexTask
+→ 数据库 事务内 upsert knowledgeItem / knowledgeChunk
+→ 数据库 事务内写 KnowledgeIndexTask
 → 事务提交后 tryDrainKnowledgeIndexTasks
 → Qdrant upsert/delete
 ```
@@ -118,17 +118,17 @@ SQLite outbox 表，记录待投影到 Qdrant 的索引任务。
 旧 chunk 不再存在 → stale chunk
 ```
 
-`staleChunks` 是“SQLite 更新后不再应该存在的旧 chunk”。
+`staleChunks` 是“数据库 更新后不再应该存在的旧 chunk”。
 
 对 stale chunk 的处理：
 
-1. SQLite 删除对应 `knowledgeChunk`。
+1. 数据库 删除对应 `knowledgeChunk`。
 2. 写入 Qdrant delete task。
 3. drain 后删除对应 Qdrant point。
 
 ### 删除知识条目
 
-删除知识条目前，会为该 item 下所有 chunk 创建 Qdrant delete task，然后删除 SQLite `KnowledgeItem`。
+删除知识条目前，会为该 item 下所有 chunk 创建 Qdrant delete task，然后删除 数据库 `KnowledgeItem`。
 
 由于 `KnowledgeChunk` 通过 `onDelete: Cascade` 关联 `KnowledgeItem`，删除 item 后 chunk 会被级联删除。
 
@@ -167,13 +167,13 @@ payload 包含：
 - `imagePath`
 - `imagePaths`
 
-payload 是检索阶段的候选展示和 rerank 输入，不是业务真相。命中后必须回 SQLite 校验。
+payload 是检索阶段的候选展示和 rerank 输入，不是业务真相。命中后必须回 数据库 校验。
 
 ## 检索回表校验
 
 检索链路会先查 Qdrant，再做 rerank 和阈值判断。
 
-但 Qdrant 命中后不能直接信任 payload，必须回 SQLite 校验：
+但 Qdrant 命中后不能直接信任 payload，必须回 数据库 校验：
 
 ```text
 Qdrant point id
@@ -181,7 +181,7 @@ Qdrant point id
 → include knowledgeItem
 ```
 
-如果 Qdrant point 找不到对应 SQLite chunk，说明它是脏索引：
+如果 Qdrant point 找不到对应 数据库 chunk，说明它是脏索引：
 
 1. 当前候选跳过。
 2. 创建 `retrieval_stale_point` delete task。
@@ -204,15 +204,15 @@ Qdrant point id
 
 ### `kb:reconcile`
 
-对账修复 SQLite 与 Qdrant。
+对账修复 PostgreSQL 与 Qdrant。
 
 逻辑：
 
 ```text
-扫描 SQLite knowledgeChunk.qdrantPointId
+扫描 数据库 knowledgeChunk.qdrantPointId
 扫描 Qdrant 所有 point id
-Qdrant 有但 SQLite 没有 → 删除 orphan point
-SQLite 有但 Qdrant 没有 → 重新生成 upsert task 并 drain
+Qdrant 有但 数据库 没有 → 删除 orphan point
+数据库 有但 Qdrant 没有 → 重新生成 upsert task 并 drain
 ```
 
 适用场景：
@@ -235,7 +235,7 @@ SQLite 有但 Qdrant 没有 → 重新生成 upsert task 并 drain
 ```text
 等待 Qdrant 可写
 规范化 knowledgeChunk.qdrantPointId
-读取 SQLite 所有 knowledgeChunk
+读取 数据库 所有 knowledgeChunk
 删除 Qdrant pharmacy_kb collection
 清理 pending/processing index task
 重新生成所有 embedding
@@ -258,9 +258,9 @@ drain 所有任务
 
 ## 生产 Docker 操作
 
-生产 Docker 环境中，命令应在 `tianji-web` 容器内执行，因为它使用的是容器内网络和 SQLite volume。
+生产 Docker 环境中，命令应在 `tianji-web` 容器内执行，因为它使用的是容器内网络和 数据库 volume。
 
-查看 SQLite 数量：
+查看 数据库 数量：
 
 ```bash
 docker exec -w /app tianji-web node -e "const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); Promise.all([p.knowledgeItem.count(),p.knowledgeChunk.count(),p.knowledgeIndexTask.count()]).then(v=>console.log({knowledgeItem:v[0],knowledgeChunk:v[1],knowledgeIndexTask:v[2]})).finally(()=>p.$disconnect())"
@@ -319,7 +319,7 @@ pnpm kb:reconcile
 最低限度应监控：
 
 ```text
-SQLite knowledgeChunk count
+数据库 knowledgeChunk count
 Qdrant pharmacy_kb point count
 pending KnowledgeIndexTask count
 processing KnowledgeIndexTask count
@@ -331,7 +331,7 @@ Qdrant 连接失败次数
 最重要的异常：
 
 ```text
-SQLite knowledgeChunk count != Qdrant point count
+数据库 knowledgeChunk count != Qdrant point count
 ```
 
 出现该异常时：
@@ -345,18 +345,18 @@ SQLite knowledgeChunk count != Qdrant point count
 ### 不要做的事
 
 1. 不要在业务逻辑中把 Qdrant 当权威数据源。
-2. 不要根据 Qdrant 结果删除 SQLite 知识。
+2. 不要根据 Qdrant 结果删除 数据库 知识。
 3. 不要使用随机 point id。
 4. 不要重新引入 legacy point cleanup。
 5. 不要在未回表校验的情况下信任 Qdrant payload。
-6. 不要在请求路径里同步要求 Qdrant 写入成功后才提交 SQLite 主数据。
+6. 不要在请求路径里同步要求 Qdrant 写入成功后才提交 数据库 主数据。
 
 ### 应该做的事
 
-1. 新增/更新/删除知识时，先写 SQLite 主数据和 outbox task。
+1. 新增/更新/删除知识时，先写 数据库 主数据和 outbox task。
 2. Qdrant 写入失败时，保留 pending task 和 lastError。
-3. 检索命中后必须回 SQLite 校验。
-4. 维护脚本必须以 SQLite 为输入修复 Qdrant。
+3. 检索命中后必须回 数据库 校验。
+4. 维护脚本必须以 数据库 为输入修复 Qdrant。
 5. 生产恢复优先 `reconcile`，严重不一致再 `rebuild`。
 6. 对 Qdrant count 大幅下降必须告警。
 
@@ -366,5 +366,5 @@ SQLite knowledgeChunk count != Qdrant point count
 2. 增加独立 `knowledge-index-worker` 定期 drain outbox。
 3. 增加索引健康 API 和管理后台提示。
 4. 增加蓝绿 collection rebuild，避免重建期间影响线上问答。
-5. 增加 delete task 保护：如果 SQLite 中仍存在该 `pointId` 对应 chunk，则拒绝删除。
+5. 增加 delete task 保护：如果 PostgreSQL 中仍存在该 `pointId` 对应 chunk，则拒绝删除。
 6. 增加一致性回归测试，覆盖导入、更新、删除、reconcile、rebuild 和脏 point 跳过。

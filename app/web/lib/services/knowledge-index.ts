@@ -465,18 +465,18 @@ export async function reconcileKnowledgeIndex() {
   await ensureQdrantWriteReady();
   const normalizedChunks = await normalizeKnowledgeChunkPointIds();
 
-  const sqliteChunks = await prisma.knowledgeChunk.findMany({
+  const dbChunks = await prisma.knowledgeChunk.findMany({
     select: {
       id: true,
       qdrantPointId: true
     }
   });
-  const sqlitePointIds = new Set(sqliteChunks.map((chunk) => chunk.qdrantPointId));
+  const dbPointIds = new Set(dbChunks.map((chunk) => chunk.qdrantPointId));
   const qdrantPoints = await scrollAllQdrantPoints();
   const qdrantPointIds = new Set(qdrantPoints.map((point) => point.id));
 
-  const orphanPointIds = qdrantPoints.filter((point) => !sqlitePointIds.has(point.id)).map((point) => point.id);
-  const missingPointIds = sqliteChunks
+  const orphanPointIds = qdrantPoints.filter((point) => !dbPointIds.has(point.id)).map((point) => point.id);
+  const missingPointIds = dbChunks
     .filter((chunk) => !qdrantPointIds.has(chunk.qdrantPointId))
     .map((chunk) => chunk.id);
 
@@ -502,7 +502,7 @@ export async function reconcileKnowledgeIndex() {
 
   return {
     normalizedChunks,
-    sqliteChunkCount: sqliteChunks.length,
+    dbChunkCount: dbChunks.length,
     qdrantPointCount: qdrantPoints.length,
     deletedOrphanPoints: orphanPointIds.length,
     reprojectedMissingPoints: missingPointIds.length

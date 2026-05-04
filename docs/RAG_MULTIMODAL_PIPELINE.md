@@ -14,9 +14,9 @@
 
 ## 总体原则
 
-当前系统采用 SQLite + Qdrant + ML Service 的 RAG 架构：
+当前系统采用 数据库 + Qdrant + ML Service 的 RAG 架构：
 
-- SQLite 中的 `knowledgeItem` / `knowledgeChunk` 是知识库主数据。
+- PostgreSQL 中的 `knowledgeItem` / `knowledgeChunk` 是知识库主数据。
 - Qdrant 是可重建的向量索引。
 - ML Service 负责多模态 embedding、rerank、图片理解和多模态最终回答。
 
@@ -192,7 +192,7 @@ rerankScore >= KB_HIT_THRESHOLD
 
 ### 1. 知识主数据
 
-主数据位于 SQLite：
+主数据位于 数据库：
 
 - `knowledgeItem`
 - `knowledgeChunk`

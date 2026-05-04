@@ -26,7 +26,7 @@
 6. **实时通知** — 人工1 / 人工2 支持待办数量、站内通知、浏览器通知
 7. **数据统计** — 问答量、知识库命中率、工单处理情况
 
-**技术栈**：Next.js 15 + TypeScript + Prisma/SQLite + Python FastAPI + Qdrant + 阿里云 DashScope
+**技术栈**：Next.js 15 + TypeScript + Prisma/数据库 + Python FastAPI + Qdrant + 阿里云 DashScope
 
 ---
 
@@ -51,7 +51,10 @@
 项目根目录 `.env`：
 
 ```env
-DATABASE_URL="file:./dev.db"
+POSTGRES_DB="tianji_pharmacy"
+POSTGRES_USER="tianji"
+POSTGRES_PASSWORD="change_me_strong_password"
+DATABASE_URL="postgresql://tianji:change_me_strong_password@127.0.0.1:5432/tianji_pharmacy?schema=public"
 OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
 OPENAI_API_KEY="sk-your-dashscope-api-key"
 OPENAI_MODEL="qwen3.5-27b"
@@ -72,7 +75,7 @@ SESSION_TTL_HOURS="72"
 
 ```bash
 pnpm install
-pnpm db:push
+pnpm db:migrate
 docker compose up -d qdrant
 cd app/ml-service
 python3.11 -m venv .venv
@@ -119,7 +122,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Browser   │────▶│   Next.js (3000)  │────▶│  SQLite DB  │
+│   Browser   │────▶│   Next.js (3000)  │────▶│  数据库 DB  │
 └─────────────┘     │                   │     └─────────────┘
                     │  ┌─────────────┐  │
                     │  │  Web APIs   │  │     ┌─────────────────┐
@@ -826,8 +829,8 @@ pnpm kb:rebuild
 ```
 
 - `kb:drain`：处理 `KnowledgeIndexTask` 待执行任务
-- `kb:reconcile`：清理 `Qdrant - SQLite` 孤儿 point，并回补 `SQLite - Qdrant` 缺失 point
-- `kb:rebuild`：以 SQLite 中现存 `knowledgeChunk` 为唯一权威输入，全量重建 `pharmacy_kb`
+- `kb:reconcile`：清理 `Qdrant - 数据库` 孤儿 point，并回补 `数据库 - Qdrant` 缺失 point
+- `kb:rebuild`：以 PostgreSQL 中现存 `knowledgeChunk` 为唯一权威输入，全量重建 `pharmacy_kb`
 
 ### GET /api/files/[...path]
 
@@ -985,11 +988,11 @@ docker restart qdrant
 
 ### 检索命中分数很高但仍然回退到 LLM
 
-通常是 SQLite 与 Qdrant 索引不同步。建议执行：
+通常是 PostgreSQL 与 Qdrant 索引不同步。建议执行：
 
 ```bash
 pnpm kb:rebuild
 pnpm kb:reconcile
 ```
 
-这样会先按 SQLite 全量重建索引，再清理遗留孤儿 point。
+这样会先按 数据库 全量重建索引，再清理遗留孤儿 point。

@@ -1,14 +1,7 @@
 import "dotenv/config";
-import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL ?? `file:${path.resolve(process.cwd(), "prisma", "dev.db")}`
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 const BASE = "http://127.0.0.1:3000";
 

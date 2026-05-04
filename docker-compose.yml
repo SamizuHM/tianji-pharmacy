@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: tianji-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-tianji_pharmacy}
+      - POSTGRES_USER=${POSTGRES_USER:-tianji}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tianji_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   qdrant:
     image: qdrant/qdrant:v1.17.0
     container_name: tianji-qdrant
@@ -36,7 +53,7 @@ services:
       - "3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/app/data/dev.db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-tianji}:${POSTGRES_PASSWORD:-tianji_password}@postgres:5432/${POSTGRES_DB:-tianji_pharmacy}?schema=public
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
@@ -47,9 +64,11 @@ services:
       - RERANK_SERVICE_URL=http://ml-service:8001/rerank
       - ML_SERVICE_URL=http://ml-service:8001
     volumes:
-      - db_data:/app/data
+      - app_state:/app/data
       - uploads_data:/app/uploads
     depends_on:
+      postgres:
+        condition: service_healthy
       qdrant:
         condition: service_started
       ml-service:
@@ -64,6 +83,7 @@ services:
     command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
 
 volumes:
+  postgres_data:
   qdrant_storage:
-  db_data:
+  app_state:
   uploads_data:

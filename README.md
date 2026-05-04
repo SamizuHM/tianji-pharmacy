@@ -1,6 +1,6 @@
 # 药店门店智能问答 Web Demo
 
-基于 `Next.js + Prisma + SQLite + FastAPI + Qdrant` 的最小可运行 Demo。  
+基于 `Next.js + Prisma + PostgreSQL + FastAPI + Qdrant` 的最小可运行 Demo。  
 支持：
 
 - 固定 3 角色登录
@@ -38,7 +38,7 @@ tianji-pharmacy/
 ## 技术选型
 
 - 前端与业务 API：Next.js App Router + TypeScript + Tailwind + 轻量 shadcn/ui 风格组件
-- 业务数据库：SQLite + Prisma ORM
+- 业务数据库：PostgreSQL + Prisma ORM
 - 向量库：Qdrant
 - 模型接入：
   - 多模态问答与图片理解：OpenAI-compatible `qwen3.5-27b`
@@ -68,7 +68,10 @@ cp .env.example .env
 然后至少配置以下变量：
 
 ```env
-DATABASE_URL="file:./dev.db"
+POSTGRES_DB="tianji_pharmacy"
+POSTGRES_USER="tianji"
+POSTGRES_PASSWORD="change_me_strong_password"
+DATABASE_URL="postgresql://tianji:change_me_strong_password@127.0.0.1:5432/tianji_pharmacy?schema=public"
 OPENAI_BASE_URL="https://your-openai-compatible-endpoint/v1"
 OPENAI_API_KEY="your_api_key"
 OPENAI_MODEL="qwen3.5-27b"
@@ -100,7 +103,7 @@ bash scripts/init.sh
 
 - 安装 pnpm 依赖
 - Prisma generate
-- SQLite 建表
+- 执行 Prisma migration
 - 固定账号 seed
 - 创建 `uploads/`
 
@@ -115,11 +118,11 @@ bash scripts/init.sh
 
 | 对比项 | `pnpm dev` 本地开发 | `docker compose up -d --build` 容器部署 |
 |---|---|---|
-| 进程位置 | Web/ML 在宿主机进程运行 | Web/ML/Qdrant/cloudflared 全在容器内 |
+| 进程位置 | Web/ML 在宿主机进程运行 | Web/ML/PostgreSQL/Qdrant/cloudflared 全在容器内 |
 | 配置来源 | 根目录 `.env` 由脚本/框架加载 | `docker-compose.yml` 注入容器环境变量 |
-| 服务互联地址 | `127.0.0.1` | 服务名（`qdrant`、`ml-service`、`web`） |
+| 服务互联地址 | `127.0.0.1` | 服务名（`postgres`、`qdrant`、`ml-service`、`web`） |
 | 端口暴露 | 本地直接监听 `3000/8001` | 仅容器内 `expose`，通过 `cloudflared` 对外 |
-| 数据落盘 | `prisma/dev.db` + 本地 `uploads/` | `db_data` / `uploads_data` / `qdrant_storage` volume |
+| 数据落盘 | 本地 PostgreSQL + 本地 `uploads/` | `postgres_data` / `uploads_data` / `qdrant_storage` volume |
 | 适用场景 | 开发调试、看日志、改代码热更新 | 稳定运行、隔离部署、对外发布 |
 
 ### 方式一：`pnpm dev`（推荐开发时使用）
@@ -130,10 +133,10 @@ bash scripts/init.sh
 bash scripts/init.sh
 ```
 
-2. 启动本地 `qdrant`（本地开发仍然依赖向量库）：
+2. 确认本地依赖服务已启动（初始化脚本会自动启动 PostgreSQL 和 Qdrant）：
 
 ```bash
-docker compose up -d qdrant
+docker compose up -d postgres qdrant
 ```
 
 3. 首次开发时准备 `ml-service` Python 环境：
@@ -146,7 +149,7 @@ pip install -r requirements.txt
 cd ../..
 ```
 
-4. 启动开发模式（会自动 `db:push`，并并发启动 Web + ML）：
+4. 启动开发模式（会自动 `db:migrate`，并并发启动 Web + ML）：
 
 ```bash
 pnpm dev
@@ -221,8 +224,8 @@ pnpm kb:rebuild
 ```
 
 - `kb:drain`：处理当前待投影的索引任务
-- `kb:reconcile`：对账 SQLite 与 Qdrant，删除孤儿 point 并回补缺失 point
-- `kb:rebuild`：以 SQLite 中现存 `knowledgeChunk` 为准，全量重建 `pharmacy_kb`
+- `kb:reconcile`：对账 PostgreSQL 与 Qdrant，删除孤儿 point 并回补缺失 point
+- `kb:rebuild`：以 PostgreSQL 中现存 `knowledgeChunk` 为准，全量重建 `pharmacy_kb`
 
 升级说明：
 
@@ -389,7 +392,7 @@ pnpm kb:rebuild
 ```bash
 pnpm install
 pnpm db:generate
-pnpm db:push
+pnpm db:migrate
 pnpm db:seed
 pnpm check:env
 pnpm kb:import
@@ -430,12 +433,12 @@ curl http://127.0.0.1:6333/collections
 
 ### 5. 检索分数很高但仍然没有走知识库
 
-优先检查 SQLite 与 Qdrant 是否同步。
+优先检查 PostgreSQL 与 Qdrant 是否同步。
 
 如果你更换过数据库、重建过表、但没有同步重建向量索引，可能出现：
 
 - Qdrant 命中了旧的 `knowledgeItemId`
-- SQLite 里查不到该条知识
+- PostgreSQL 里查不到该条知识
 - 最终退回到 LLM 兜底
 
 建议直接执行一次全量重建：

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INIT_MARKER="/app/data/.initialized"
 AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT="${AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT:-true}"
+
+echo "[0/3] Applying database migrations..."
+npx prisma migrate deploy
+
+echo "[1/3] Seeding baseline users and settings..."
+npx tsx prisma/seed.ts
 
 echo "Starting Next.js server in background..."
 node app/web/server.js &
@@ -23,21 +28,10 @@ for i in $(seq 1 90); do
   sleep 2
 done
 
-if [ -f "$INIT_MARKER" ]; then
-  echo "Database already initialized, skipping schema sync."
-else
-  echo "[0/3] Syncing database schema..."
-  npx prisma db push --skip-generate
-fi
-
-if [ ! -f "$INIT_MARKER" ]; then
-  echo "=== First-time initialization ==="
-  echo "[1/2] Seeding database..."
-  npx tsx prisma/seed.ts
-
-  if [ "$AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT" = "true" ]; then
-    echo "[2/2] Importing seed knowledge..."
-    # Login to get session cookie
+if [ "$AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT" = "true" ]; then
+  SHOULD_IMPORT="$(npx tsx scripts/should-import-knowledge.ts)"
+  if [ "$SHOULD_IMPORT" = "true" ]; then
+    echo "[2/3] Importing seed knowledge..."
     COOKIE=$(curl -sf -X POST http://localhost:3000/api/auth/login \
       -H 'Content-Type: application/json' \
       -d '{"username":"药店工作人员","password":"demo123"}' \
@@ -51,13 +45,10 @@ if [ ! -f "$INIT_MARKER" ]; then
       echo "Import result: $IMPORT_RESULT"
     fi
   else
-    echo "[2/2] Skipping seed knowledge import (AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=false)"
+    echo "[2/3] Knowledge already exists, skipping seed knowledge import."
   fi
-
-  touch "$INIT_MARKER"
-  echo "=== Initialization complete ==="
 else
-  echo "Already initialized, skipping init."
+  echo "[2/3] Skipping seed knowledge import (AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=false)"
 fi
 
 echo "Next.js server running (PID $SERVER_PID)"

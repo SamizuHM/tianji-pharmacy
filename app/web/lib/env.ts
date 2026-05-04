@@ -24,7 +24,7 @@ function numberEnv(key: string, fallback: number, options?: { integer?: boolean;
 }
 
 export const env = {
-  DATABASE_URL: stringEnv("DATABASE_URL", "file:./dev.db"),
+  DATABASE_URL: stringEnv("DATABASE_URL", "postgresql://tianji:tianji_password@127.0.0.1:5432/tianji_pharmacy?schema=public"),
   OPENAI_BASE_URL: stringEnv("OPENAI_BASE_URL", "http://127.0.0.1:9999/v1"),
   OPENAI_API_KEY: stringEnv("OPENAI_API_KEY", "demo-key"),
   OPENAI_MODEL: stringEnv("OPENAI_MODEL", "qwen3.5-27b"),
