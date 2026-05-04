@@ -27,6 +27,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
   formatDurationSeconds,
@@ -91,6 +92,8 @@ export function ChatClient(props: {
   const [progressByMessageId, setProgressByMessageId] = useState<Record<string, MessageProgressState>>({});
   const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<Record<string, MessageProgressState>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousConversationIdRef = useRef(props.conversationId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -169,6 +172,7 @@ export function ChatClient(props: {
       setError(data.error || "创建会话失败");
       return;
     }
+    setMobileHistoryOpen(false);
     router.push(`/staff/chat?conversationId=${data.conversation.id}`);
   }
 
@@ -184,6 +188,7 @@ export function ChatClient(props: {
 
     const remaining = conversations.filter((item) => item.id !== conversationId);
     setConversations(remaining);
+    setMobileHistoryOpen(false);
 
     if (conversationId === props.conversationId) {
       if (remaining[0]) {
@@ -456,9 +461,91 @@ export function ChatClient(props: {
     }).catch(() => undefined);
   }
 
+  function openConversation(conversationId: string) {
+    setMobileHistoryOpen(false);
+    router.push(`/staff/chat?conversationId=${conversationId}`);
+  }
+
+  const conversationHistory = (
+    <>
+      <div className="flex flex-col gap-2">
+        {conversations.map((item) => (
+          <div
+            key={item.id}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
+              activeConversation?.id === item.id ? "border-blue-200 bg-blue-50 shadow-sm" : "border-transparent hover:bg-slate-50 hover:border-slate-200"
+            }`}
+          >
+            <button type="button" onClick={() => openConversation(item.id)} className="flex-1 text-left">
+              <div className="truncate font-medium text-slate-900">{item.title}</div>
+              <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
+              onClick={() => deleteConversation(item.id)}
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  const assistantInfo = (
+    <div className="flex flex-col gap-5">
+      <Card>
+        <CardHeader>
+          <CardTitle>助手信息</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex size-16 items-center justify-center rounded-full bg-blue-100 text-primary">
+              <Bot className="size-8" />
+            </div>
+            <div>
+              <div className="font-semibold text-slate-900">药店智能助手</div>
+              <div className="mt-1 flex items-center gap-2 text-sm text-emerald-600">
+                <span className="size-2 rounded-full bg-emerald-500" />
+                在线
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">基于企业知识库与大模型的智能问答助手，提供专业、准确、高效的支持服务。</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>能力范围</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {["药品知识", "合规政策", "经营管理", "系统操作", "医保政策", "会员权益"].map((item) => (
+            <Badge key={item} className="border border-border bg-white px-3 py-2 text-slate-600">
+              {item}
+            </Badge>
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>知识库来源</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          {["企业 SOP 手册", "药品法规政策", "常见问题库", "医保政策库", "系统操作指南", "培训资料库"].map((item) => (
+            <div key={item} className="flex items-center gap-2 text-slate-700">
+              <BookOpenIcon />
+              {item}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
-    <div className="grid h-[calc(100vh-7rem)] gap-5 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
-      <Card className="flex min-h-[520px] flex-col overflow-hidden">
+    <div className="flex h-[calc(100dvh-6rem)] min-h-0 flex-col overflow-hidden xl:grid xl:h-[calc(100vh-8rem)] xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:gap-5">
+      <Card className="hidden min-h-[520px] flex-col overflow-hidden xl:flex">
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>会话历史</CardTitle>
           <Button size="sm" variant="secondary" onClick={createConversation}>
@@ -467,41 +554,54 @@ export function ChatClient(props: {
           </Button>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-y-auto p-3">
-          <div className="flex flex-col gap-2">
-            {conversations.map((item) => (
-              <div
-                key={item.id}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
-                  activeConversation?.id === item.id ? "border-blue-200 bg-blue-50 shadow-sm" : "border-transparent hover:bg-slate-50 hover:border-slate-200"
-                }`}
-              >
-                <button type="button" onClick={() => router.push(`/staff/chat?conversationId=${item.id}`)} className="flex-1 text-left">
-                  <div className="truncate font-medium text-slate-900">{item.title}</div>
-                  <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
-                  onClick={() => deleteConversation(item.id)}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+          {conversationHistory}
         </CardContent>
       </Card>
 
-      <Card className="flex flex-col overflow-hidden">
-        <CardHeader>
+      <Card className="min-h-0 flex flex-1 flex-col overflow-hidden xl:flex-none">
+        <CardHeader className="hidden xl:block">
           <CardTitle>门店智能问答</CardTitle>
           <p className="text-sm text-muted">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
         </CardHeader>
         <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
+          <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 xl:hidden">
+            <Sheet open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen}>
+              <SheetTrigger asChild>
+                <Button size="sm" variant="ghost">历史</Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="max-w-[86vw]">
+                <SheetHeader>
+                  <SheetTitle>会话历史</SheetTitle>
+                </SheetHeader>
+                <SheetBody className="p-3">
+                  <Button className="mb-3 w-full" variant="secondary" onClick={createConversation}>
+                    <Plus className="size-4" />
+                    新建会话
+                  </Button>
+                  {conversationHistory}
+                </SheetBody>
+              </SheetContent>
+            </Sheet>
+            <div className="min-w-0 text-center">
+              <div className="truncate text-sm font-semibold text-slate-950">门店智能问答</div>
+              <div className="truncate text-[11px] text-muted">{activeConversation?.title ?? "新会话"}</div>
+            </div>
+            <Sheet open={mobileAssistantOpen} onOpenChange={setMobileAssistantOpen}>
+              <SheetTrigger asChild>
+                <Button size="sm" variant="ghost">助手</Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="max-w-[86vw]">
+                <SheetHeader>
+                  <SheetTitle>助手信息</SheetTitle>
+                </SheetHeader>
+                <SheetBody className="p-3">{assistantInfo}</SheetBody>
+              </SheetContent>
+            </Sheet>
+          </div>
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 pb-4 pt-5"
+            className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-3 pb-4 pt-4 sm:px-5 sm:pt-5"
           >
             {!messages.length ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
@@ -531,7 +631,7 @@ export function ChatClient(props: {
                 return (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+                    className={`flex gap-2 sm:gap-3 ${isUser ? "justify-end" : "justify-start"}`}
                   >
                     {!isUser ? (
                       <div className="mt-2 flex size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600">
@@ -539,7 +639,7 @@ export function ChatClient(props: {
                       </div>
                     ) : null}
                     <div
-                      className={`max-w-[86%] rounded-xl border px-4 py-3 shadow-sm ${
+                      className={`max-w-[88%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[86%] sm:px-4 sm:py-3 ${
                         isUser ? "border-blue-100 bg-blue-50 text-slate-900" : "border-border bg-white"
                       }`}
                     >
@@ -613,7 +713,7 @@ export function ChatClient(props: {
 
           <button
             type="button"
-            className={`absolute bottom-72 right-6 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 ${
+            className={`absolute bottom-44 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 sm:bottom-72 sm:right-6 ${
               showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
             }`}
             onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
@@ -621,7 +721,7 @@ export function ChatClient(props: {
             <ArrowDown className="size-4" />
           </button>
 
-          <div className="shrink-0 border-t border-border bg-white p-5">
+          <div className="shrink-0 border-t border-border bg-white p-3 sm:p-5">
             <div className="rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md">
               <Textarea
                 ref={textareaRef}
@@ -639,7 +739,7 @@ export function ChatClient(props: {
                     await uploadFiles(clipboardFiles);
                   }
                 }}
-                className="min-h-24 border-none focus:ring-0"
+                className="min-h-16 border-none focus:ring-0 sm:min-h-24"
               />
               <div className="flex flex-wrap gap-2 px-4">
                 {attachments.map((item) => (
@@ -651,10 +751,10 @@ export function ChatClient(props: {
                   </span>
                 ))}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 sm:mt-4 sm:gap-3 sm:px-4 sm:py-3">
                 <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97]">
                   <ImagePlus className="size-4" />
-                  上传图片
+                  <span className="hidden sm:inline">上传图片</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -668,7 +768,7 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97]">
+                <button type="button" className="hidden h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] sm:inline-flex">
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>
@@ -688,53 +788,7 @@ export function ChatClient(props: {
         </CardContent>
       </Card>
 
-      <div className="hidden flex-col gap-5 xl:flex">
-        <Card>
-          <CardHeader>
-            <CardTitle>助手信息</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex size-16 items-center justify-center rounded-full bg-blue-100 text-primary">
-                <Bot className="size-8" />
-              </div>
-              <div>
-                <div className="font-semibold text-slate-900">药店智能助手</div>
-                <div className="mt-1 flex items-center gap-2 text-sm text-emerald-600">
-                  <span className="size-2 rounded-full bg-emerald-500" />
-                  在线
-                </div>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-muted">基于企业知识库与大模型的智能问答助手，提供专业、准确、高效的支持服务。</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>能力范围</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {["药品知识", "合规政策", "经营管理", "系统操作", "医保政策", "会员权益"].map((item) => (
-              <Badge key={item} className="border border-border bg-white px-3 py-2 text-slate-600">
-                {item}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>知识库来源</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 text-sm">
-            {["企业 SOP 手册", "药品法规政策", "常见问题库", "医保政策库", "系统操作指南", "培训资料库"].map((item) => (
-              <div key={item} className="flex items-center gap-2 text-slate-700">
-                <BookOpenIcon />
-                {item}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      <div className="hidden xl:block">{assistantInfo}</div>
     </div>
   );
 }
