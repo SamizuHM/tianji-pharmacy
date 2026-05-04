@@ -153,8 +153,8 @@ export function AppShell(props: {
   return (
     <div className="min-h-screen bg-background text-slate-900">
       <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} />
-      <div className="min-h-screen lg:pl-60">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:px-8">
+      <div className="min-h-screen lg:pl-64">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:top-4 lg:mx-4 lg:mt-4 lg:rounded-2xl lg:border lg:px-6 lg:shadow-[0_12px_32px_rgba(15,23,42,0.07)]">
           <div className="flex min-w-0 items-center gap-3">
             <Sheet>
               <SheetTrigger asChild>
@@ -246,7 +246,7 @@ function DesktopSidebar(props: {
   pendingCounts: PendingCounts;
 }) {
   return (
-    <aside className="fixed left-0 top-0 z-50 hidden h-screen w-60 lg:block">
+    <aside className="fixed left-4 top-4 z-50 hidden h-[calc(100vh-2rem)] w-56 lg:block">
       <SidebarContent {...props} />
     </aside>
   );
@@ -258,17 +258,22 @@ function SidebarContent(props: {
   pendingCounts: PendingCounts;
 }) {
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-[#172554] to-[#2e1065] text-slate-200 shadow-2xl">
-      <div className="flex items-center gap-3 border-b border-white/10 px-6 py-7">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-blue-500 text-white">
-          <LifeBuoy className="size-5" />
-        </div>
-        <div>
-          <div className="text-lg font-bold leading-tight text-white">药店门店智能问答</div>
-          <div className="mt-1 text-[11px] font-medium text-blue-200">智慧支持 · 专业高效</div>
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#f5f7fb_100%)] text-slate-700 shadow-[0_18px_42px_rgba(15,23,42,0.10)]">
+      <div className="border-b border-slate-200/80 px-4 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-primary shadow-sm">
+            <LifeBuoy className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="whitespace-nowrap text-base font-semibold tracking-normal text-slate-950">药店门店智能问答</div>
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+              <span className="size-1.5 rounded-full bg-cyan-500" />
+              智慧支持 · 专业高效
+            </div>
+          </div>
         </div>
       </div>
-      <nav className="flex flex-1 flex-col gap-2 px-3 py-6">
+      <nav className="flex flex-1 flex-col gap-1.5 px-3 py-5">
         {props.navItems.map((item) => {
           const Icon = item.icon;
           const active = props.pathname === item.href || props.pathname.startsWith(`${item.href}/`);
@@ -278,32 +283,46 @@ function SidebarContent(props: {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-between rounded-lg px-4 py-3 text-sm transition-all duration-150",
+                "group flex items-center justify-between rounded-lg border px-3.5 py-2.5 text-sm transition-all duration-150",
                 active
-                  ? "border-l-4 border-blue-400 bg-white/10 font-semibold text-white backdrop-blur"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  ? "border-blue-100 bg-blue-50/90 font-semibold text-primary shadow-sm"
+                  : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-950 hover:shadow-sm"
               )}
             >
               <span className="flex min-w-0 items-center gap-3">
-                <Icon className="size-5 shrink-0" />
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                    active ? "bg-white text-primary" : "bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-primary"
+                  )}
+                >
+                  <Icon className="size-4" />
+                </span>
                 <span className="truncate">{item.label}</span>
               </span>
               {item.countKey ? (
-                <Badge className="bg-blue-500/20 text-blue-100">{count}</Badge>
+                <Badge className={cn(active ? "bg-primary text-white" : "bg-slate-100 text-slate-600")}>{count}</Badge>
               ) : null}
             </Link>
           );
         })}
       </nav>
       <div className="p-4">
-        <div className="overflow-hidden rounded-xl border border-blue-400/20 bg-blue-600/20 p-4 text-center">
-          <div className="text-sm font-bold text-white">AI 赋能药店运营</div>
-          <div className="mt-1 text-xs text-blue-200">智能问答 · 精准高效</div>
-          <div className="mx-auto mt-4 flex size-16 items-center justify-center rounded-lg border border-blue-300/30 bg-blue-500/20 text-2xl font-bold text-blue-200">
-            AI
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">AI 赋能药店运营</div>
+              <div className="mt-1 text-xs text-slate-500">智能问答 · 精准高效</div>
+            </div>
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-cyan-100 bg-cyan-50 text-sm font-semibold text-cyan-700">
+              AI
+            </div>
+          </div>
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-primary to-cyan-500" />
           </div>
         </div>
-        <div className="mt-4 text-center text-xs text-slate-500">© 2025 智慧医药科技 V1.0.0</div>
+        <div className="mt-4 text-center text-xs text-slate-400">© 2025 智慧医药科技 V1.0.0</div>
       </div>
     </div>
   );
