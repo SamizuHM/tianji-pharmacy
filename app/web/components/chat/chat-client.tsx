@@ -27,6 +27,15 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -95,6 +104,7 @@ export function ChatClient(props: {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousConversationIdRef = useRef<string | null>(props.conversationId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -204,6 +214,7 @@ export function ChatClient(props: {
 
     const remaining = conversations.filter((item) => item.id !== conversationId);
     setConversations(remaining);
+    setConfirmingDeleteId(null);
     setMobileHistoryOpen(false);
 
     if (conversationId === currentConversationId) {
@@ -493,6 +504,7 @@ export function ChatClient(props: {
 
   function openConversation(conversationId: string) {
     setMobileHistoryOpen(false);
+    setConfirmingDeleteId(null);
     setCurrentConversationId(conversationId);
     router.push(`/staff/chat?conversationId=${conversationId}`);
   }
@@ -511,13 +523,30 @@ export function ChatClient(props: {
               <div className="truncate font-medium text-slate-900">{item.title}</div>
               <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
             </button>
-            <button
-              type="button"
-              className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
-              onClick={() => deleteConversation(item.id)}
-            >
-              <Trash2 className="size-4" />
-            </button>
+            <Dialog open={confirmingDeleteId === item.id} onOpenChange={(open) => setConfirmingDeleteId(open ? item.id : null)}>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>确认删除？</DialogTitle>
+                  <DialogDescription className="truncate">{item.title}</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setConfirmingDeleteId(null)}>
+                    取消
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={() => deleteConversation(item.id)}>
+                    确认
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         ))}
       </div>
