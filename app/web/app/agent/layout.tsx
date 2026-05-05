@@ -22,6 +22,7 @@ export default async function AgentLayout({ children }: { children: React.ReactN
       description={description}
       initialPendingCounts={pendingCounts}
       userDepartmentName={user.department?.name ?? null}
+      sidebarTheme={user.sidebarTheme as "blue" | "light"}
     >
       {children}
     </AppShell>

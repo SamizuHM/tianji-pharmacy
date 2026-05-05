@@ -45,7 +45,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
       <Card>
         <CardHeader>
           <CardTitle>检索与问答参数</CardTitle>
-          <CardDescription>这些配置写入数据库中的 AppSetting，服务端每次检索会读取最新值。</CardDescription>
+          <CardDescription>这些参数全局共享，修改后对所有用户立即生效。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2">
           <Field

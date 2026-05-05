@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { sidebarThemes } from "@/lib/themes";
+import type { SidebarThemeName } from "@/lib/themes";
 import { roleLabel, statusLabel } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
@@ -81,9 +83,11 @@ export function AppShell(props: {
   description?: string;
   initialPendingCounts?: PendingCounts;
   userDepartmentName?: string | null;
+  sidebarTheme: SidebarThemeName;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const config = sidebarThemes[props.sidebarTheme];
   const [pendingCounts, setPendingCounts] = useState<PendingCounts>(
     props.initialPendingCounts ?? { pendingClaim: 0, escalated: 0 }
   );
@@ -152,9 +156,9 @@ export function AppShell(props: {
 
   return (
     <div className="min-h-screen bg-background text-slate-900">
-      <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} />
-      <div className="min-h-screen lg:pl-60">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:px-8">
+      <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
+      <div className={config.contentArea.wrapper}>
+        <header className={config.contentArea.header}>
           <div className="flex min-w-0 items-center gap-3">
             <Sheet>
               <SheetTrigger asChild>
@@ -167,7 +171,7 @@ export function AppShell(props: {
                   <SheetTitle>导航菜单</SheetTitle>
                 </SheetHeader>
                 <SheetBody className="h-full p-0">
-                  <SidebarContent navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} />
+                  <SidebarContent navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
                 </SheetBody>
               </SheetContent>
             </Sheet>
@@ -214,7 +218,7 @@ export function AppShell(props: {
             </DropdownMenu>
           </div>
         </header>
-        <main className="min-w-0 p-4 lg:p-6">{props.children}</main>
+        <main className={config.contentArea.main}>{props.children}</main>
       </div>
 
       {notifications.length ? (
@@ -244,10 +248,12 @@ function DesktopSidebar(props: {
   navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
   pathname: string;
   pendingCounts: PendingCounts;
+  theme: SidebarThemeName;
 }) {
+  const config = sidebarThemes[props.theme];
   return (
-    <aside className="fixed left-0 top-0 z-50 hidden h-screen w-60 lg:block">
-      <SidebarContent {...props} />
+    <aside className={config.aside}>
+      <SidebarContent navItems={props.navItems} pathname={props.pathname} pendingCounts={props.pendingCounts} theme={props.theme} />
     </aside>
   );
 }
@@ -256,19 +262,25 @@ function SidebarContent(props: {
   navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
   pathname: string;
   pendingCounts: PendingCounts;
+  theme: SidebarThemeName;
 }) {
+  const config = sidebarThemes[props.theme];
+
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-[#172554] to-[#2e1065] text-slate-200 shadow-2xl">
-      <div className="flex items-center gap-3 border-b border-white/10 px-6 py-7">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-blue-500 text-white">
+    <div className={config.container}>
+      <div className={config.brand.wrapper}>
+        <div className={config.brand.iconBox}>
           <LifeBuoy className="size-5" />
         </div>
-        <div>
-          <div className="text-lg font-bold leading-tight text-white">药店门店智能问答</div>
-          <div className="mt-1 text-[11px] font-medium text-blue-200">智慧支持 · 专业高效</div>
+        <div className="min-w-0">
+          <div className={config.brand.title}>药店门店智能问答</div>
+          <div className={config.brand.subtitle}>
+            {config.brand.subtitleDot && <span className={config.brand.subtitleDot} />}
+            智慧支持 · 专业高效
+          </div>
         </div>
       </div>
-      <nav className="flex flex-1 flex-col gap-2 px-3 py-6">
+      <nav className={config.nav.wrapper}>
         {props.navItems.map((item) => {
           const Icon = item.icon;
           const active = props.pathname === item.href || props.pathname.startsWith(`${item.href}/`);
@@ -278,32 +290,58 @@ function SidebarContent(props: {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-between rounded-lg px-4 py-3 text-sm transition-all duration-150",
-                active
-                  ? "border-l-4 border-blue-400 bg-white/10 font-semibold text-white backdrop-blur"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                config.nav.item,
+                active ? config.nav.itemActive : config.nav.itemInactive
               )}
             >
               <span className="flex min-w-0 items-center gap-3">
-                <Icon className="size-5 shrink-0" />
+                {config.nav.iconWrapper ? (
+                  <span
+                    className={cn(
+                      config.nav.iconWrapper,
+                      active ? config.nav.iconWrapperActive : config.nav.iconWrapperInactive
+                    )}
+                  >
+                    <Icon className={config.nav.iconSize} />
+                  </span>
+                ) : (
+                  <Icon className={cn("shrink-0", config.nav.iconSize)} />
+                )}
                 <span className="truncate">{item.label}</span>
               </span>
               {item.countKey ? (
-                <Badge className="bg-blue-500/20 text-blue-100">{count}</Badge>
+                <Badge className={cn(active ? config.nav.badgeActive : config.nav.badgeInactive)}>{count}</Badge>
               ) : null}
             </Link>
           );
         })}
       </nav>
       <div className="p-4">
-        <div className="overflow-hidden rounded-xl border border-blue-400/20 bg-blue-600/20 p-4 text-center">
-          <div className="text-sm font-bold text-white">AI 赋能药店运营</div>
-          <div className="mt-1 text-xs text-blue-200">智能问答 · 精准高效</div>
-          <div className="mx-auto mt-4 flex size-16 items-center justify-center rounded-lg border border-blue-300/30 bg-blue-500/20 text-2xl font-bold text-blue-200">
-            AI
-          </div>
+        <div className={config.footer.card}>
+          {props.theme === "blue" ? (
+            <>
+              <div className={config.footer.title}>AI 赋能药店运营</div>
+              <div className={config.footer.subtitle}>智能问答 · 精准高效</div>
+              <div className={config.footer.aiBox}>AI</div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className={config.footer.title}>AI 赋能药店运营</div>
+                  <div className={config.footer.subtitle}>智能问答 · 精准高效</div>
+                </div>
+                <div className={config.footer.aiBox}>AI</div>
+              </div>
+              {config.footer.progressBar && (
+                <div className={config.footer.progressBar}>
+                  <div className={config.footer.progressFill} />
+                </div>
+              )}
+            </>
+          )}
         </div>
-        <div className="mt-4 text-center text-xs text-slate-500">© 2025 智慧医药科技 V1.0.0</div>
+        <div className={config.footer.copyright}>© 2025 智慧医药科技 V1.0.0</div>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       title="药店工作人员问答台"
       description="先检索知识库，未命中再走大模型。每轮回答后都支持一键转人工。"
       initialPendingCounts={pendingCounts}
+      sidebarTheme={user.sidebarTheme as "blue" | "light"}
     >
       {children}
     </AppShell>

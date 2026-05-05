@@ -101,6 +101,7 @@ model User {
   displayName              String
   passwordHash             String
   role                     UserRole
+  sidebarTheme             String                 @default("blue")
   departmentId             String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
