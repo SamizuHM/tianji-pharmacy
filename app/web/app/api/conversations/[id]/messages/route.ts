@@ -204,11 +204,35 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       void (async () => {
+        let closed = false;
+        const enqueueChunk = (event: string, data: unknown) => {
+          if (closed) {
+            return false;
+          }
+          try {
+            controller.enqueue(encoder.encode(sseChunk(event, data)));
+            return true;
+          } catch {
+            closed = true;
+            return false;
+          }
+        };
+        const closeStream = () => {
+          if (closed) {
+            return;
+          }
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // 客户端提前断开时，流可能已被运行时关闭。
+          }
+        };
         let assistantText = "";
         let hasStartedReasoningAnswer = false;
         let hasStartedStreamAnswer = false;
         const progress = createProgressTracker((payload) => {
-          controller.enqueue(encoder.encode(sseChunk("progress", payload)));
+          enqueueChunk("progress", payload);
         });
 
         const markFirstResponse = (detail?: string) => {
@@ -238,7 +262,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           }
 
           assistantText += delta;
-          controller.enqueue(encoder.encode(sseChunk("delta", { text: delta })));
+          enqueueChunk("delta", { text: delta });
         };
 
         try {
@@ -273,23 +297,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             }
           );
 
-          controller.enqueue(
-            encoder.encode(
-              sseChunk("meta", {
-                conversationId: id,
-                sourceType: retrieval.sourceType,
-                sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型"
-              })
-            )
-          );
-          controller.enqueue(
-            encoder.encode(
-              sseChunk("debug", {
-                retrievalDebug: retrieval.retrievalDebug,
-                imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
-              })
-            )
-          );
+          enqueueChunk("meta", {
+            conversationId: id,
+            sourceType: retrieval.sourceType,
+            sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型"
+          });
+          enqueueChunk("debug", {
+            retrievalDebug: retrieval.retrievalDebug,
+            imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
+          });
           progress.startStep("await_first_token");
 
           const hasGenerationImages =
@@ -376,7 +392,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           const suffix = `\n\n${FIXED_ASSISTANT_SUFFIX}`;
           if (hasStartedStreamAnswer) {
             assistantText += suffix;
-            controller.enqueue(encoder.encode(sseChunk("delta", { text: suffix })));
+            enqueueChunk("delta", { text: suffix });
           }
 
           const assistantMessage = await appendConversationMessage({
@@ -395,33 +411,28 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
           const donePayload = progress.getDonePayload();
 
-          controller.enqueue(
-            encoder.encode(
-              sseChunk("done", {
-                assistantMessageId: assistantMessage.id,
-                answer: assistantText,
-                totalDurationMs: donePayload.totalDurationMs,
-                stepsSummary: donePayload.stepsSummary,
-                firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
-                firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-                reasoningAnswerMs: donePayload.reasoningAnswerMs,
-                waitFirstTokenMs: donePayload.waitFirstTokenMs,
-                streamAnswerMs: donePayload.streamAnswerMs
-              })
-            )
-          );
-          controller.close();
+          enqueueChunk("done", {
+            assistantMessageId: assistantMessage.id,
+            answer: assistantText,
+            totalDurationMs: donePayload.totalDurationMs,
+            stepsSummary: donePayload.stepsSummary,
+            firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
+            firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
+            reasoningAnswerMs: donePayload.reasoningAnswerMs,
+            waitFirstTokenMs: donePayload.waitFirstTokenMs,
+            streamAnswerMs: donePayload.streamAnswerMs
+          });
+          closeStream();
         } catch (error) {
-          controller.enqueue(
-            encoder.encode(
-              sseChunk("error", {
-                error: error instanceof Error ? error.message : "生成回答失败"
-              })
-            )
-          );
-          controller.close();
+          enqueueChunk("error", {
+            error: error instanceof Error ? error.message : "生成回答失败"
+          });
+          closeStream();
         }
       })();
+    },
+    cancel() {
+      // Next.js 会在客户端中断读取时调用 cancel；业务异步流程仍可能继续完成入库。
     }
   });
 

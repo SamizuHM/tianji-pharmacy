@@ -77,7 +77,7 @@ type MessageProgressState = {
 };
 
 export function ChatClient(props: {
-  conversationId: string;
+  conversationId: string | null;
   conversations: Conversation[];
   messages: Message[];
   serviceHotline: string;
@@ -89,19 +89,21 @@ export function ChatClient(props: {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [messages, setMessages] = useState<Message[]>(props.messages);
   const [conversations, setConversations] = useState<Conversation[]>(props.conversations);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(props.conversationId);
   const [progressByMessageId, setProgressByMessageId] = useState<Record<string, MessageProgressState>>({});
   const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<Record<string, MessageProgressState>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const previousConversationIdRef = useRef(props.conversationId);
+  const previousConversationIdRef = useRef<string | null>(props.conversationId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   useEffect(() => setMessages(props.messages), [props.messages]);
   useEffect(() => setConversations(props.conversations), [props.conversations]);
+  useEffect(() => setCurrentConversationId(props.conversationId), [props.conversationId]);
   useEffect(() => {
     const hasRunningProgress = Object.values(progressByMessageId).some((item) => item.status === "running");
     if (!hasRunningProgress) {
@@ -112,17 +114,17 @@ export function ChatClient(props: {
     return () => window.clearInterval(timer);
   }, [progressByMessageId]);
   useEffect(() => {
-    if (previousConversationIdRef.current === props.conversationId) {
+    if (previousConversationIdRef.current === currentConversationId) {
       return;
     }
-    previousConversationIdRef.current = props.conversationId;
+    previousConversationIdRef.current = currentConversationId;
     setProgressByMessageId({});
     setFinalProgressByAssistantId({});
     // 切换会话时滚动到底部
     requestAnimationFrame(() => {
       scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight });
     });
-  }, [props.conversationId]);
+  }, [currentConversationId]);
 
   // 自动滚动：流式消息返回时，若用户在底部附近则持续滚动
   useEffect(() => {
@@ -143,8 +145,8 @@ export function ChatClient(props: {
   }
 
   const activeConversation = useMemo(
-    () => conversations.find((item) => item.id === props.conversationId) ?? conversations[0],
-    [props.conversationId, conversations]
+    () => conversations.find((item) => item.id === currentConversationId) ?? null,
+    [currentConversationId, conversations]
   );
 
   async function uploadFiles(fileList: FileList | File[]) {
@@ -161,19 +163,33 @@ export function ChatClient(props: {
     setAttachments((current) => [...current, ...data.files]);
   }
 
-  async function createConversation() {
+  function startNewConversation() {
+    setMobileHistoryOpen(false);
+    setCurrentConversationId(null);
+    setMessages([]);
+    setProgressByMessageId({});
+    setFinalProgressByAssistantId({});
+    setText("");
+    setAttachments([]);
+    router.push("/staff/chat");
+  }
+
+  async function createConversationForFirstMessage(input: { title: string }) {
     const response = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "新会话" })
+      body: JSON.stringify({ title: input.title })
     });
     const data = await response.json();
     if (!response.ok) {
       setError(data.error || "创建会话失败");
-      return;
+      return null;
     }
-    setMobileHistoryOpen(false);
-    router.push(`/staff/chat?conversationId=${data.conversation.id}`);
+    const conversation = data.conversation as Conversation;
+    setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
+    setCurrentConversationId(conversation.id);
+    window.history.replaceState(null, "", `/staff/chat?conversationId=${conversation.id}`);
+    return conversation.id;
   }
 
   async function deleteConversation(conversationId: string) {
@@ -190,12 +206,12 @@ export function ChatClient(props: {
     setConversations(remaining);
     setMobileHistoryOpen(false);
 
-    if (conversationId === props.conversationId) {
-      if (remaining[0]) {
-        router.push(`/staff/chat?conversationId=${remaining[0].id}`);
-      } else {
-        await createConversation();
-      }
+    if (conversationId === currentConversationId) {
+      setCurrentConversationId(null);
+      setMessages([]);
+      setProgressByMessageId({});
+      setFinalProgressByAssistantId({});
+      router.push("/staff/chat");
     } else {
       router.refresh();
     }
@@ -243,7 +259,17 @@ export function ChatClient(props: {
     setAttachments([]);
 
     try {
-      const response = await fetch(`/api/conversations/${props.conversationId}/messages`, {
+      const conversationId =
+        currentConversationId ??
+        (await createConversationForFirstMessage({
+          title: requestText || "图片问题"
+        }));
+
+      if (!conversationId) {
+        throw new Error("创建会话失败");
+      }
+
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -434,10 +460,14 @@ export function ChatClient(props: {
   }
 
   async function createTicket() {
+    if (!currentConversationId) {
+      setError("请先发送一条消息后再转人工");
+      return;
+    }
     const response = await fetch("/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId: props.conversationId })
+      body: JSON.stringify({ conversationId: currentConversationId })
     });
     const data = await response.json();
     if (!response.ok) {
@@ -463,6 +493,7 @@ export function ChatClient(props: {
 
   function openConversation(conversationId: string) {
     setMobileHistoryOpen(false);
+    setCurrentConversationId(conversationId);
     router.push(`/staff/chat?conversationId=${conversationId}`);
   }
 
@@ -548,7 +579,7 @@ export function ChatClient(props: {
       <Card className="hidden min-h-[520px] flex-col overflow-hidden xl:flex">
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>会话历史</CardTitle>
-          <Button size="sm" variant="secondary" onClick={createConversation}>
+          <Button size="sm" variant="secondary" onClick={startNewConversation}>
             <Plus className="size-4" />
             新建会话
           </Button>
@@ -574,7 +605,7 @@ export function ChatClient(props: {
                   <SheetTitle>会话历史</SheetTitle>
                 </SheetHeader>
                 <SheetBody className="p-3">
-                  <Button className="mb-3 w-full" variant="secondary" onClick={createConversation}>
+                  <Button className="mb-3 w-full" variant="secondary" onClick={startNewConversation}>
                     <Plus className="size-4" />
                     新建会话
                   </Button>
