@@ -634,12 +634,12 @@ export function ChatClient(props: {
                     className={`flex gap-2 sm:gap-3 ${isUser ? "justify-end" : "justify-start"}`}
                   >
                     {!isUser ? (
-                      <div className="mt-2 flex size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600">
+                      <div className="mt-2 hidden size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 sm:flex">
                         {message.sourceType === "kb" ? <Database className="size-4" /> : <Sparkles className="size-4" />}
                       </div>
                     ) : null}
                     <div
-                      className={`max-w-[88%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[86%] sm:px-4 sm:py-3 ${
+                      className={`max-w-[92%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[86%] sm:px-4 sm:py-3 ${
                         isUser ? "border-blue-100 bg-blue-50 text-slate-900" : "border-border bg-white"
                       }`}
                     >
