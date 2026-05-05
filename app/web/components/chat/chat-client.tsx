@@ -708,12 +708,18 @@ export function ChatClient(props: {
                   </div>
                 );
               })}
+              {messages.length ? (
+                <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
+                  <CircleAlert className="size-4" />
+                  每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
+                </div>
+              ) : null}
             </div>
           </div>
 
           <button
             type="button"
-            className={`absolute bottom-44 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 sm:bottom-72 sm:right-6 ${
+            className={`absolute bottom-20 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 sm:bottom-72 sm:right-6 ${
               showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
             }`}
             onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
@@ -722,9 +728,72 @@ export function ChatClient(props: {
           </button>
 
           <div className="shrink-0 border-t border-border bg-white p-3 sm:p-5">
-            <div className="rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md">
+            {/* 手机端：单行输入框 + 内嵌图标按钮 */}
+            <div className="relative sm:hidden">
+              {attachments.length ? (
+                <div className="flex flex-wrap gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm">
+                  {attachments.map((item) => (
+                    <span key={item.path} className="inline-flex items-center gap-1 rounded border border-border bg-slate-50 px-2 py-1 text-xs">
+                      {item.name}
+                      <button type="button" className="text-slate-400 hover:text-red-500" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex items-end rounded-lg border border-blue-100 bg-white shadow-sm focus-within:border-primary focus-within:shadow-md">
+                <textarea
+                  ref={textareaRef}
+                  placeholder="请输入门店问题..."
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  onPaste={async (event) => {
+                    const clipboardFiles = Array.from(event.clipboardData.items)
+                      .filter((item) => item.type.startsWith("image/"))
+                      .map((item) => item.getAsFile())
+                      .filter((item): item is File => Boolean(item));
+
+                    if (clipboardFiles.length) {
+                      event.preventDefault();
+                      await uploadFiles(clipboardFiles);
+                    }
+                  }}
+                  rows={1}
+                  className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400"
+                  style={{ fieldSizing: "content" }}
+                />
+                <div className="flex shrink-0 items-center gap-1 pr-2 pb-1">
+                  <label className="flex size-8 cursor-pointer items-center justify-center rounded-full text-primary transition-all duration-150 hover:bg-blue-50 active:scale-90">
+                    <ImagePlus className="size-5" />
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={async (event) => {
+                        if (event.target.files?.length) {
+                          await uploadFiles(event.target.files);
+                          event.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={sending || (!text.trim() && !attachments.length)}
+                    className="flex size-8 items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-blue-700 active:scale-90 disabled:opacity-50"
+                  >
+                    <SendHorizontal className="size-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* PC端：保持原有多行布局 */}
+            <div className="hidden rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md sm:block">
               <Textarea
-                ref={textareaRef}
                 placeholder="请输入门店问题，或粘贴截图后补充说明..."
                 value={text}
                 onChange={(event) => setText(event.target.value)}
@@ -739,7 +808,7 @@ export function ChatClient(props: {
                     await uploadFiles(clipboardFiles);
                   }
                 }}
-                className="min-h-16 border-none focus:ring-0 sm:min-h-24"
+                className="min-h-24 border-none focus:ring-0"
               />
               <div className="flex flex-wrap gap-2 px-4">
                 {attachments.map((item) => (
@@ -751,10 +820,10 @@ export function ChatClient(props: {
                   </span>
                 ))}
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 sm:mt-4 sm:gap-3 sm:px-4 sm:py-3">
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
                 <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97]">
                   <ImagePlus className="size-4" />
-                  <span className="hidden sm:inline">上传图片</span>
+                  上传图片
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -768,7 +837,7 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="hidden h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] sm:inline-flex">
+                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97]">
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>
@@ -779,10 +848,7 @@ export function ChatClient(props: {
                 </Button>
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-              <CircleAlert className="size-4" />
-              每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
-            </div>
+
             {error ? <Alert className="mt-3 border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
           </div>
         </CardContent>
