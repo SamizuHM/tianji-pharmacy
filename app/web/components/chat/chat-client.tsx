@@ -615,11 +615,11 @@ export function ChatClient(props: {
         {conversations.map((item) => (
           <div
             key={item.id}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
+            className={`flex min-w-0 items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
               activeConversation?.id === item.id ? "border-blue-200 bg-blue-50 shadow-sm" : "border-transparent hover:bg-slate-50 hover:border-slate-200"
             }`}
           >
-            <button type="button" onClick={() => openConversation(item.id)} className="flex-1 text-left">
+            <button type="button" onClick={() => openConversation(item.id)} className="min-w-0 flex-1 overflow-hidden text-left">
               <div className="truncate font-medium text-slate-900">{item.title}</div>
               <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
             </button>
@@ -627,7 +627,7 @@ export function ChatClient(props: {
               <DialogTrigger asChild>
                 <button
                   type="button"
-                  className="rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
+                  className="shrink-0 rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -713,8 +713,10 @@ export function ChatClient(props: {
             新建会话
           </Button>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-y-auto p-3">
-          {conversationHistory}
+        <CardContent className="min-h-0 flex-1 p-0">
+          <ScrollArea className="h-full" viewportClassName="[&>div]:!block">
+            <div className="p-3">{conversationHistory}</div>
+          </ScrollArea>
         </CardContent>
       </Card>
 
@@ -758,37 +760,39 @@ export function ChatClient(props: {
               </SheetContent>
             </Sheet>
           </div>
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-3 pb-4 pt-4 sm:px-5 sm:pt-5"
+          <ScrollArea
+            viewportRef={scrollContainerRef}
+            onViewportScroll={handleScroll}
+            className="min-h-0 flex-1 bg-slate-50/60"
+            viewportClassName="[&>div]:!block [&>div]:h-full"
           >
-            {!messages.length ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary">
-                  <Sparkles className="size-7" />
+            <div className="flex h-full flex-col px-3 pb-8 pt-4 sm:px-5 sm:pb-10 sm:pt-5">
+              {!messages.length ? (
+                <div className="flex flex-1 flex-col items-center justify-center text-center">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary">
+                    <Sparkles className="size-7" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-slate-900">门店智能问答</h3>
+                  <p className="mt-2 max-w-xs text-sm text-muted">
+                    在下方输入您的门店相关问题，支持文字、图片与图文混合输入
+                  </p>
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-slate-900">门店智能问答</h3>
-                <p className="mt-2 max-w-xs text-sm text-muted">
-                  在下方输入您的门店相关问题，支持文字、图片与图文混合输入
-                </p>
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-4">
-              {messages.map((message) => {
-                const attachmentsData = getAttachmentItems(message.attachmentsJson);
-                const debugPayload = safeJsonParse<{
-                  debug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
-                  imagePaths?: string[];
-                }>(message.retrievalDebugJson, {});
-                const retrievalDebug = debugPayload.debug ?? [];
-                const imagePaths = debugPayload.imagePaths ?? [];
-                const progressState = progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
-                const messageText =
-                  message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
-                const isUser = message.role === "user";
+              ) : null}
+              <div className="flex flex-col gap-4">
+                {messages.map((message) => {
+                  const attachmentsData = getAttachmentItems(message.attachmentsJson);
+                  const debugPayload = safeJsonParse<{
+                    debug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+                    imagePaths?: string[];
+                  }>(message.retrievalDebugJson, {});
+                  const retrievalDebug = debugPayload.debug ?? [];
+                  const imagePaths = debugPayload.imagePaths ?? [];
+                  const progressState = progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
+                  const messageText =
+                    message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
+                  const isUser = message.role === "user";
 
-                return (
+                  return (
                   <div
                     key={message.id}
                     className={`flex gap-2 sm:gap-3 ${isUser ? "justify-end" : "justify-start"}`}
@@ -866,16 +870,17 @@ export function ChatClient(props: {
                       ) : null}
                     </div>
                   </div>
-                );
-              })}
-              {messages.length ? (
-                <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
-                  <CircleAlert className="size-4" />
-                  每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
-                </div>
-              ) : null}
+                  );
+                })}
+                {messages.length ? (
+                  <div className="flex items-center justify-center pt-2 pb-6 text-xs text-muted">
+                    <CircleAlert className="size-4" />
+                    每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </ScrollArea>
 
           <button
             type="button"
