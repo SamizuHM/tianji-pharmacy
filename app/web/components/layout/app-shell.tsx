@@ -155,7 +155,7 @@ export function AppShell(props: {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-slate-900">
+    <div className="h-dvh min-h-0 overflow-hidden bg-background text-slate-900">
       <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
       <div className={config.contentArea.wrapper}>
         <header className={config.contentArea.header}>

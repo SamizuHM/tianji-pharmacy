@@ -703,11 +703,11 @@ export function ChatClient(props: {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-6rem)] min-h-0 flex-col overflow-hidden xl:grid xl:h-[calc(100vh-8rem)] xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:gap-5">
-      <Card className="hidden min-h-[520px] flex-col overflow-hidden xl:flex">
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>会话历史</CardTitle>
-          <Button size="sm" variant="secondary" onClick={startNewConversation}>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden xl:grid xl:grid-rows-[minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:gap-5">
+      <Card className="hidden min-h-0 flex-col overflow-hidden xl:flex">
+        <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 [@media(max-height:830px)]:px-4 [@media(max-height:830px)]:py-3">
+          <CardTitle className="whitespace-nowrap">会话历史</CardTitle>
+          <Button size="sm" variant="secondary" className="shrink-0 px-3" onClick={startNewConversation}>
             <Plus className="size-4" />
             新建会话
           </Button>
@@ -718,9 +718,9 @@ export function ChatClient(props: {
       </Card>
 
       <Card className="min-h-0 flex flex-1 flex-col overflow-hidden xl:flex-none">
-        <CardHeader className="hidden xl:block">
+        <CardHeader className="hidden shrink-0 [@media(max-height:830px)]:px-4 [@media(max-height:830px)]:py-3 xl:block">
           <CardTitle>门店智能问答</CardTitle>
-          <p className="text-sm text-muted">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
+          <p className="text-sm text-muted [@media(max-height:830px)]:hidden">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
         </CardHeader>
         <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
           <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 xl:hidden">
@@ -886,9 +886,9 @@ export function ChatClient(props: {
             <ArrowDown className="size-4" />
           </button>
 
-          <div className="shrink-0 border-t border-border bg-white p-3 sm:p-5">
+          <div className="shrink-0 border-t border-border bg-white p-3 [@media(max-height:830px)]:sm:p-3 sm:p-5">
             {/* 手机端：单行输入框 + 内嵌图标按钮 */}
-            <div className="relative sm:hidden">
+            <div className="relative sm:hidden [@media(max-height:830px)]:!block">
               {attachments.length ? (
                 <div className="flex flex-wrap gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm">
                   {attachments.map((item) => (
@@ -919,7 +919,7 @@ export function ChatClient(props: {
                     }
                   }}
                   rows={1}
-                  className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400"
+                  className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 [@media(max-height:830px)]:max-h-20"
                   style={{ fieldSizing: "content" }}
                 />
                 <div className="flex shrink-0 items-center gap-1 pr-2 pb-1">
@@ -951,7 +951,7 @@ export function ChatClient(props: {
             </div>
 
             {/* PC端：保持原有多行布局 */}
-            <div className="hidden rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md sm:block">
+            <div className="hidden rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md sm:block [@media(max-height:830px)]:!hidden">
               <Textarea
                 placeholder="请输入门店问题，或粘贴截图后补充说明..."
                 value={text}
@@ -967,9 +967,9 @@ export function ChatClient(props: {
                     await uploadFiles(clipboardFiles);
                   }
                 }}
-                className="min-h-24 border-none focus:ring-0"
+                className="min-h-24 resize-none overflow-y-auto border-none focus:ring-0 [@media(max-height:830px)]:max-h-20 [@media(max-height:830px)]:min-h-12"
               />
-              <div className="flex flex-wrap gap-2 px-4">
+              <div className="flex flex-wrap gap-2 px-4 [@media(max-height:830px)]:px-3">
                 {attachments.map((item) => (
                   <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300">
                     {item.name}
@@ -979,7 +979,7 @@ export function ChatClient(props: {
                   </span>
                 ))}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3 [@media(max-height:830px)]:mt-2 [@media(max-height:830px)]:gap-2 [@media(max-height:830px)]:px-3 [@media(max-height:830px)]:py-2">
                 <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97]">
                   <ImagePlus className="size-4" />
                   上传图片
@@ -996,7 +996,7 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97]">
+                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] [@media(max-height:830px)]:hidden">
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>
@@ -1012,7 +1012,7 @@ export function ChatClient(props: {
         </CardContent>
       </Card>
 
-      <div className="hidden xl:block">{assistantInfo}</div>
+      <div className="hidden min-h-0 overflow-y-auto xl:block">{assistantInfo}</div>
     </div>
   );
 }

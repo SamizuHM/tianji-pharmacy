@@ -69,10 +69,10 @@ export const sidebarThemes: Record<SidebarThemeName, SidebarThemeConfig> = {
       copyright: "mt-4 text-center text-xs text-slate-500",
     },
     contentArea: {
-      wrapper: "min-h-screen lg:pl-60",
+      wrapper: "flex h-full min-h-0 flex-col lg:pl-60",
       header:
-        "sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:px-8",
-      main: "min-w-0 p-4 lg:p-6",
+        "sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:px-8",
+      main: "flex min-h-0 flex-1 flex-col min-w-0 overflow-y-auto p-4 lg:p-6",
     },
   },
 
@@ -118,10 +118,10 @@ export const sidebarThemes: Record<SidebarThemeName, SidebarThemeConfig> = {
       copyright: "mt-4 text-center text-xs text-slate-400",
     },
     contentArea: {
-      wrapper: "min-h-screen lg:pl-60 lg:pt-4",
+      wrapper: "flex h-full min-h-0 flex-col lg:pl-60 lg:pt-4",
       header:
-        "sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:top-4 lg:mx-4 lg:rounded-2xl lg:border lg:px-6 lg:shadow-[0_12px_32px_rgba(15,23,42,0.07)]",
-      main: "min-w-0 p-4 lg:px-4 lg:py-6",
+        "sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 shadow-sm backdrop-blur lg:top-4 lg:mx-4 lg:rounded-2xl lg:border lg:px-6 lg:shadow-[0_12px_32px_rgba(15,23,42,0.07)]",
+      main: "flex min-h-0 flex-1 flex-col min-w-0 overflow-y-auto p-4 lg:p-4",
     },
   },
 };
