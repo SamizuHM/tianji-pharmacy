@@ -35,3 +35,8 @@ uploads/*
 
 # Large original docs (not needed, seed files are in their directories)
 信息部常见问题详解.doc
+
+# Generated document exports
+docs/USER_MANUAL.pdf
+docs/USER_MANUAL.docx
+docs/.~*.docx

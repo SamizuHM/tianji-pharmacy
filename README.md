@@ -35,6 +35,19 @@ tianji-pharmacy/
 └─ README.md
 ```
 
+## 文档入口
+
+如果你需要接手本项目后续开发，建议先从文档索引开始：
+
+- [docs/README.md](docs/README.md) — 文档阅读顺序和按任务查文档
+- [docs/ONBOARDING.md](docs/ONBOARDING.md) — 项目接手路线图
+- [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md) — 页面、API、服务层、脚本、部署文件地图
+- [docs/DOMAIN_MODEL.md](docs/DOMAIN_MODEL.md) — 业务模型与数据流
+- [docs/DEVELOPMENT_PLAYBOOK.md](docs/DEVELOPMENT_PLAYBOOK.md) — 常见开发任务手册
+- [docs/ACCEPTANCE_CHECKLIST.md](docs/ACCEPTANCE_CHECKLIST.md) — 接手验收与回归清单
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — 当前术语和历史表述对照
+- [docs/USER_MANUAL.md](docs/USER_MANUAL.md) — 用户视角操作手册和完整闭环案例
+
 ## 技术选型
 
 - 前端与业务 API：Next.js App Router + TypeScript + Tailwind + 轻量 shadcn/ui 风格组件
