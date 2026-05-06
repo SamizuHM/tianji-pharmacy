@@ -30,6 +30,7 @@ enum TicketStatus {
   pending_claim
   processing
   escalated
+  resolved
   closed
 }
 

@@ -19,6 +19,8 @@ export function statusLabel(status: TicketStatus) {
       return "处理中";
     case "escalated":
       return "已升级";
+    case "resolved":
+      return "已解决";
     case "closed":
       return "已关闭";
     default:
@@ -34,6 +36,8 @@ export function statusTone(status: TicketStatus) {
       return "border-blue-100 bg-blue-50 text-blue-600";
     case "escalated":
       return "border-purple-100 bg-purple-50 text-purple-600";
+    case "resolved":
+      return "border-cyan-100 bg-cyan-50 text-cyan-600";
     case "closed":
       return "border-emerald-100 bg-emerald-50 text-emerald-600";
     default:

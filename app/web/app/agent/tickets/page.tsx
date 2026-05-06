@@ -10,8 +10,8 @@ export default async function AgentTicketsPage(props: { searchParams: Promise<{ 
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
-      status: (searchParams.status as "pending_claim" | "processing" | "escalated" | "closed" | "all" | undefined) ?? "all",
-      statusGroup: (searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all",
+      status: (searchParams.status as "pending_claim" | "processing" | "escalated" | "resolved" | "closed" | "all" | undefined) ?? "all",
+      statusGroup: (searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "resolved" | "closed" | undefined) ?? "all",
       q: searchParams.q,
       page: Number(searchParams.page ?? 1),
       pageSize: Number(searchParams.pageSize ?? 10)
@@ -28,7 +28,7 @@ export default async function AgentTicketsPage(props: { searchParams: Promise<{ 
       title={`工单列表（待认领 ${pendingCounts.pendingClaim}，已升级 ${pendingCounts.escalated}）`}
       basePath="/agent/tickets"
       result={result}
-      currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all"}
+      currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "resolved" | "closed" | undefined) ?? "all"}
       q={searchParams.q}
       currentUserId={user.id}
     />

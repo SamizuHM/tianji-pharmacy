@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const BASE = "http://127.0.0.1:3000";
+const BASE = process.env.TEST_BASE_URL ?? "http://127.0.0.1:3000";
 
 async function login(username: string): Promise<string> {
   const res = await fetch(`${BASE}/api/auth/login`, {
@@ -158,18 +158,56 @@ async function main() {
   console.log(`状态: ${submitRes.status}`);
   console.log();
 
-  // 13. Agent-1 尝试关闭（应失败，只有staff能关）
-  console.log("--- 测试10: Agent 尝试关闭（应返回403） ---");
-  const closeFailRes = await api(`/api/tickets/${ticketId}/close`, agentCookie1, {
+  // 13. 确认解决前生成知识草稿应失败
+  console.log("--- 测试10: 确认解决前生成知识草稿（应失败） ---");
+  const draftBeforeResolveRes = await api(`/api/tickets/${ticketId}/knowledge-draft`, deptCookie, {
     method: "POST",
-    body: JSON.stringify({ resolutionText: "测试" })
+    body: JSON.stringify({ selectedMaterialIds: ["ticketMessage:__invalid__"] })
   });
-  console.log(`状态: ${closeFailRes.status} (期望 403)`);
+  console.log(`状态: ${draftBeforeResolveRes.status} (期望 400)`);
+  console.log(`错误: ${draftBeforeResolveRes.data.error}`);
   console.log();
 
-  // 14. Staff 关闭工单
-  console.log("--- 测试11: Staff 关闭工单 ---");
-  const closeRes = await api(`/api/tickets/${ticketId}/close`, staffCookie, {
+  // 14. Staff 确认问题已解决
+  console.log("--- 测试11: Staff 确认问题已解决 ---");
+  const resolveRes = await api(`/api/tickets/${ticketId}/resolve`, staffCookie, { method: "POST" });
+  console.log(`状态: ${resolveRes.status}`);
+  console.log(`工单状态: ${resolveRes.data.ticket?.status}`);
+  console.log();
+
+  // 15. 伪造一条待入库草稿，避免端到端脚本依赖大模型生成。
+  await prisma.ticketKnowledgeDraft.create({
+    data: {
+      ticketId,
+      selectedMaterialsJson: JSON.stringify([]),
+      categoryL1: "系统操作",
+      categoryL2: "医保刷卡",
+      question: "医保刷卡失败显示 E001 怎么处理？",
+      answer: "先检查网络和读卡器连接；如确认是医保系统升级导致，请等待 30 分钟后重试，仍失败则联系医保中心技术支持。",
+      tagsJson: JSON.stringify(["医保", "刷卡", "E001"]),
+      generatedByUserId: deptUser.id,
+      confirmedAt: new Date()
+    }
+  });
+  await prisma.ticket.update({
+    where: { id: ticketId },
+    data: { knowledgeStatus: "pending_writeback" }
+  });
+  console.log("✓ 已创建测试用待入库知识草稿\n");
+
+  // 16. 非当前处理客服尝试关闭（应失败）
+  console.log("--- 测试12: 非当前处理客服尝试关闭（应失败） ---");
+  const closeFailRes = await api(`/api/tickets/${ticketId}/close`, agentCookie1, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  console.log(`状态: ${closeFailRes.status} (期望 400)`);
+  console.log(`错误: ${closeFailRes.data.error}`);
+  console.log();
+
+  // 17. 当前处理客服关闭工单
+  console.log("--- 测试13: 当前处理客服关闭工单 ---");
+  const closeRes = await api(`/api/tickets/${ticketId}/close`, deptCookie, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -177,8 +215,8 @@ async function main() {
   console.log(`工单状态: ${closeRes.data.ticket?.status}`);
   console.log();
 
-  // 15. 查看工单详情
-  console.log("--- 测试12: 查看最终工单详情 ---");
+  // 18. 查看工单详情
+  console.log("--- 测试14: 查看最终工单详情 ---");
   const detailRes = await api(`/api/tickets/${ticketId}`, staffCookie);
   console.log(`状态: ${detailRes.status}`);
   const ticket = detailRes.data.ticket;
@@ -191,8 +229,8 @@ async function main() {
   console.log(`消息数量: ${ticket.messages?.length}`);
   console.log();
 
-  // 16. 查看部门列表
-  console.log("--- 测试13: 部门列表 ---");
+  // 19. 查看部门列表
+  console.log("--- 测试15: 部门列表 ---");
   const deptRes = await api("/api/departments", staffCookie);
   console.log(`状态: ${deptRes.status}`);
   console.log(`部门数量: ${deptRes.data.departments?.length}`);

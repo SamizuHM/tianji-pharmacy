@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Ticket, User } from "@prisma/client";
-import { CheckCircle2, Clock3, FileText, Filter, Pin, Search, Ticket as TicketIcon } from "lucide-react";
+import { CheckCircle2, CircleCheck, Clock3, FileText, Filter, Pin, Search, Ticket as TicketIcon } from "lucide-react";
 import { useTransition } from "react";
 
 import { MetricCard } from "@/components/shared/metric-card";
@@ -58,6 +58,7 @@ export function TicketList(props: {
     { key: "pending", label: "待认领", count: result.summary.pending },
     { key: "processing", label: "处理中", count: result.summary.processing },
     { key: "escalated", label: "已升级", count: result.summary.escalated },
+    { key: "resolved", label: "已解决", count: result.summary.resolved },
     { key: "closed", label: "已关闭", count: result.summary.closed }
   ];
 
@@ -99,10 +100,11 @@ export function TicketList(props: {
 
       <div>
         <h2 className="mb-3 text-base font-semibold text-slate-900">今日工单概览</h2>
-        <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-5", isPending && "opacity-60")}>
+        <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-6", isPending && "opacity-60")}>
           <MetricCard label="待认领" value={result.summary.pending} description="等待人工响应" icon={FileText} tone="blue" trend="12.5%" />
           <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
           <MetricCard label="已升级" value={result.summary.escalated} description="部门跟进" icon={Pin} tone="purple" trend="2.3%" />
+          <MetricCard label="已解决" value={result.summary.resolved} description="等待知识整理" icon={CircleCheck} tone="indigo" />
           <MetricCard label="已关闭" value={result.summary.closed} description="闭环归档" icon={CheckCircle2} tone="green" trend="18.4%" />
           <MetricCard label="今日总量" value={result.summary.all} description={props.title} icon={TicketIcon} tone="indigo" />
         </div>

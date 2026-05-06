@@ -10,7 +10,14 @@ type PendingCounts = {
 };
 
 type TicketNotificationEvent = {
-  type: "ticket_created" | "ticket_claimed" | "ticket_escalated" | "ticket_replied" | "ticket_closed" | "ticket_resolution_submitted";
+  type:
+    | "ticket_created"
+    | "ticket_claimed"
+    | "ticket_escalated"
+    | "ticket_replied"
+    | "ticket_closed"
+    | "ticket_resolution_submitted"
+    | "ticket_resolved";
   title: string;
   message: string;
   ticketId: string;

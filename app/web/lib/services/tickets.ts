@@ -9,7 +9,7 @@ import type { AttachmentItem } from "@pharmacy/shared";
 import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
 
-export type TicketStatusGroup = "all" | "pending" | "processing" | "escalated" | "closed";
+export type TicketStatusGroup = "all" | "pending" | "processing" | "escalated" | "resolved" | "closed";
 
 export type TicketListParams = {
   role: UserRole;
@@ -41,6 +41,7 @@ const statusGroups: Record<Exclude<TicketStatusGroup, "all">, TicketStatus[]> = 
   pending: ["pending_claim"],
   processing: ["processing"],
   escalated: ["escalated"],
+  resolved: ["resolved"],
   closed: ["closed"]
 };
 
@@ -375,7 +376,7 @@ export async function listTickets(params: TicketListParams) {
   const where = buildTicketWhere(params);
   const roleWhere = baseTicketWhere(params);
 
-  const [items, total, all, pending, processing, escalated, closed, myTickets] = await Promise.all([
+  const [items, total, all, pending, processing, escalated, resolved, closed, myTickets] = await Promise.all([
     prisma.ticket.findMany({
       where,
       include: {
@@ -392,6 +393,7 @@ export async function listTickets(params: TicketListParams) {
     prisma.ticket.count({ where: { AND: [roleWhere, { status: "pending_claim" }] } }),
     prisma.ticket.count({ where: { AND: [roleWhere, { status: "processing" }] } }),
     prisma.ticket.count({ where: { AND: [roleWhere, { status: "escalated" }] } }),
+    prisma.ticket.count({ where: { AND: [roleWhere, { status: "resolved" }] } }),
     prisma.ticket.count({ where: { AND: [roleWhere, { status: "closed" }] } }),
     prisma.ticket.count({ where: { AND: [roleWhere, { claimedByUserId: params.userId, status: { not: "closed" } }] } })
   ]);
@@ -407,6 +409,7 @@ export async function listTickets(params: TicketListParams) {
       pending,
       processing,
       escalated,
+      resolved,
       closed,
       myTickets
     }
@@ -623,6 +626,64 @@ export async function submitResolution(input: {
   return updated;
 }
 
+export async function resolveTicket(input: {
+  ticketId: string;
+  resolvedByUserId: string;
+}) {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId }
+  });
+
+  if (!ticket) {
+    throw new Error("工单不存在");
+  }
+
+  if (ticket.status === "closed") {
+    throw new Error("工单已关闭");
+  }
+
+  if (ticket.status === "resolved") {
+    throw new Error("工单已确认解决");
+  }
+
+  if (ticket.createdByUserId !== input.resolvedByUserId) {
+    throw new Error("只有提交工单的药店工作人员可以确认问题已解决");
+  }
+
+  if (!ticket.resolutionText || !ticket.resolutionSubmittedAt) {
+    throw new Error("确认解决前需要人工客服先提交处理方案");
+  }
+
+  const updated = await prisma.ticket.update({
+    where: { id: input.ticketId },
+    data: {
+      status: "resolved"
+    }
+  });
+
+  await prisma.ticketMessage.create({
+    data: {
+      ticketId: input.ticketId,
+      senderRole: "system",
+      messageType: "system",
+      content: "药店工作人员已确认问题解决，客服可以整理待入库知识。"
+    }
+  });
+
+  if (ticket.claimedByUserId) {
+    await broadcastTicketNotification({
+      type: "ticket_resolved",
+      title: "工单问题已确认解决",
+      message: `工单 ${ticket.ticketNo} 已确认解决，请整理待入库知识`,
+      ticketId: ticket.id,
+      ticketNo: ticket.ticketNo,
+      targetUserIds: [ticket.claimedByUserId]
+    });
+  }
+
+  return updated;
+}
+
 export async function getTicketKnowledgeMaterials(ticketId: string) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
@@ -688,6 +749,10 @@ export async function generateTicketKnowledgeDraft(input: {
 
   if (ticket.status === "closed") {
     throw new Error("工单已关闭，不能重新生成待入库内容");
+  }
+
+  if (ticket.status !== "resolved") {
+    throw new Error("药店工作人员确认问题解决后，客服才能生成待入库内容");
   }
 
   const materials = await getTicketKnowledgeMaterials(input.ticketId);
@@ -758,8 +823,16 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     throw new Error("工单已关闭");
   }
 
-  if (existingTicket.createdByUserId !== input.closedByUserId) {
-    throw new Error("只有提交工单的药店工作人员可以关闭工单");
+  const canClose =
+    existingTicket.createdByUserId === input.closedByUserId ||
+    existingTicket.claimedByUserId === input.closedByUserId;
+
+  if (!canClose) {
+    throw new Error("只有提交工单的药店工作人员或当前处理客服可以关闭工单");
+  }
+
+  if (existingTicket.status !== "resolved") {
+    throw new Error("药店工作人员确认问题解决后才能关闭工单");
   }
 
   if (!existingTicket.resolutionText) {
@@ -810,7 +883,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
         ticketId: input.ticketId,
         senderRole: "system",
         messageType: "system",
-        content: "药店工作人员已确认关闭工单，客服生成的优质答案已写回知识库。"
+        content: "工单已关闭，客服生成的优质答案已写回知识库。"
       }
     });
 

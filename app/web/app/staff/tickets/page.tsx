@@ -8,8 +8,8 @@ export default async function StaffTicketsPage(props: { searchParams: Promise<{ 
   const result = await listTickets({
     role: user.role,
     userId: user.id,
-    status: (searchParams.status as "pending_claim" | "processing" | "escalated" | "closed" | "all" | undefined) ?? "all",
-    statusGroup: (searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all",
+    status: (searchParams.status as "pending_claim" | "processing" | "escalated" | "resolved" | "closed" | "all" | undefined) ?? "all",
+    statusGroup: (searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "resolved" | "closed" | undefined) ?? "all",
     q: searchParams.q,
     page: Number(searchParams.page ?? 1),
     pageSize: Number(searchParams.pageSize ?? 10)
@@ -20,7 +20,7 @@ export default async function StaffTicketsPage(props: { searchParams: Promise<{ 
       title="药店工作人员工单列表"
       basePath="/staff/tickets"
       result={result}
-      currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "closed" | undefined) ?? "all"}
+      currentStatusGroup={(searchParams.statusGroup as "all" | "pending" | "processing" | "escalated" | "resolved" | "closed" | undefined) ?? "all"}
       q={searchParams.q}
       currentUserId={user.id}
     />

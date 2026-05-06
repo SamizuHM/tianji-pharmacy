@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { AttachmentItem } from "@pharmacy/shared";
 import { Ticket, TicketKnowledgeDraft, TicketMessage } from "@prisma/client";
-import { ArrowUpRight, BookOpen, Loader2, MessageSquareReply, Send, Upload } from "lucide-react";
+import { ArrowUpRight, BookOpen, CircleCheck, Loader2, MessageSquareReply, Send, Upload } from "lucide-react";
 
 import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { PriorityBadge, TicketStatusBadge } from "@/components/shared/status-badge";
@@ -144,6 +144,20 @@ export function TicketDetailClient(props: {
     });
   }
 
+  function resolveTicket() {
+    startTransition(async () => {
+      const response = await fetch(`/api/tickets/${props.ticket.id}/resolve`, {
+        method: "POST"
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "确认失败");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   function closeTicket() {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/close`, {
@@ -174,10 +188,16 @@ export function TicketDetailClient(props: {
     (isClaimant || props.ticket.claimedByUserId === props.userId) &&
     props.ticket.status !== "closed" &&
     !props.ticket.resolutionSubmittedAt;
-  const canClose = props.role === "staff" && isCreator &&
-    props.ticket.status !== "closed" && props.ticket.resolutionSubmittedAt;
-  const canGenerateKnowledge = props.role === "agent" && Boolean(isClaimant) && props.ticket.status !== "closed";
+  const canResolve = props.role === "staff" && isCreator &&
+    props.ticket.status !== "closed" &&
+    props.ticket.status !== "resolved" &&
+    Boolean(props.ticket.resolutionSubmittedAt);
+  const canGenerateKnowledge = props.role === "agent" && Boolean(isClaimant) && props.ticket.status === "resolved";
   const latestKnowledgeDraft = props.ticket.knowledgeDrafts[0] ?? null;
+  const canClose = props.ticket.status === "resolved" && (
+    (props.role === "staff" && isCreator) ||
+    (props.role === "agent" && Boolean(isClaimant))
+  );
   const canCloseWithWriteback = canClose &&
     props.ticket.knowledgeStatus === "pending_writeback" &&
     Boolean(latestKnowledgeDraft);
@@ -304,6 +324,20 @@ export function TicketDetailClient(props: {
                   <Send className="size-5" />
                 </button>
               ) : null}
+              {canResolve ? (
+                <button
+                  type="button"
+                  className="flex items-center justify-between rounded-lg border border-cyan-100 bg-cyan-50 px-4 py-3 text-left text-cyan-600 transition hover:bg-cyan-100 disabled:opacity-60"
+                  onClick={resolveTicket}
+                  disabled={pending}
+                >
+                  <span>
+                    <span className="block text-sm font-medium">问题已解决</span>
+                    <span className="text-xs text-muted">确认后客服才能整理待入库知识</span>
+                  </span>
+                  <CircleCheck className="size-5" />
+                </button>
+              ) : null}
               {canGenerateKnowledge ? (
                 <button
                   type="button"
@@ -318,6 +352,7 @@ export function TicketDetailClient(props: {
                   <BookOpen className="size-5" />
                 </button>
               ) : null}
+              {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
             </CardContent>
           </Card>
 
@@ -359,7 +394,7 @@ export function TicketDetailClient(props: {
                 <KnowledgeDraftPreview draft={latestKnowledgeDraft} />
               ) : (
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  当前工单尚未生成待入库答案。客服需要先勾选有效历史对话和附件，生成优质答案后，门店才能关闭并写回知识库。
+                  当前工单尚未生成待入库答案。药店确认问题解决后，客服需要勾选有效历史对话和附件，生成优质答案后才能关闭并写回知识库。
                 </p>
               )}
             </CardContent>
@@ -420,15 +455,37 @@ export function TicketDetailClient(props: {
             </Card>
           ) : null}
 
-          {/* Staff close */}
-          {canClose ? (
+          {/* Resolve confirmation */}
+          {canResolve ? (
             <Card>
               <CardHeader>
-                <CardTitle>确认关闭工单</CardTitle>
+                <CardTitle>确认问题解决</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <Alert className="border-primary/30 bg-blue-50 text-foreground">
-                  人工客服已提交处理方案，请确认后关闭工单。
+                  人工客服已提交处理方案。确认问题解决后，客服才能勾选素材生成待入库知识。
+                </Alert>
+                <Textarea
+                  placeholder="处理方案"
+                  value={props.ticket.resolutionText || ""}
+                  readOnly
+                />
+                <Button onClick={resolveTicket} disabled={pending}>
+                  {pending ? "确认中..." : "问题已解决"}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* Close */}
+          {canClose ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>关闭工单</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Alert className="border-primary/30 bg-blue-50 text-foreground">
+                  问题已确认解决。关闭工单后，待入库答案会写回知识库。
                 </Alert>
                 <Textarea
                   placeholder="可编辑处理方案（可选）"
@@ -437,7 +494,7 @@ export function TicketDetailClient(props: {
                 />
                 {!canCloseWithWriteback ? (
                   <Alert className="border-orange-200 bg-orange-50 text-orange-700">
-                    客服尚未生成待入库答案，暂不能关闭写回知识库。
+                    客服尚未生成待入库答案，暂不能关闭并写回知识库。
                   </Alert>
                 ) : null}
                 <Button onClick={closeTicket} disabled={pending || !canCloseWithWriteback}>
@@ -484,7 +541,6 @@ export function TicketDetailClient(props: {
                 <Button variant="secondary" onClick={postReply} disabled={pending || !content.trim()}>
                   {pending ? "发送中..." : "发送处理回复"}
                 </Button>
-                {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
               </CardContent>
             </Card>
           ) : null}

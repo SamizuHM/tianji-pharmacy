@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     | "pending_claim"
     | "processing"
     | "escalated"
+    | "resolved"
     | "closed"
     | "all"
     | null;
