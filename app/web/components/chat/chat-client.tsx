@@ -882,17 +882,16 @@ export function ChatClient(props: {
             </div>
           </ScrollArea>
 
-          <button
-            type="button"
-            className={`absolute bottom-20 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 sm:bottom-72 sm:right-6 ${
-              showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
-            }`}
-            onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
-          >
-            <ArrowDown className="size-4" />
-          </button>
-
-          <div className="shrink-0 border-t border-border bg-white p-3 [@media(max-height:830px)]:sm:p-3 sm:p-5">
+          <div className="relative shrink-0 border-t border-border bg-white p-3 [@media(max-height:830px)]:sm:p-3 sm:p-5">
+            <button
+              type="button"
+              className={`absolute -top-12 right-3 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 ${
+                showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
+              }`}
+              onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
+            >
+              <ArrowDown className="size-4" />
+            </button>
             {/* 手机端：单行输入框 + 内嵌图标按钮 */}
             <div className="relative sm:hidden [@media(max-height:830px)]:!block">
               {attachments.length ? (
