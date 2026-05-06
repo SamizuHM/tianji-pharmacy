@@ -56,6 +56,12 @@ enum MessageFeedback {
   unhelpful
 }
 
+enum MessageStatus {
+  streaming
+  completed
+  failed
+}
+
 enum KnowledgeSourceType {
   seed_doc
   image_doc
@@ -146,6 +152,7 @@ model ChatMessage {
   role               MessageRole
   sourceType         MessageSourceType
   contentText        String
+  status             MessageStatus     @default(completed)
   attachmentsJson    String?
   retrievalDebugJson String?
   feedback           MessageFeedback?

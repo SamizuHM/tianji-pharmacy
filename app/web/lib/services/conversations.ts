@@ -1,4 +1,4 @@
-import { MessageSourceType, MessageRole } from "@prisma/client";
+import { MessageSourceType, MessageRole, MessageStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { truncateText } from "@/lib/utils";
@@ -40,6 +40,7 @@ export async function appendConversationMessage(input: {
   role: MessageRole;
   sourceType: MessageSourceType;
   contentText: string;
+  status?: MessageStatus;
   attachmentsJson?: string | null;
   retrievalDebugJson?: string | null;
 }) {
@@ -49,6 +50,7 @@ export async function appendConversationMessage(input: {
       role: input.role,
       sourceType: input.sourceType,
       contentText: input.contentText,
+      status: input.status ?? "completed",
       attachmentsJson: input.attachmentsJson ?? null,
       retrievalDebugJson: input.retrievalDebugJson ?? null
     }

@@ -5,6 +5,7 @@ import { FIXED_ASSISTANT_SUFFIX } from "@pharmacy/shared";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { PROGRESS_STEP_LABELS, PROGRESS_STEP_ORDER } from "@/lib/chat-progress";
+import { prisma } from "@/lib/db";
 import {
   buildGeneralPharmacyPrompt,
   buildKbStyledPrompt,
@@ -22,6 +23,7 @@ import {
 import { retrieveAnswer } from "@/lib/services/retrieval";
 import { getRuntimeSettings } from "@/lib/services/settings";
 import { getAttachmentItems, isImageAttachment } from "@/lib/utils";
+import { registerStream, emitDelta as emitDeltaToStream, completeStream, failStream } from "@/lib/active-streams";
 
 function sseChunk(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -33,6 +35,7 @@ function toModelHistoryMessages(
 ): ModelChatMessage[] {
   const historyMessages = messages
     .filter((message) => message.id !== currentUserMessageId)
+    .filter((message) => message.status === "completed")
     .map((message): ModelChatMessage | null => {
       const content = message.contentText.trim();
       if (!content) {
@@ -198,6 +201,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "请输入文字或上传图片后再发送" }, { status: 400 });
   }
 
+  // 拒绝在 streaming 期间发新消息
+  const streamingCount = await prisma.chatMessage.count({
+    where: { conversationId: id, role: "assistant", status: "streaming" }
+  });
+  if (streamingCount > 0) {
+    return NextResponse.json({ error: "当前有回复正在生成，请稍后再发送" }, { status: 409 });
+  }
+
   const encoder = new TextEncoder();
   const attachmentImagePaths = attachments.map((item) => item.path);
 
@@ -231,9 +242,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         let assistantText = "";
         let hasStartedReasoningAnswer = false;
         let hasStartedStreamAnswer = false;
+        let assistantMessageId: string | null = null;
+        let lastDbUpdate = Date.now();
+        const DB_UPDATE_INTERVAL = 500;
+        let deltaCount = 0;
+
         const progress = createProgressTracker((payload) => {
           enqueueChunk("progress", payload);
         });
+
+        const flushToDb = async () => {
+          if (!assistantMessageId) return;
+          await prisma.chatMessage.update({
+            where: { id: assistantMessageId },
+            data: { contentText: assistantText }
+          });
+          lastDbUpdate = Date.now();
+          deltaCount = 0;
+        };
 
         const markFirstResponse = (detail?: string) => {
           progress.markFirstResponse();
@@ -263,6 +289,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
           assistantText += delta;
           enqueueChunk("delta", { text: delta });
+          if (assistantMessageId) {
+            emitDeltaToStream(assistantMessageId, delta);
+          }
+          deltaCount++;
+          if (Date.now() - lastDbUpdate >= DB_UPDATE_INTERVAL || deltaCount >= 20) {
+            void flushToDb();
+          }
         };
 
         try {
@@ -306,6 +339,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             retrievalDebug: retrieval.retrievalDebug,
             imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
           });
+
+          // 创建占位助手消息（status=streaming），确保刷新后不丢失
+          const assistantMessage = await appendConversationMessage({
+            conversationId: id,
+            role: "assistant",
+            sourceType: retrieval.sourceType,
+            contentText: "",
+            status: "streaming",
+            retrievalDebugJson: JSON.stringify({
+              debug: retrieval.retrievalDebug,
+              imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
+            })
+          });
+          assistantMessageId = assistantMessage.id;
+          registerStream(assistantMessageId);
+
           progress.startStep("await_first_token");
 
           const hasGenerationImages =
@@ -393,18 +442,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           if (hasStartedStreamAnswer) {
             assistantText += suffix;
             enqueueChunk("delta", { text: suffix });
+            if (assistantMessageId) {
+              emitDeltaToStream(assistantMessageId, suffix);
+            }
           }
 
-          const assistantMessage = await appendConversationMessage({
-            conversationId: id,
-            role: "assistant",
-            sourceType: retrieval.sourceType,
-            contentText: assistantText,
-            retrievalDebugJson: JSON.stringify({
-              debug: retrieval.retrievalDebug,
-              imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
-            })
+          // 最终更新：完整内容 + 标记完成
+          await prisma.chatMessage.update({
+            where: { id: assistantMessageId! },
+            data: { contentText: assistantText, status: "completed" }
           });
+          completeStream(assistantMessageId!);
+
           if (hasStartedStreamAnswer) {
             progress.completeStep("stream_answer");
           }
@@ -412,7 +461,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           const donePayload = progress.getDonePayload();
 
           enqueueChunk("done", {
-            assistantMessageId: assistantMessage.id,
+            assistantMessageId: assistantMessageId,
             answer: assistantText,
             totalDurationMs: donePayload.totalDurationMs,
             stepsSummary: donePayload.stepsSummary,
@@ -424,6 +473,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           });
           closeStream();
         } catch (error) {
+          // 标记失败
+          if (assistantMessageId) {
+            await prisma.chatMessage.update({
+              where: { id: assistantMessageId },
+              data: { contentText: assistantText, status: "failed" }
+            }).catch(() => undefined);
+            failStream(assistantMessageId);
+          }
           enqueueChunk("error", {
             error: error instanceof Error ? error.message : "生成回答失败"
           });
@@ -432,7 +489,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       })();
     },
     cancel() {
-      // Next.js 会在客户端中断读取时调用 cancel；业务异步流程仍可能继续完成入库。
+      // 客户端断开，后端流程继续完成入库。
     }
   });
 

@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   Plus,
   SendHorizontal,
+  Square,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -109,6 +110,8 @@ export function ChatClient(props: {
   const previousConversationIdRef = useRef<string | null>(props.conversationId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
+  const resumeEventSourceRef = useRef<EventSource | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   useEffect(() => setMessages(props.messages), [props.messages]);
@@ -143,6 +146,82 @@ export function ChatClient(props: {
     }
     scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight });
   }, [messages]);
+
+  // 断点续传：检查是否有正在生成的消息
+  useEffect(() => {
+    if (!props.conversationId) return;
+    let disposed = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/conversations/${props.conversationId}/resume`);
+        if (!res.ok || disposed) return;
+        const data = await res.json() as {
+          streamingMessageId?: string;
+          contentText?: string;
+          sourceType?: Message["sourceType"];
+          active?: boolean;
+        };
+
+        if (!data.streamingMessageId || disposed) return;
+
+        const mid = data.streamingMessageId;
+
+        // 更新消息内容为已生成部分
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === mid ? { ...item, contentText: data.contentText ?? "", sourceType: data.sourceType ?? item.sourceType } : item
+          )
+        );
+
+        // 如果后端流还在运行，续接 SSE
+        if (data.active) {
+          setSending(true);
+          setProgressByMessageId((current) => ({
+            ...current,
+            [mid]: { status: "running", steps: {}, currentElapsedMs: 0 }
+          }));
+
+          const eventSource = new EventSource(`/api/conversations/${props.conversationId}/stream?messageId=${mid}`);
+          resumeEventSourceRef.current = eventSource;
+          eventSource.addEventListener("delta", (event) => {
+            if (disposed) return;
+            const payload = JSON.parse(event.data) as { text?: string };
+            if (payload.text) {
+              setMessages((current) =>
+                current.map((item) =>
+                  item.id === mid ? { ...item, contentText: item.contentText + payload.text! } : item
+                )
+              );
+            }
+          });
+
+          eventSource.addEventListener("done", () => {
+            eventSource.close();
+            resumeEventSourceRef.current = null;
+            setSending(false);
+            setProgressByMessageId((current) => {
+              const existing = current[mid];
+              if (!existing) return current;
+              return { ...current, [mid]: { ...existing, status: "completed" } };
+            });
+            router.refresh();
+          });
+
+          eventSource.onerror = () => {
+            eventSource.close();
+            resumeEventSourceRef.current = null;
+            setSending(false);
+            router.refresh();
+          };
+        }
+      } catch {
+        // 忽略
+      }
+    })();
+
+    return () => { disposed = true; };
+  }, [props.conversationId]);
 
   function handleScroll() {
     const el = scrollContainerRef.current;
@@ -236,6 +315,7 @@ export function ChatClient(props: {
 
     setError("");
     setSending(true);
+    abortRef.current = new AbortController();
 
     const requestAttachments = attachments;
     const requestText = text.trim();
@@ -288,7 +368,8 @@ export function ChatClient(props: {
         body: JSON.stringify({
           text: requestText,
           attachments: requestAttachments
-        })
+        }),
+        signal: abortRef.current.signal
       });
 
       if (!response.ok || !response.body) {
@@ -467,7 +548,25 @@ export function ChatClient(props: {
       setError(sendError instanceof Error ? sendError.message : "发送失败");
     } finally {
       setSending(false);
+      abortRef.current = null;
     }
+  }
+
+  async function stopGenerating() {
+    // 取消正常的 fetch SSE 流
+    abortRef.current?.abort();
+
+    // 关闭续接 EventSource
+    resumeEventSourceRef.current?.close();
+    resumeEventSourceRef.current = null;
+
+    // 通知后端标记消息完成
+    if (currentConversationId) {
+      await fetch(`/api/conversations/${currentConversationId}/stop`, { method: "POST" }).catch(() => undefined);
+    }
+
+    setSending(false);
+    router.refresh();
   }
 
   async function createTicket() {
@@ -841,11 +940,11 @@ export function ChatClient(props: {
                   </label>
                   <button
                     type="button"
-                    onClick={sendMessage}
-                    disabled={sending || (!text.trim() && !attachments.length)}
+                    onClick={sending ? stopGenerating : sendMessage}
+                    disabled={!sending && !text.trim() && !attachments.length}
                     className="flex size-8 items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-blue-700 active:scale-90 disabled:opacity-50"
                   >
-                    <SendHorizontal className="size-4" />
+                    {sending ? <Square className="size-3.5 fill-current" /> : <SendHorizontal className="size-4" />}
                   </button>
                 </div>
               </div>
@@ -902,9 +1001,8 @@ export function ChatClient(props: {
                   粘贴图片
                 </button>
                 <div className="ml-auto text-xs text-muted">{text.length}/2000</div>
-                <Button onClick={sendMessage} disabled={sending}>
-                  <SendHorizontal className="size-4" />
-                  {sending ? "发送中..." : "发送"}
+                <Button onClick={sending ? stopGenerating : sendMessage} disabled={false}>
+                  {sending ? <><Square className="size-3.5 fill-current" /> 停止</> : <><SendHorizontal className="size-4" /> 发送</>}
                 </Button>
               </div>
             </div>
