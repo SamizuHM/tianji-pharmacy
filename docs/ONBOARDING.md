@@ -112,6 +112,8 @@ pnpm db:migrate
 并发启动 web 和 ml
 ```
 
+其中 `pnpm dev:web` 最终执行 `next dev --turbopack`。
+
 如果你只想启动 Web：
 
 ```bash
@@ -376,9 +378,11 @@ app/web/app/api/tickets/*
 员工会话
   -> 转人工
   -> 创建 Ticket
-  -> agent 认领/处理/升级/关闭
-  -> 可生成知识草稿
-  -> 写回 KnowledgeItem
+  -> agent 认领/处理/升级
+  -> agent 提交处理方案
+  -> staff 确认问题已解决
+  -> agent 生成知识草稿
+  -> 关闭并写回 KnowledgeItem
 ```
 
 ### 5. 知识库

@@ -29,6 +29,7 @@
 - `web` 容器是系统中枢，不只是运行 Next.js，还承担数据库迁移、seed 和首次知识库导入触发。
 - `prisma/migrations` 是数据库版本历史，仍然有用，不能随便删除。
 - 当前 Dockerfile 是多阶段构建：构建阶段需要源码，最终运行镜像主要保留运行产物、初始化脚本和种子知识文件。
+- 除默认 `docker-compose.yml` 的 cloudflared 入口外，也提供 `docker-compose.public-web.yml`，用于直接把 Web 映射到宿主机公网端口。
 
 ---
 
@@ -91,6 +92,26 @@ web 容器 Next.js :3000
 - `ports` 才会映射到宿主机。
 - 当前只有 PostgreSQL 映射到了宿主机 `5432`。
 - `web`、`ml-service`、`qdrant` 默认都不是通过宿主机端口直接访问。
+
+### 直接公网暴露 Web 的替代 Compose
+
+如果不使用 cloudflared，可以使用：
+
+```bash
+docker compose -f docker-compose.public-web.yml up -d --build
+```
+
+该文件只把 `web` 映射到宿主机：
+
+```env
+WEB_PUBLIC_PORT=80
+```
+
+安全边界：
+
+- `postgres`、`qdrant`、`ml-service` 不配置宿主机 `ports`。
+- 这些服务只在同一个 Compose 网络内被 `web` 访问。
+- 云服务器安全组/防火墙仍需只放行 `WEB_PUBLIC_PORT` 对应端口，例如 80/443。
 
 ---
 
@@ -603,6 +624,8 @@ ML_SERVICE_URL=http://ml-service:8001
 | 构建 | 热更新开发模式 | Docker build 生产产物 |
 | 对外入口 | 直接访问本地端口 | cloudflared tunnel |
 
+如果使用 `docker-compose.public-web.yml`，对外入口不是 cloudflared，而是宿主机 `WEB_PUBLIC_PORT -> web:3000`。
+
 ---
 
 ## 边界情况与风险
@@ -810,4 +833,3 @@ prisma/migrations 是数据库版本历史
 seed_knowledge 和文档文件也被复制进 web/ml 镜像
   首次启动可能触发知识库导入
 ```
-

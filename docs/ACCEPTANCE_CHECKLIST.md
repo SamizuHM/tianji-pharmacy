@@ -281,15 +281,15 @@ POST /api/auth/logout
 - `escalatedToDept` 或 `escalatedToUserId` 正确。
 - 目标 agent 可见。
 
-### 提交解决方案并关闭
+### 提交解决方案并确认解决
 
-填写解决方案并关闭。
+人工客服填写解决方案，员工确认问题已解决。
 
 预期：
 
 - `resolutionText` 存在。
-- `closedAt` 存在。
-- 状态为 `closed`。
+- 员工确认后状态为 `resolved`。
+- `closedAt` 此时可以为空。
 
 ---
 
@@ -297,7 +297,7 @@ POST /api/auth/logout
 
 ### 生成知识草稿
 
-在工单详情中选择材料生成知识草稿。
+在工单进入 `resolved` 后，由客服在工单详情中选择材料生成知识草稿。
 
 预期：
 
@@ -306,15 +306,18 @@ POST /api/auth/logout
 
 ### 写回知识库
 
-确认写回。
+确认关闭工单并写回知识库。
 
 预期：
 
+- `closedAt` 存在。
+- 状态为 `closed`。
+- `knowledgeStatus` 为 `written`。
+- 管理端知识库出现 `manual_ticket` 条目。
 - 生成或更新 `KnowledgeItem`。
 - 生成或更新 `KnowledgeChunk`。
 - 生成并 drain `KnowledgeIndexTask`。
 - Qdrant 中有对应 point。
-- `Ticket.knowledgeStatus` 更新为 `written`。
 
 ### 再次问答命中
 
@@ -570,9 +573,8 @@ docs/DOCKER_DEPLOYMENT_GUIDE.md
 - 能本地启动 Web 和 ML Service。
 - 能登录 staff 和 agent。
 - 能完成一次问答。
-- 能转人工并关闭工单。
+- 能转人工、提交处理方案、确认解决并关闭工单。
 - 能解释 KnowledgeItem、KnowledgeChunk、Qdrant point 的关系。
 - 能执行并理解 `pnpm kb:reconcile`。
 - 能说明 Docker 中 web entrypoint 的职责。
 - 能完成一次小 UI 改动并通过 TypeScript 检查。
-

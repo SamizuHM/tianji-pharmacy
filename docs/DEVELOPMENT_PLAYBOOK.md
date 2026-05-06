@@ -60,6 +60,8 @@ pnpm dev
 pnpm dev:web
 ```
 
+当前 `app/web/package.json` 的 `dev` 脚本使用 `next dev --turbopack`，前端样式和组件调整默认走 Turbopack 开发服务器。
+
 ### 3. 修改代码
 
 优先顺序：
@@ -156,6 +158,10 @@ app/web/app/staff/chat/page.tsx
 
 ```text
 app/web/app/api/conversations/[id]/messages/route.ts
+app/web/app/api/conversations/[id]/resume/route.ts
+app/web/app/api/conversations/[id]/stream/route.ts
+app/web/app/api/conversations/[id]/stop/route.ts
+app/web/lib/active-streams.ts
 app/web/lib/services/retrieval.ts
 app/web/lib/openai.ts
 app/web/lib/chat-progress.ts
@@ -174,6 +180,8 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 
 - API 使用 SSE 返回进度和最终答案。
 - 客户端可能断开连接。
+- 助手消息会先以 `status=streaming` 入库，完成后变为 `completed`，失败或超时为 `failed`。
+- 刷新页面后客户端会通过 resume/stream 路由续接仍活跃的回复；停止生成会调用 stop 路由。
 - 服务端要避免在 stream controller close 后继续 enqueue。
 - 用户消息和 assistant 消息都要正确入库。
 - `retrievalDebugJson` 对排查很重要，不要随意删。
@@ -186,6 +194,7 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 4. 知识库命中。
 5. 大模型兜底。
 6. 浏览器刷新或中断流时服务端不应报 `Controller is already closed`。
+7. 生成中点击停止后，不能继续追加重复助手消息。
 
 ---
 
@@ -831,4 +840,3 @@ docker compose config
 7. **不要扩大无关改动**
 
    小需求不要顺手重构大模块。
-

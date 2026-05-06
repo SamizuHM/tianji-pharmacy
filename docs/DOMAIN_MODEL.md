@@ -193,7 +193,16 @@ contentText
 attachmentsJson
 retrievalDebugJson
 feedback
+status
 ```
+
+`status`：
+
+| 值 | 含义 |
+|---|---|
+| `streaming` | 助手回复正在流式生成，内容会被增量写入数据库 |
+| `completed` | 消息已完成，可进入后续上下文 |
+| `failed` | 生成失败或超时中断 |
 
 `role`：
 
@@ -417,8 +426,10 @@ agent 打开工单
   -> claim
   -> reply
   -> 可 escalate
-  -> submit resolution
-  -> close
+  -> 提交处理方案
+  -> 员工确认问题已解决
+  -> 生成待入库知识
+  -> 关闭并写回知识库
 ```
 
 相关 API：
@@ -428,6 +439,9 @@ app/web/app/api/tickets/[id]/claim/route.ts
 app/web/app/api/tickets/[id]/reply/route.ts
 app/web/app/api/tickets/[id]/escalate/route.ts
 app/web/app/api/tickets/[id]/submit-resolution/route.ts
+app/web/app/api/tickets/[id]/resolve/route.ts
+app/web/app/api/tickets/[id]/knowledge-materials/route.ts
+app/web/app/api/tickets/[id]/knowledge-draft/route.ts
 app/web/app/api/tickets/[id]/close/route.ts
 ```
 
@@ -443,7 +457,7 @@ Ticket + TicketMessage + Conversation Snapshot
 生成 TicketKnowledgeDraft
   |
   v
-人工确认
+关闭工单
   |
   v
 upsertKnowledgeItem()
@@ -805,4 +819,3 @@ prisma/migrations/.../migration.sql
 ```
 
 危险变更要手动检查 `migration.sql`。
-

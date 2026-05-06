@@ -151,13 +151,13 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 | 用户名 | 密码 | 角色 | 首页 |
 |--------|------|------|------|
 | 药店工作人员 | demo123 | staff | /staff/chat |
-| 人工处理1 | demo123 | human_l1 | /l1/tickets |
-| 人工处理2 | demo123 | human_l2 | /l2/tickets |
+| 人工处理1 | demo123 | agent | /agent/tickets |
+| 人工处理2 | demo123 | agent | /agent/tickets |
+| 营运-张伟 等部门专家 | demo123 | agent | /agent/tickets |
 
 **角色权限**：
 - `staff`：发起对话、创建工单、查看自己的工单
-- `human_l1`：处理 L1 工单、回复、升级、关闭
-- `human_l2`：处理 L2 工单、回复、关闭
+- `agent`：认领、回复、升级、提交处理方案、生成待入库知识、在满足条件时关闭工单
 
 ---
 
@@ -186,13 +186,20 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 | DELETE | /api/conversations/[id] | 软删除会话 | staff |
 | GET | /api/conversations/[id]/messages | 消息历史 | staff |
 | POST | /api/conversations/[id]/messages | 发送消息 | staff |
+| GET | /api/conversations/[id]/resume | 查询是否有可续接的流式回复 | staff |
+| GET | /api/conversations/[id]/stream | 订阅指定助手消息的续接流 | staff |
+| POST | /api/conversations/[id]/stop | 停止当前生成中的回复 | staff |
 | GET | /api/notifications/stream | 订阅实时通知 SSE 流 | 已登录 |
 | GET | /api/tickets | 工单列表 | 已登录 |
 | POST | /api/tickets | 创建工单 | staff |
 | GET | /api/tickets/[id] | 工单详情 | 已登录 |
-| POST | /api/tickets/[id]/reply | 回复工单 | human_l1/l2 |
-| POST | /api/tickets/[id]/escalate | 升级工单 | human_l1 |
-| POST | /api/tickets/[id]/close | 关闭工单 | human_l1/l2 |
+| POST | /api/tickets/[id]/reply | 回复工单 | agent |
+| POST | /api/tickets/[id]/escalate | 升级工单 | agent |
+| POST | /api/tickets/[id]/submit-resolution | 提交处理方案 | agent |
+| POST | /api/tickets/[id]/resolve | 员工确认问题已解决 | staff |
+| GET | /api/tickets/[id]/knowledge-materials | 获取待入库材料 | 已登录且可访问工单 |
+| POST | /api/tickets/[id]/knowledge-draft | 生成待入库知识草稿 | agent |
+| POST | /api/tickets/[id]/close | 关闭并写回知识库 | staff/agent |
 | GET | /api/stats/summary | 统计摘要 | 已登录 |
 | GET | /api/stats/trends | 趋势数据 | 已登录 |
 | GET | /api/knowledge | 知识库列表 | 已登录 |
@@ -510,6 +517,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
       "role": "user",
       "sourceType": "system",
       "contentText": "药店收银系统怎么操作？",
+      "status": "completed",
       "createdAt": "2026-04-23T17:51:27.077Z"
     },
     {
@@ -517,6 +525,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
       "role": "assistant",
       "sourceType": "llm",
       "contentText": "以下为通用建议：...",
+      "status": "completed",
       "retrievalDebugJson": "[]",
       "createdAt": "2026-04-23T17:52:37.104Z"
     }
@@ -537,6 +546,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 6. 无图片时，直接生成文本流式回答
 7. 有图片时，再调用 ML Service 的 `/chat-multimodal-stream`，让最终回答也参考图片内容
 8. 统一以 SSE 事件流返回前端
+9. 助手消息先以 `status=streaming` 入库，流式过程中增量更新内容，完成后变为 `completed`
 
 **请求**：
 ```json
@@ -555,6 +565,12 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 - `delta`：增量文本
 - `done`：结束事件
 - `error`：错误事件
+
+约束：
+
+- 同一会话存在 `streaming` 助手消息时，再次发送会返回 `409`。
+- 前端刷新后可通过 `GET /api/conversations/[id]/resume` 和 `GET /api/conversations/[id]/stream?messageId=...` 续接仍活跃的回复。
+- 用户点击停止生成时调用 `POST /api/conversations/[id]/stop`。
 
 **SSE 示例**：
 ```text
@@ -576,6 +592,58 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 
 > `sourceType` 取值：`kb`（知识库命中）| `llm`（大模型兜底）
 > 有图片时，最终回答也会进入多模态模型，不再只是检索阶段看图。
+
+### GET /api/conversations/[id]/resume
+
+查询当前会话是否存在可续接的助手回复。
+
+**响应**：
+
+```json
+{
+  "streamingMessageId": "cmobs4kx...",
+  "contentText": "已生成的部分内容",
+  "sourceType": "kb",
+  "active": true
+}
+```
+
+说明：
+
+- 没有正在生成的回复时返回 `{}`。
+- `active=false` 表示数据库仍有 `streaming` 消息，但当前进程内流已不可订阅，前端应刷新消息列表。
+- 该接口会顺带清理超过 5 分钟的过期流。
+
+### GET /api/conversations/[id]/stream
+
+订阅指定助手消息的续接流。
+
+**查询参数**：
+
+- `messageId`：正在生成的助手消息 ID。
+
+**响应**：
+
+返回 `text/event-stream`，事件包括：
+
+- `delta`：续接增量文本。
+- `done`：流结束。
+- `error`：无法订阅或消息不存在。
+
+### POST /api/conversations/[id]/stop
+
+停止当前会话里最后一条 `streaming` 助手消息。
+
+**响应**：
+
+```json
+{"messageId": "cmobs4kx..."}
+```
+
+说明：
+
+- 没有正在生成的消息时返回 `404`。
+- 当前实现会把该助手消息标记为 `completed`，并关闭进程内订阅流。
 
 ### GET /api/notifications/stream
 
@@ -620,8 +688,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
   "ticket": {
     "id": "cmobs52u...",
     "ticketNo": "TK20260424357323",
-    "status": "pending_l1",
-    "currentAssigneeRole": "human_l1",
+    "status": "pending_claim",
     "title": "药店收银系统怎么操作？",
     "aiAnswerSnapshot": "以下为通用建议：...",
     "conversationSnapshot": "user: ...\nassistant: ..."
@@ -634,7 +701,8 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取工单列表，按角色过滤。
 
 **查询参数**：
-- `status`：`pending_l1` | `pending_l2` | `closed` | `all`
+- `status`：`pending_claim` | `processing` | `escalated` | `resolved` | `closed` | `all`
+- `statusGroup`：`pending` | `processing` | `escalated` | `resolved` | `closed` | `all`
 
 **响应**：
 ```json
@@ -643,7 +711,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
     {
       "id": "cmobs52u...",
       "ticketNo": "TK20260424357323",
-      "status": "pending_l1",
+      "status": "pending_claim",
       "title": "药店收银系统怎么操作？",
       "createdBy": {"username": "药店工作人员", "role": "staff"},
       "createdAt": "2026-04-23T17:53:00.321Z"
@@ -662,14 +730,14 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
   "ticket": {
     "id": "cmobs52u...",
     "ticketNo": "TK20260424357323",
-    "status": "pending_l2",
+    "status": "escalated",
     "createdBy": {...},
     "closedBy": null,
     "messages": [
       {"senderRole": "system", "content": "系统已创建工单..."},
       {"senderRole": "user", "content": "药店收银系统怎么操作？"},
-      {"senderRole": "human_l1", "content": "请问是哪个品牌？"},
-      {"senderRole": "system", "content": "系统已将工单升级至人工处理2。"}
+      {"senderRole": "agent", "content": "请问是哪个品牌？"},
+      {"senderRole": "system", "content": "人工处理1 已将工单升级至营运部。"}
     ]
   }
 }
@@ -693,7 +761,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
   "message": {
     "id": "cmobs5ik...",
     "ticketId": "cmobs52u...",
-    "senderRole": "human_l1",
+    "senderRole": "agent",
     "content": "您好，请问是哪个品牌的收银系统？",
     "createdAt": "2026-04-23T17:53:30.000Z"
   }
@@ -702,21 +770,28 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### POST /api/tickets/[id]/escalate
 
-将工单从 L1 升级到 L2（仅 `human_l1` 可用）。
+将工单升级到目标部门或目标人员（`agent` 可用）。
+
+**请求**：
+
+```json
+{"targetDept": "营运部", "targetUserId": null}
+```
 
 **响应**：
 ```json
 {
   "ticket": {
-    "status": "pending_l2",
-    "currentAssigneeRole": "human_l2"
+    "status": "escalated",
+    "escalatedToDept": "营运部",
+    "escalatedToUserId": null
   }
 }
 ```
 
-### POST /api/tickets/[id]/close
+### POST /api/tickets/[id]/submit-resolution
 
-关闭工单并写回知识库（仅 `human_l1`/`human_l2` 可用）。
+当前认领客服提交处理方案。
 
 **请求**：
 ```json
@@ -727,15 +802,100 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 ```json
 {
   "ticket": {
-    "status": "closed",
-    "resolutionText": "已确认为智云系统...",
-    "closedBy": {"username": "人工处理1"},
-    "closedAt": "2026-04-23T17:54:47.688Z"
+    "status": "processing",
+    "resolutionText": "已确认为智云系统..."
   }
 }
 ```
 
-> 关闭工单时，系统自动将处理结论写入知识库，后续相同问题将被 AI 直接命中。
+### POST /api/tickets/[id]/resolve
+
+提交工单的药店工作人员确认问题已解决。
+
+前置条件：
+
+- 已有客服提交的 `resolutionText`。
+- 当前用户必须是该工单创建人。
+
+**响应**：
+
+```json
+{
+  "ticket": {
+    "status": "resolved"
+  }
+}
+```
+
+### GET /api/tickets/[id]/knowledge-materials
+
+获取工单中可用于生成知识草稿的对话材料。
+
+权限：
+
+- 当前用户必须已登录。
+- 当前用户必须有权限访问该工单。
+
+**响应**：
+
+```json
+{
+  "materials": [
+    {
+      "id": "ticketMessage:cmobs5ik...",
+      "source": "ticket",
+      "messageId": "cmobs5ik...",
+      "role": "agent",
+      "sourceType": "ticket",
+      "roleLabel": "营运-张伟",
+      "sourceLabel": "人工回复",
+      "contentText": "已确认为智云系统...",
+      "attachments": [],
+      "createdAt": "2026-04-23T17:53:30.000Z"
+    }
+  ]
+}
+```
+
+说明：
+
+- 系统消息不会作为可选材料返回。
+- 前端通常把这里返回的 `id` 作为 `knowledge-draft` 的 `selectedMaterialIds`。
+
+### POST /api/tickets/[id]/knowledge-draft
+
+客服在工单已 `resolved` 后选择材料生成待入库知识草稿。
+
+**请求**：
+
+```json
+{"selectedMaterialIds": ["ticketMessage:cmobs5ik..."]}
+```
+
+### POST /api/tickets/[id]/close
+
+关闭工单并写回知识库。
+
+前置条件：
+
+- 工单状态为 `resolved`。
+- 已生成待入库知识草稿，且 `knowledgeStatus=pending_writeback`。
+- 当前用户是提交工单的员工或当前处理客服。
+
+**响应**：
+
+```json
+{
+  "ticket": {
+    "status": "closed",
+    "closedBy": {"username": "营运-张伟"},
+    "closedAt": "2026-04-23T17:54:47.688Z",
+    "knowledgeStatus": "written"
+  }
+}
+```
+
+> 关闭工单时，系统会把已生成的待入库知识草稿写入知识库，后续相同问题将被 AI 直接命中。
 
 ### GET /api/stats/summary
 
@@ -750,8 +910,9 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
   "transferCount": 1,
   "totalTickets": 1,
   "closedTickets": 1,
-  "human1Closed": 1,
-  "human2Closed": 0
+  "agentClosed": 1,
+  "kbHitRate": 0.16,
+  "closedRate": 1
 }
 ```
 
@@ -876,34 +1037,48 @@ curl -N -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-001/me
 curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/tickets \
   -H "Content-Type: application/json" \
   -d '{"conversationId":"conv-001"}'
-# → {"ticket":{"id":"ticket-001","ticketNo":"TK20260424001","status":"pending_l1"}}
+# → {"ticket":{"id":"ticket-001","ticketNo":"TK20260424001","status":"pending_claim"}}
 ```
 
 ### 第三步：人工客服处理
 
 ```bash
-# 5. L1 登录
-curl -s -c l1.txt -X POST http://127.0.0.1:3000/api/auth/login \
+# 5. 人工客服登录
+curl -s -c agent.txt -X POST http://127.0.0.1:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"人工处理1","password":"demo123"}'
 
 # 6. 查看待处理工单
-curl -s -b l1.txt "http://127.0.0.1:3000/api/tickets?status=pending_l1"
+curl -s -b agent.txt "http://127.0.0.1:3000/api/tickets?statusGroup=pending"
 # → {"tickets":[...]}
 
 # 7. 回复工单
-curl -s -b l1.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/reply \
+curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/reply \
   -H "Content-Type: application/json" \
   -d '{"content":"请问您使用的是哪个品牌的收银系统？"}'
 
-# 8. 如果需要升级到 L2
-curl -s -b l1.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/escalate
-# → {"ticket":{"status":"pending_l2","currentAssigneeRole":"human_l2"}}
-
-# 9. 或者直接关闭工单（写回知识库）
-curl -s -b l1.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/close \
+# 8. 提交处理方案
+curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/submit-resolution \
   -H "Content-Type: application/json" \
   -d '{"resolutionText":"已确认为智云系统，远程指导完成收银模块配置。"}'
+```
+
+### 第四步：员工确认解决，客服写回知识库
+
+```bash
+# 9. 员工确认问题已解决
+curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/resolve
+# → {"ticket":{"status":"resolved",...}}
+
+# 10. 客服选择材料生成待入库知识
+curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/knowledge-draft \
+  -H "Content-Type: application/json" \
+  -d '{"selectedMaterialIds":["ticketMessage:..."]}'
+
+# 11. 关闭工单并写回知识库
+curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/close \
+  -H "Content-Type: application/json" \
+  -d '{}'
 # → {"ticket":{"status":"closed",...}}
 # 系统自动将此答案写入知识库！
 ```

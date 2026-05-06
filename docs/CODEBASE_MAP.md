@@ -227,10 +227,11 @@ app/web/app/api/tickets/[id]/route.ts
 app/web/app/api/tickets/[id]/claim/route.ts
 app/web/app/api/tickets/[id]/reply/route.ts
 app/web/app/api/tickets/[id]/escalate/route.ts
-app/web/app/api/tickets/[id]/close/route.ts
 app/web/app/api/tickets/[id]/submit-resolution/route.ts
+app/web/app/api/tickets/[id]/resolve/route.ts
 app/web/app/api/tickets/[id]/knowledge-materials/route.ts
 app/web/app/api/tickets/[id]/knowledge-draft/route.ts
+app/web/app/api/tickets/[id]/close/route.ts
 ```
 
 职责：
@@ -241,9 +242,9 @@ app/web/app/api/tickets/[id]/knowledge-draft/route.ts
 - 回复。
 - 升级。
 - 提交处理结果。
-- 关闭。
+- 员工确认解决。
 - 生成知识草稿。
-- 写回知识库。
+- 关闭并写回知识库。
 
 底层：
 
@@ -503,8 +504,10 @@ app/web/components/chat/chat-client.tsx
 - 会话历史。
 - 移动端布局。
 - 输入框。
+- ScrollArea 滚动容器。
 - 图片上传。
 - SSE 接收。
+- 断点续传和停止生成。
 - 进度展示。
 - 消息渲染。
 - 转人工。
@@ -848,8 +851,8 @@ Dockerfile.web
 风险原因：
 
 - 聊天 SSE 链路容易出现断流、重复 close、客户端状态不同步。
+- 断点续传依赖 `ChatMessage.status` 和 `app/web/lib/active-streams.ts`，刷新/停止生成都要回归。
 - RAG 检索影响问答准确性。
 - 知识索引影响 Qdrant 与 PostgreSQL 一致性。
 - Prisma schema 影响数据安全。
 - Docker entrypoint 影响生产启动。
-
