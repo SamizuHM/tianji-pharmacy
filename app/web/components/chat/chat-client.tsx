@@ -37,6 +37,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1012,7 +1013,7 @@ export function ChatClient(props: {
         </CardContent>
       </Card>
 
-      <div className="hidden min-h-0 overflow-y-auto xl:block">{assistantInfo}</div>
+      <ScrollArea className="hidden min-h-0 xl:block">{assistantInfo}</ScrollArea>
     </div>
   );
 }
