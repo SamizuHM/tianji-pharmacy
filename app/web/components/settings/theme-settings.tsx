@@ -109,8 +109,6 @@ export function ThemeSettings({
 
   return (
     <div className="flex flex-col gap-8">
-      <p className="text-sm text-muted">仅影响当前账号，不会影响其他用户。</p>
-
       <section className="flex flex-col gap-4">
         <div>
           <h3 className="text-base font-semibold text-slate-900 dark:text-foreground">主题风格</h3>
