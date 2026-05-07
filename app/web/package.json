@@ -34,7 +34,11 @@
     "openai": "^5.20.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.2.1",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "remove-markdown": "^0.6.3",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.11"
   },

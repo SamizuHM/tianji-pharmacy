@@ -1,4 +1,38 @@
 import path from "node:path";
+import fs from "node:fs";
+
+export const repoRoot =
+  process.cwd().endsWith(path.join("app", "web")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
+
+loadRootEnvFile();
+
+function loadRootEnvFile() {
+  const envPath = path.join(repoRoot, ".env");
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const content = fs.readFileSync(envPath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+
+    process.env[key] = rawValue.replace(/^(['"])(.*)\1$/, "$2");
+  }
+}
 
 function stringEnv(key: string, fallback: string) {
   const value = process.env[key];
@@ -40,9 +74,6 @@ export const env = {
   ML_SERVICE_URL: stringEnv("ML_SERVICE_URL", "http://127.0.0.1:8001"),
   SESSION_TTL_HOURS: numberEnv("SESSION_TTL_HOURS", 72, { integer: true, min: 1 })
 };
-
-export const repoRoot =
-  process.cwd().endsWith(path.join("app", "web")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
 
 export const uploadDirAbsolute = path.isAbsolute(env.UPLOAD_DIR)
   ? env.UPLOAD_DIR

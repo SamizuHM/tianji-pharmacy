@@ -152,3 +152,72 @@
     animation: scale-in 150ms ease-out;
   }
 }
+
+@layer components {
+  .markdown-message > :first-child {
+    margin-top: 0;
+  }
+
+  .markdown-message > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown-message p,
+  .markdown-message ul,
+  .markdown-message ol,
+  .markdown-message blockquote,
+  .markdown-message pre,
+  .markdown-message table {
+    margin-bottom: 0.75rem;
+  }
+
+  .markdown-message h1,
+  .markdown-message h2,
+  .markdown-message h3,
+  .markdown-message h4 {
+    margin: 1rem 0 0.5rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .markdown-message h1 {
+    font-size: 1.25rem;
+  }
+
+  .markdown-message h2 {
+    font-size: 1.125rem;
+  }
+
+  .markdown-message h3,
+  .markdown-message h4 {
+    font-size: 1rem;
+  }
+
+  .markdown-message ul,
+  .markdown-message ol {
+    padding-left: 1.25rem;
+  }
+
+  .markdown-message ul {
+    list-style: disc;
+  }
+
+  .markdown-message ol {
+    list-style: decimal;
+  }
+
+  .markdown-message li {
+    margin: 0.25rem 0;
+  }
+
+  .markdown-message blockquote {
+    border-left: 3px solid hsl(var(--border));
+    color: hsl(var(--muted));
+    padding-left: 0.875rem;
+  }
+
+  .markdown-message hr {
+    border-color: hsl(var(--border));
+    margin: 1rem 0;
+  }
+}

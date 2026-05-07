@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import removeMarkdown from "remove-markdown";
 
 import type { AttachmentItem } from "@pharmacy/shared";
 import {
   ArrowDown,
   Bot,
+  Check,
   CircleAlert,
+  Clipboard,
   ClipboardPaste,
   Database,
+  Download,
+  FileText,
   ImagePlus,
   LifeBuoy,
+  MoreHorizontal,
+  Pencil,
   Plus,
+  RefreshCw,
   SendHorizontal,
   Square,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
   Trash2,
   X
 } from "lucide-react";
 
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { AttachmentGallery } from "@/components/shared/attachment-gallery";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +44,18 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   formatDurationSeconds,
   PROGRESS_STEP_LABELS,
@@ -65,6 +81,7 @@ type Message = {
   attachmentsJson: string | null;
   retrievalDebugJson: string | null;
   feedback: "helpful" | "unhelpful" | null;
+  status: "streaming" | "completed" | "failed";
   createdAt: string | Date;
 };
 
@@ -107,7 +124,13 @@ export function ChatClient(props: {
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [confirmingMessageDeleteId, setConfirmingMessageDeleteId] = useState<string | null>(null);
+  const [copiedActionKey, setCopiedActionKey] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editImagePaths, setEditImagePaths] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousConversationIdRef = useRef<string | null>(props.conversationId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -118,6 +141,31 @@ export function ChatClient(props: {
   useEffect(() => setMessages(props.messages), [props.messages]);
   useEffect(() => setConversations(props.conversations), [props.conversations]);
   useEffect(() => setCurrentConversationId(props.conversationId), [props.conversationId]);
+  useEffect(() => {
+    if (!editingMessage) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const textarea = editTextareaRef.current;
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      resizeEditTextarea(textarea);
+    });
+  }, [editingMessage?.id]);
+  useEffect(() => {
+    if (!editingMessage) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (editTextareaRef.current) {
+        resizeEditTextarea(editTextareaRef.current);
+      }
+    });
+  }, [editText, editingMessage]);
   useEffect(() => {
     const hasRunningProgress = Object.values(progressByMessageId).some((item) => item.status === "running");
     if (!hasRunningProgress) {
@@ -333,6 +381,7 @@ export function ChatClient(props: {
         attachmentsJson: requestAttachments.length ? JSON.stringify(requestAttachments) : null,
         retrievalDebugJson: null,
         feedback: null,
+        status: "completed",
         createdAt: new Date().toISOString()
       },
       {
@@ -343,6 +392,7 @@ export function ChatClient(props: {
         attachmentsJson: null,
         retrievalDebugJson: null,
         feedback: null,
+        status: "streaming",
         createdAt: new Date().toISOString()
       }
     ]);
@@ -519,7 +569,11 @@ export function ChatClient(props: {
       setMessages((current) =>
         current.map((item) =>
           item.id === optimisticAssistantId
-            ? { ...item, retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] }) }
+            ? {
+                ...item,
+                status: "completed",
+                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+              }
             : item
         )
       );
@@ -547,10 +601,30 @@ export function ChatClient(props: {
         };
       });
       setError(sendError instanceof Error ? sendError.message : "发送失败");
+      setMessages((current) =>
+        current.map((item) => (item.id === optimisticAssistantId ? { ...item, status: "failed" } : item))
+      );
     } finally {
       setSending(false);
       abortRef.current = null;
     }
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+      return;
+    }
+
+    event.preventDefault();
+    if (sending || (!text.trim() && !attachments.length)) {
+      return;
+    }
+
+    void sendMessage();
   }
 
   async function stopGenerating() {
@@ -588,18 +662,517 @@ export function ChatClient(props: {
     router.push(`/staff/tickets/${data.ticket.id}`);
   }
 
-  async function updateFeedback(messageId: string, feedback: "helpful" | "unhelpful") {
-    setMessages((current) =>
-      current.map((item) => (item.id === messageId ? { ...item, feedback: item.feedback === feedback ? null : feedback } : item))
-    );
+  async function copyMessage(message: Message, format: "text" | "markdown") {
+    const value = format === "markdown" ? messageToMarkdown(message) : messageToPlainText(message);
+    await navigator.clipboard.writeText(value.trim());
+    const actionKey = `${message.id}:${format}`;
+    setCopiedActionKey(actionKey);
+    window.setTimeout(() => setCopiedActionKey((current) => (current === actionKey ? null : current)), 1600);
+  }
 
-    await fetch(`/api/messages/${messageId}/feedback`, {
-      method: "PUT",
+  function downloadMessage(message: Message, format: "text" | "markdown") {
+    const content = format === "markdown" ? messageToMarkdown(message) : messageToPlainText(message);
+    const extension = format === "markdown" ? "md" : "txt";
+    const blob = new Blob([content.trim() + "\n"], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${safeFileName(activeConversation?.title ?? "会话")}-${message.role}-${formatMessageTimeForFile(message.createdAt)}.${extension}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function deleteMessage(messageId: string) {
+    const response = await fetch(`/api/messages/${messageId}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(data.error || "删除消息失败");
+      return;
+    }
+
+    setMessages((current) => current.filter((item) => item.id !== messageId));
+    setProgressByMessageId((current) => {
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
+    setFinalProgressByAssistantId((current) => {
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
+    setConfirmingMessageDeleteId(null);
+    router.refresh();
+  }
+
+  function openEditMessage(message: Message) {
+    const debugPayload = safeJsonParse<{ imagePaths?: string[] }>(message.retrievalDebugJson, {});
+    setEditingMessage(message);
+    setEditText(message.contentText === "用户上传了图片" ? "" : message.contentText);
+    setEditImagePaths(debugPayload.imagePaths ?? []);
+  }
+
+  async function saveEditedMessage() {
+    if (!editingMessage) {
+      return;
+    }
+
+    const response = await fetch(`/api/messages/${editingMessage.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        feedback: messages.find((item) => item.id === messageId)?.feedback === feedback ? null : feedback
+        contentText: editText,
+        imagePaths: editImagePaths
       })
-    }).catch(() => undefined);
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(data.error || "保存消息失败");
+      return;
+    }
+
+    setMessages((current) =>
+      current.map((item) => {
+        if (item.id !== editingMessage.id) {
+          return item;
+        }
+        const debugPayload = safeJsonParse<Record<string, unknown>>(item.retrievalDebugJson, {});
+        return {
+          ...item,
+          contentText: editText.trim() || (item.role === "user" ? "用户上传了图片" : ""),
+          retrievalDebugJson: JSON.stringify({
+            ...debugPayload,
+            imagePaths: editImagePaths
+          })
+        };
+      })
+    );
+    setEditingMessage(null);
+    router.refresh();
+  }
+
+  async function resendCurrentEditedUserMessage() {
+    if (!editingMessage || editingMessage.role !== "user") {
+      return;
+    }
+
+    await resendEditedUserMessage(editingMessage, editText);
+  }
+
+  async function resendEditedUserMessage(message: Message, nextText: string) {
+    setError("");
+    setSending(true);
+    abortRef.current = new AbortController();
+
+    const optimisticAssistantId = `temp-assistant-${Date.now()}`;
+    const messageIndex = messages.findIndex((item) => item.id === message.id);
+    const editedContentText = nextText.trim() || "用户上传了图片";
+
+    setMessages((current) => [
+      ...current.slice(0, Math.max(0, messageIndex + 1)).map((item) =>
+        item.id === message.id ? { ...item, contentText: editedContentText } : item
+      ),
+      {
+        id: optimisticAssistantId,
+        role: "assistant",
+        sourceType: "system",
+        contentText: "",
+        attachmentsJson: null,
+        retrievalDebugJson: null,
+        feedback: null,
+        status: "streaming",
+        createdAt: new Date().toISOString()
+      }
+    ]);
+    setProgressByMessageId((current) => ({
+      ...current,
+      [optimisticAssistantId]: { status: "running", steps: {}, currentElapsedMs: 0 }
+    }));
+    setEditingMessage(null);
+
+    try {
+      const response = await fetch(`/api/messages/${message.id}/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentText: nextText.trim() }),
+        signal: abortRef.current.signal
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "重新发送失败");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalDebug: StreamDebugPayload = {};
+      let finalProgressState: MessageProgressState | undefined;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const lines = frame.split("\n");
+          const eventLine = lines.find((line) => line.startsWith("event:"));
+          const dataLine = lines.find((line) => line.startsWith("data:"));
+          if (!eventLine || !dataLine) continue;
+
+          const event = eventLine.replace("event:", "").trim();
+          const payload = JSON.parse(dataLine.replace("data:", "").trim()) as {
+            text?: string;
+            error?: string;
+            sourceType?: Message["sourceType"];
+            retrievalDebug?: StreamDebugPayload["retrievalDebug"];
+            imagePaths?: string[];
+            assistantMessageId?: string;
+            totalDurationMs?: number;
+            stepsSummary?: ProgressSummaryItem[];
+            firstResponseLatencyMs?: number | null;
+            firstTokenLatencyMs?: number | null;
+            reasoningAnswerMs?: number;
+            waitFirstTokenMs?: number;
+            streamAnswerMs?: number;
+          };
+
+          if (event === "meta" && payload.sourceType) {
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === optimisticAssistantId ? { ...item, sourceType: payload.sourceType! } : item
+              )
+            );
+          }
+
+          if (event === "debug") {
+            finalDebug = {
+              retrievalDebug: payload.retrievalDebug,
+              imagePaths: payload.imagePaths
+            };
+          }
+
+          if (event === "progress") {
+            const progressPayload = payload as ProgressEventPayload;
+            setProgressByMessageId((current) => {
+              const existing = current[optimisticAssistantId] ?? {
+                status: "running" as const,
+                steps: {},
+                currentElapsedMs: 0
+              };
+
+              if (progressPayload.status === "started") {
+                return {
+                  ...current,
+                  [optimisticAssistantId]: {
+                    ...existing,
+                    status: "running",
+                    currentStepKey: progressPayload.stepKey,
+                    currentStepStartedClientAt: Date.now(),
+                    currentElapsedMs: progressPayload.elapsedTotalMs
+                  }
+                };
+              }
+
+              return {
+                ...current,
+                [optimisticAssistantId]: {
+                  ...existing,
+                  status: "running",
+                  steps: {
+                    ...existing.steps,
+                    [progressPayload.stepKey]: {
+                      stepKey: progressPayload.stepKey,
+                      label: progressPayload.label,
+                      startedAtMs: progressPayload.startedAtMs,
+                      endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
+                      durationMs: progressPayload.durationMs ?? 0,
+                      detail: progressPayload.detail
+                    }
+                  },
+                  currentStepKey:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                  currentStepStartedClientAt:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs
+                }
+              };
+            });
+          }
+
+          if (event === "delta" && payload.text) {
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === optimisticAssistantId ? { ...item, contentText: item.contentText + payload.text! } : item
+              )
+            );
+          }
+
+          if (event === "done" && payload.assistantMessageId) {
+            const donePayload = payload as ProgressDonePayload;
+            const completedState: MessageProgressState = {
+              status: "completed",
+              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              currentElapsedMs: donePayload.totalDurationMs,
+              totalDurationMs: donePayload.totalDurationMs,
+              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
+              firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
+              reasoningAnswerMs: donePayload.reasoningAnswerMs,
+              waitFirstTokenMs: donePayload.waitFirstTokenMs,
+              streamAnswerMs: donePayload.streamAnswerMs
+            };
+            finalProgressState = completedState;
+            setProgressByMessageId((current) => ({ ...current, [optimisticAssistantId]: completedState }));
+            setFinalProgressByAssistantId((current) => ({
+              ...current,
+              [donePayload.assistantMessageId]: completedState
+            }));
+          }
+
+          if (event === "error") {
+            throw new Error(payload.error || "重新发送失败");
+          }
+        }
+      }
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === optimisticAssistantId
+            ? {
+                ...item,
+                status: "completed",
+                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+              }
+            : item
+        )
+      );
+      if (finalProgressState) {
+        setProgressByMessageId((current) => ({ ...current, [optimisticAssistantId]: finalProgressState! }));
+      }
+      router.refresh();
+    } catch (resendError) {
+      setProgressByMessageId((current) => {
+        const existing = current[optimisticAssistantId];
+        if (!existing) return current;
+        return {
+          ...current,
+          [optimisticAssistantId]: {
+            ...existing,
+            status: "error",
+            currentStepKey: undefined,
+            currentStepStartedClientAt: undefined
+          }
+        };
+      });
+      setMessages((current) =>
+        current.map((item) => (item.id === optimisticAssistantId ? { ...item, status: "failed" } : item))
+      );
+      setError(resendError instanceof Error ? resendError.message : "重新发送失败");
+    } finally {
+      setSending(false);
+      abortRef.current = null;
+    }
+  }
+
+  async function regenerateMessage(message: Message) {
+    if (message.role !== "assistant" || !currentConversationId) {
+      return;
+    }
+
+    setError("");
+    setSending(true);
+    abortRef.current = new AbortController();
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === message.id
+          ? { ...item, contentText: "", status: "streaming", sourceType: "system", retrievalDebugJson: null }
+          : item
+      )
+    );
+    setProgressByMessageId((current) => ({
+      ...current,
+      [message.id]: { status: "running", steps: {}, currentElapsedMs: 0 }
+    }));
+
+    try {
+      const response = await fetch(`/api/messages/${message.id}/regenerate`, {
+        method: "POST",
+        signal: abortRef.current.signal
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "重新生成失败");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalDebug: StreamDebugPayload = {};
+      let finalProgressState: MessageProgressState | undefined;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const lines = frame.split("\n");
+          const eventLine = lines.find((line) => line.startsWith("event:"));
+          const dataLine = lines.find((line) => line.startsWith("data:"));
+          if (!eventLine || !dataLine) continue;
+
+          const event = eventLine.replace("event:", "").trim();
+          const payload = JSON.parse(dataLine.replace("data:", "").trim()) as {
+            text?: string;
+            error?: string;
+            sourceType?: Message["sourceType"];
+            retrievalDebug?: StreamDebugPayload["retrievalDebug"];
+            imagePaths?: string[];
+            totalDurationMs?: number;
+            stepsSummary?: ProgressSummaryItem[];
+            assistantMessageId?: string;
+            firstResponseLatencyMs?: number | null;
+            firstTokenLatencyMs?: number | null;
+            reasoningAnswerMs?: number;
+            waitFirstTokenMs?: number;
+            streamAnswerMs?: number;
+          };
+
+          if (event === "meta" && payload.sourceType) {
+            setMessages((current) =>
+              current.map((item) => (item.id === message.id ? { ...item, sourceType: payload.sourceType! } : item))
+            );
+          }
+
+          if (event === "debug") {
+            finalDebug = {
+              retrievalDebug: payload.retrievalDebug,
+              imagePaths: payload.imagePaths
+            };
+          }
+
+          if (event === "progress") {
+            const progressPayload = payload as ProgressEventPayload;
+            setProgressByMessageId((current) => {
+              const existing = current[message.id] ?? {
+                status: "running" as const,
+                steps: {},
+                currentElapsedMs: 0
+              };
+
+              if (progressPayload.status === "started") {
+                return {
+                  ...current,
+                  [message.id]: {
+                    ...existing,
+                    status: "running",
+                    currentStepKey: progressPayload.stepKey,
+                    currentStepStartedClientAt: Date.now(),
+                    currentElapsedMs: progressPayload.elapsedTotalMs
+                  }
+                };
+              }
+
+              return {
+                ...current,
+                [message.id]: {
+                  ...existing,
+                  status: "running",
+                  steps: {
+                    ...existing.steps,
+                    [progressPayload.stepKey]: {
+                      stepKey: progressPayload.stepKey,
+                      label: progressPayload.label,
+                      startedAtMs: progressPayload.startedAtMs,
+                      endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
+                      durationMs: progressPayload.durationMs ?? 0,
+                      detail: progressPayload.detail
+                    }
+                  },
+                  currentStepKey:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                  currentStepStartedClientAt:
+                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs
+                }
+              };
+            });
+          }
+
+          if (event === "delta" && payload.text) {
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === message.id ? { ...item, contentText: item.contentText + payload.text! } : item
+              )
+            );
+          }
+
+          if (event === "done" && payload.assistantMessageId) {
+            const donePayload = payload as ProgressDonePayload;
+            const completedState: MessageProgressState = {
+              status: "completed",
+              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              currentElapsedMs: donePayload.totalDurationMs,
+              totalDurationMs: donePayload.totalDurationMs,
+              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
+              firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
+              reasoningAnswerMs: donePayload.reasoningAnswerMs,
+              waitFirstTokenMs: donePayload.waitFirstTokenMs,
+              streamAnswerMs: donePayload.streamAnswerMs
+            };
+            finalProgressState = completedState;
+            setProgressByMessageId((current) => ({ ...current, [message.id]: completedState }));
+            setFinalProgressByAssistantId((current) => ({ ...current, [donePayload.assistantMessageId]: completedState }));
+          }
+
+          if (event === "error") {
+            throw new Error(payload.error || "重新生成失败");
+          }
+        }
+      }
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === message.id
+            ? {
+                ...item,
+                status: "completed",
+                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+              }
+            : item
+        )
+      );
+      if (finalProgressState) {
+        setProgressByMessageId((current) => ({ ...current, [message.id]: finalProgressState! }));
+      }
+      router.refresh();
+    } catch (regenerateError) {
+      setProgressByMessageId((current) => {
+        const existing = current[message.id];
+        if (!existing) return current;
+        return {
+          ...current,
+          [message.id]: {
+            ...existing,
+            status: "error",
+            currentStepKey: undefined,
+            currentStepStartedClientAt: undefined
+          }
+        };
+      });
+      setMessages((current) => current.map((item) => (item.id === message.id ? { ...item, status: "failed" } : item)));
+      setError(regenerateError instanceof Error ? regenerateError.message : "重新生成失败");
+    } finally {
+      setSending(false);
+      abortRef.current = null;
+    }
   }
 
   function openConversation(conversationId: string) {
@@ -793,6 +1366,11 @@ export function ChatClient(props: {
                   const messageText =
                     message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
                   const isUser = message.role === "user";
+                  const isTemporaryMessage = message.id.startsWith("temp-");
+                  const canPersistAction = !isTemporaryMessage && message.status !== "streaming";
+                  const hasContent = Boolean(message.contentText.trim());
+                  const isEditingMessage = editingMessage?.id === message.id;
+                  const bubbleWidthClass = isEditingMessage ? "w-full max-w-[96%] sm:max-w-[92%]" : "max-w-[92%] sm:max-w-[86%]";
 
                   return (
                   <div
@@ -805,7 +1383,7 @@ export function ChatClient(props: {
                       </div>
                     ) : null}
                     <div
-                      className={`max-w-[92%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[86%] sm:px-4 sm:py-3 ${
+                      className={`${bubbleWidthClass} rounded-xl border px-3 py-2.5 shadow-sm sm:px-4 sm:py-3 ${
                         isUser ? "border-blue-100 bg-blue-50 text-slate-900 dark:border-primary/20 dark:bg-accent dark:text-foreground" : "border-border bg-white dark:bg-card dark:text-foreground"
                       }`}
                     >
@@ -814,8 +1392,46 @@ export function ChatClient(props: {
                         <span className="text-xs text-muted">{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
                       {message.role === "assistant" && progressState ? <ProgressCard progress={progressState} nowMs={nowMs} /> : null}
-                      <div className="whitespace-pre-wrap text-sm leading-6">{messageText}</div>
-                      {imagePaths.length ? (
+                      {isEditingMessage ? (
+                        <div className="flex flex-col gap-3">
+                          <Textarea
+                            ref={editTextareaRef}
+                            value={editText}
+                            onChange={(event) => setEditText(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                setEditingMessage(null);
+                                return;
+                              }
+                              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                                event.preventDefault();
+                                void saveEditedMessage();
+                              }
+                            }}
+                            className="min-h-48 max-h-[420px] w-full resize-none overflow-y-auto rounded-xl bg-white/80 text-sm leading-6 dark:bg-card sm:min-h-56"
+                            placeholder="请输入消息内容"
+                          />
+                        </div>
+                      ) : (
+                        <MarkdownMessage content={messageText} />
+                      )}
+                      {message.role === "assistant" && isEditingMessage && editImagePaths.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {editImagePaths.map((imagePath) => (
+                            <div key={imagePath} className="relative rounded-lg border border-border bg-slate-50 p-1 dark:bg-secondary">
+                              <img src={getFileUrl(imagePath)} alt="" className="max-h-36 rounded object-contain" />
+                              <button
+                                type="button"
+                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow hover:text-destructive dark:bg-card"
+                                onClick={() => setEditImagePaths((current) => current.filter((item) => item !== imagePath))}
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!isEditingMessage && imagePaths.length ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {imagePaths.map((img, i) => (
                             <img
@@ -829,47 +1445,72 @@ export function ChatClient(props: {
                         </div>
                       ) : null}
                       <AttachmentGallery attachments={attachmentsData} />
-                      {message.role === "assistant" ? (
-                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-muted">
-                          {retrievalDebug[0] ? (
-                            <div className="mr-auto rounded border border-border bg-slate-50 px-3 py-2 dark:bg-secondary">
-                              命中知识：{retrievalDebug[0].question || "无"} · 相似度 {retrievalDebug[0].rerankScore.toFixed(2)}
-                            </div>
-                          ) : null}
-                          <button
-                            type="button"
-                            className={`rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 dark:hover:bg-accent ${message.feedback === "helpful" ? "bg-blue-50 text-primary dark:bg-accent" : ""}`}
-                            onClick={() => updateFeedback(message.id, "helpful")}
-                          >
-                            <ThumbsUp className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className={`rounded p-1.5 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90 dark:hover:bg-destructive/10 dark:hover:text-destructive ${message.feedback === "unhelpful" ? "bg-red-50 text-red-500 dark:bg-destructive/10 dark:text-destructive" : ""}`}
-                            onClick={() => updateFeedback(message.id, "unhelpful")}
-                          >
-                            <ThumbsDown className="size-4" />
-                          </button>
-                          <Button size="sm" variant="outline" onClick={createTicket} disabled={sending}>
-                            <LifeBuoy className="size-4" />
-                            人工服务
+                      {isEditingMessage ? (
+                        <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setEditingMessage(null)}>
+                            取消
                           </Button>
+                          <Button type="button" size="sm" onClick={saveEditedMessage} disabled={sending}>
+                            保存
+                          </Button>
+                          {message.role === "user" ? (
+                            <Button type="button" size="sm" onClick={resendCurrentEditedUserMessage} disabled={sending}>
+                              重新发送
+                            </Button>
+                          ) : null}
                         </div>
                       ) : null}
-                      {retrievalDebug.length > 1 ? (
-                        <details className="mt-3 rounded-lg border border-border bg-slate-50 p-3 text-xs dark:bg-secondary">
-                          <summary className="cursor-pointer text-muted">查看更多命中来源</summary>
-                          <div className="mt-2 flex flex-col gap-2">
-                            {retrievalDebug.slice(1).map((item, index) => (
-                              <div key={`${message.id}-${index}`} className="rounded border border-border bg-white p-2 dark:bg-card">
-                                <div>问题：{item.question}</div>
-                                <div>来源：{item.sourceFile || "未知来源"}</div>
-                                <div>分数：{item.rerankScore.toFixed(4)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
+                      {message.role === "user" && !isEditingMessage ? (
+                        <div className="mt-3 flex justify-end border-t border-border pt-3">
+                          <MessageActionMenu
+                            message={message}
+                            hasContent={hasContent}
+                            canPersistAction={canPersistAction}
+                            copiedActionKey={copiedActionKey}
+                            onCopy={copyMessage}
+                            onDownload={downloadMessage}
+                            onDeleteRequest={() => setConfirmingMessageDeleteId(message.id)}
+                            onEdit={() => openEditMessage(message)}
+                          />
+                        </div>
                       ) : null}
+                      {message.role === "assistant" && !isEditingMessage ? (
+                        <AssistantMessageFooter
+                          message={message}
+                          hasContent={hasContent}
+                          canPersistAction={canPersistAction}
+                          copiedActionKey={copiedActionKey}
+                          retrievalDebug={retrievalDebug}
+                          sending={sending}
+                          onCreateTicket={createTicket}
+                          onCopy={copyMessage}
+                          onDownload={downloadMessage}
+                          onDeleteRequest={() => setConfirmingMessageDeleteId(message.id)}
+                          onEdit={() => openEditMessage(message)}
+                          onRegenerate={() => regenerateMessage(message)}
+                        />
+                      ) : null}
+                      <Dialog
+                        open={confirmingMessageDeleteId === message.id}
+                        onOpenChange={(open) => setConfirmingMessageDeleteId(open ? message.id : null)}
+                      >
+                        <DialogContent className="sm:max-w-sm">
+                          <DialogHeader>
+                            <DialogTitle>确认删除这条消息？</DialogTitle>
+                            <DialogDescription className="line-clamp-2">
+                              {message.contentText || sourceLabel(message.sourceType, message.role)}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setConfirmingMessageDeleteId(null)}>
+                              取消
+                            </Button>
+                            <Button type="button" variant="destructive" onClick={() => deleteMessage(message.id)}>
+                              删除
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </div>
                   );
@@ -914,6 +1555,7 @@ export function ChatClient(props: {
                   placeholder="请输入门店问题..."
                   value={text}
                   onChange={(event) => setText(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
                   onPaste={async (event) => {
                     const clipboardFiles = Array.from(event.clipboardData.items)
                       .filter((item) => item.type.startsWith("image/"))
@@ -963,6 +1605,7 @@ export function ChatClient(props: {
                 placeholder="请输入门店问题，或粘贴截图后补充说明..."
                 value={text}
                 onChange={(event) => setText(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
                 onPaste={async (event) => {
                   const clipboardFiles = Array.from(event.clipboardData.items)
                     .filter((item) => item.type.startsWith("image/"))
@@ -1056,6 +1699,251 @@ function sourceBadgeClass(sourceType: Message["sourceType"]) {
     return "bg-secondary text-foreground";
   }
   return "";
+}
+
+function MessageActionMenu(props: {
+  message: Message;
+  hasContent: boolean;
+  canPersistAction: boolean;
+  copiedActionKey: string | null;
+  regenerateDisabled?: boolean;
+  onCopy: (message: Message, format: "text" | "markdown") => void | Promise<void>;
+  onDownload: (message: Message, format: "text" | "markdown") => void;
+  onDeleteRequest: () => void;
+  onEdit: () => void;
+  onRegenerate?: () => void | Promise<void>;
+}) {
+  const markdownCopied = props.copiedActionKey === `${props.message.id}:markdown`;
+  const textCopied = props.copiedActionKey === `${props.message.id}:text`;
+
+  return (
+    <TooltipProvider delayDuration={500}>
+      <div className="flex shrink-0 items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-accent"
+              onClick={() => props.onCopy(props.message, "markdown")}
+              disabled={!props.hasContent}
+            >
+              {markdownCopied ? <Check className="size-4" /> : <Clipboard className="size-4" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>复制 Markdown</TooltipContent>
+        </Tooltip>
+
+        {props.onRegenerate ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-accent"
+                onClick={props.onRegenerate}
+                disabled={!props.canPersistAction || props.regenerateDisabled}
+              >
+                <RefreshCw className="size-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>重新生成</TooltipContent>
+          </Tooltip>
+        ) : null}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-accent"
+              onClick={props.onEdit}
+              disabled={!props.canPersistAction}
+            >
+              <Pencil className="size-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>编辑</TooltipContent>
+        </Tooltip>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="rounded p-1.5 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-90 dark:hover:bg-secondary dark:hover:text-foreground"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onCopy(props.message, "text")}>
+                {textCopied ? <Check className="size-4" /> : <Clipboard className="size-4" />}
+                复制纯文本
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onDownload(props.message, "markdown")}>
+                <FileText className="size-4" />
+                下载 Markdown
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onDownload(props.message, "text")}>
+                <Download className="size-4" />
+                下载纯文本
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={!props.canPersistAction}
+              className="text-destructive focus:text-destructive"
+              onClick={props.onDeleteRequest}
+            >
+              <Trash2 className="size-4" />
+              删除消息
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function AssistantMessageFooter(props: {
+  message: Message;
+  hasContent: boolean;
+  canPersistAction: boolean;
+  copiedActionKey: string | null;
+  retrievalDebug: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+  sending: boolean;
+  onCreateTicket: () => void | Promise<void>;
+  onCopy: (message: Message, format: "text" | "markdown") => void | Promise<void>;
+  onDownload: (message: Message, format: "text" | "markdown") => void;
+  onDeleteRequest: () => void;
+  onEdit: () => void;
+  onRegenerate: () => void | Promise<void>;
+}) {
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+
+  const actionRow = (
+    <div className="flex shrink-0 items-center gap-2">
+      <Button size="sm" variant="outline" onClick={props.onCreateTicket} disabled={props.sending} className="shrink-0">
+        <LifeBuoy className="size-4" />
+        人工服务
+      </Button>
+      <MessageActionMenu
+        message={props.message}
+        hasContent={props.hasContent}
+        canPersistAction={props.canPersistAction}
+        copiedActionKey={props.copiedActionKey}
+        onCopy={props.onCopy}
+        onDownload={props.onDownload}
+        onDeleteRequest={props.onDeleteRequest}
+        onEdit={props.onEdit}
+        onRegenerate={props.onRegenerate}
+        regenerateDisabled={props.sending}
+      />
+    </div>
+  );
+
+  return (
+    <div className="mt-3 border-t border-border pt-3 text-xs text-muted">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {knowledgeOpen && props.retrievalDebug.length ? (
+          <KnowledgeSourceSummary
+            messageId={props.message.id}
+            retrievalDebug={props.retrievalDebug}
+            open={knowledgeOpen}
+            onOpenChange={setKnowledgeOpen}
+            className="order-first w-full flex-none"
+          />
+        ) : null}
+        <div className={knowledgeOpen ? "order-last" : "order-first"}>{actionRow}</div>
+        {!knowledgeOpen && props.retrievalDebug.length ? (
+          <KnowledgeSourceSummary
+            messageId={props.message.id}
+            retrievalDebug={props.retrievalDebug}
+            open={knowledgeOpen}
+            onOpenChange={setKnowledgeOpen}
+            className="min-w-0 flex-1"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeSourceSummary(props: {
+  messageId: string;
+  retrievalDebug: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  className?: string;
+}) {
+  const primary = props.retrievalDebug[0];
+
+  return (
+    <div className={`rounded border border-border bg-slate-50 text-xs text-muted dark:bg-secondary ${props.className ?? ""}`}>
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left transition-colors duration-150 hover:bg-slate-100 dark:hover:bg-secondary/80"
+        onClick={() => props.onOpenChange(!props.open)}
+        aria-expanded={props.open}
+      >
+        <span className={`shrink-0 transition-transform duration-150 ${props.open ? "rotate-90" : ""}`}>▸</span>
+        <span className="min-w-0 truncate">
+          命中知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
+        </span>
+      </button>
+      {props.open ? (
+        <div className="border-t border-border p-3">
+          <div className="mb-2 font-medium text-foreground">知识来源</div>
+          <div className="flex flex-col gap-2">
+            {props.retrievalDebug.map((item, index) => (
+              <div key={`${props.messageId}-${index}`} className="rounded border border-border bg-white p-2 dark:bg-card">
+                <div className="font-medium text-foreground">问题：{item.question || "无"}</div>
+                <div className="mt-1">来源：{item.sourceFile || "未知来源"}</div>
+                <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function resizeEditTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 420)}px`;
+}
+
+function messageToMarkdown(message: Message) {
+  const roleLabel = message.role === "user" ? "用户" : message.role === "assistant" ? "助手" : sourceLabel(message.sourceType, message.role);
+  const time = new Date(message.createdAt).toLocaleString("zh-CN");
+  return [`### ${roleLabel} · ${time}`, "", message.contentText.trim()].join("\n");
+}
+
+function messageToPlainText(message: Message) {
+  return markdownToPlainText(message.contentText).trim();
+}
+
+function markdownToPlainText(markdown: string) {
+  if (!markdown) {
+    return "";
+  }
+
+  return removeMarkdown(markdown);
+}
+
+function safeFileName(value: string) {
+  return value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim().slice(0, 48) || "消息";
+}
+
+function formatMessageTimeForFile(value: string | Date) {
+  const date = new Date(value);
+  const pad = (input: number) => String(input).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    pad(date.getHours()),
+    pad(date.getMinutes())
+  ].join("");
 }
 
 function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) {
