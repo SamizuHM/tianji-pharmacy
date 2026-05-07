@@ -1,5 +1,5 @@
 import type { AttachmentItem } from "@pharmacy/shared";
-import { FIXED_ASSISTANT_SUFFIX } from "@pharmacy/shared";
+import { stripFixedAssistantSuffix } from "@pharmacy/shared";
 
 import { emitDelta as emitDeltaToStream, completeStream, failStream, registerStream } from "@/lib/active-streams";
 import { PROGRESS_STEP_LABELS, PROGRESS_STEP_ORDER } from "@/lib/chat-progress";
@@ -52,9 +52,14 @@ function toModelHistoryMessages(
       }
 
       if (message.role === "assistant" || message.role === "agent") {
+        const assistantContent = stripFixedAssistantSuffix(content);
+        if (!assistantContent) {
+          return null;
+        }
+
         return {
           role: "assistant",
-          content
+          content: assistantContent
         };
       }
 
@@ -445,15 +450,6 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               progress.completeStep("reasoning_answer", "模型未返回正文内容");
             } else {
               progress.completeStep("await_first_token", "模型未返回正文内容");
-            }
-          }
-
-          const suffix = `\n\n${FIXED_ASSISTANT_SUFFIX}`;
-          if (hasStartedStreamAnswer) {
-            assistantText += suffix;
-            enqueueChunk("delta", { text: suffix });
-            if (assistantMessageId) {
-              emitDeltaToStream(assistantMessageId, suffix);
             }
           }
 

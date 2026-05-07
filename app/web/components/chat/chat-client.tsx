@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import removeMarkdown from "remove-markdown";
 
-import type { AttachmentItem } from "@pharmacy/shared";
+import { FIXED_ASSISTANT_SUFFIX, stripFixedAssistantSuffix, type AttachmentItem } from "@pharmacy/shared";
 import {
   ArrowDown,
   Bot,
@@ -710,7 +710,13 @@ export function ChatClient(props: {
   function openEditMessage(message: Message) {
     const debugPayload = safeJsonParse<{ imagePaths?: string[] }>(message.retrievalDebugJson, {});
     setEditingMessage(message);
-    setEditText(message.contentText === "用户上传了图片" ? "" : message.contentText);
+    setEditText(
+      message.contentText === "用户上传了图片"
+        ? ""
+        : message.role === "assistant"
+          ? stripFixedAssistantSuffix(message.contentText)
+          : message.contentText
+    );
     setEditImagePaths(debugPayload.imagePaths ?? []);
   }
 
@@ -1363,12 +1369,17 @@ export function ChatClient(props: {
                   const retrievalDebug = debugPayload.debug ?? [];
                   const imagePaths = debugPayload.imagePaths ?? [];
                   const progressState = progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
-                  const messageText =
+                  const rawMessageText =
                     message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
+                  const messageText = message.role === "assistant" ? stripFixedAssistantSuffix(rawMessageText) : rawMessageText;
                   const isUser = message.role === "user";
                   const isTemporaryMessage = message.id.startsWith("temp-");
                   const canPersistAction = !isTemporaryMessage && message.status !== "streaming";
-                  const hasContent = Boolean(message.contentText.trim());
+                  const hasContent = Boolean(
+                    (message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText).trim()
+                  );
+                  const showAssistantFixedSuffix =
+                    message.role === "assistant" && message.status === "completed" && Boolean(messageText.trim());
                   const isEditingMessage = editingMessage?.id === message.id;
                   const bubbleWidthClass = isEditingMessage ? "w-full max-w-[96%] sm:max-w-[92%]" : "max-w-[92%] sm:max-w-[86%]";
 
@@ -1413,7 +1424,12 @@ export function ChatClient(props: {
                           />
                         </div>
                       ) : (
-                        <MarkdownMessage content={messageText} />
+                        <>
+                          <MarkdownMessage content={messageText} />
+                          {showAssistantFixedSuffix ? (
+                            <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{FIXED_ASSISTANT_SUFFIX}</p>
+                          ) : null}
+                        </>
                       )}
                       {message.role === "assistant" && isEditingMessage && editImagePaths.length ? (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -1915,11 +1931,13 @@ function resizeEditTextarea(textarea: HTMLTextAreaElement) {
 function messageToMarkdown(message: Message) {
   const roleLabel = message.role === "user" ? "用户" : message.role === "assistant" ? "助手" : sourceLabel(message.sourceType, message.role);
   const time = new Date(message.createdAt).toLocaleString("zh-CN");
-  return [`### ${roleLabel} · ${time}`, "", message.contentText.trim()].join("\n");
+  const content = message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText;
+  return [`### ${roleLabel} · ${time}`, "", content.trim()].join("\n");
 }
 
 function messageToPlainText(message: Message) {
-  return markdownToPlainText(message.contentText).trim();
+  const content = message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText;
+  return markdownToPlainText(content).trim();
 }
 
 function markdownToPlainText(markdown: string) {

@@ -56,6 +56,14 @@ export type KnowledgeImportResult = {
 
 export const FIXED_ASSISTANT_SUFFIX = "如以上操作仍无法解决，建议您转人工进行咨询";
 
+export function stripFixedAssistantSuffix(content: string) {
+  let normalized = content.trimEnd();
+  while (normalized.endsWith(FIXED_ASSISTANT_SUFFIX)) {
+    normalized = normalized.slice(0, -FIXED_ASSISTANT_SUFFIX.length).trimEnd();
+  }
+  return normalized;
+}
+
 export const DEPARTMENTS = [
   { name: "营运部", description: "门店运营、日常管理" },
   { name: "采购部", description: "商品采购、供应商管理" },
