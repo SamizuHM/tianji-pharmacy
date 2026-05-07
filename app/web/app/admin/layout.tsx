@@ -24,6 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       description={match.description}
       initialPendingCounts={pendingCounts}
       sidebarTheme={user.sidebarTheme as "blue" | "light"}
+      colorMode={(user as { colorMode?: "light" | "dark" | "system" }).colorMode ?? "system"}
     >
       {children}
     </AppShell>

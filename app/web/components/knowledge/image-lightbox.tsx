@@ -54,13 +54,13 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
           <>
             <button
               onClick={prev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-2 py-1 text-lg hover:bg-white"
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-card/80 px-2 py-1 text-lg hover:bg-card"
             >
               ‹
             </button>
             <button
               onClick={next}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-2 py-1 text-lg hover:bg-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-card/80 px-2 py-1 text-lg hover:bg-card"
             >
               ›
             </button>
@@ -72,7 +72,7 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
 
         <button
           onClick={onClose}
-          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm shadow hover:bg-secondary"
+          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-card text-sm shadow hover:bg-secondary"
         >
           ✕
         </button>

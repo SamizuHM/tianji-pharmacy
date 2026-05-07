@@ -7,11 +7,11 @@ export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElem
 }
 
 export function THead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("bg-slate-50 text-left", className)} {...props} />;
+  return <thead className={cn("bg-slate-50 text-left dark:bg-secondary", className)} {...props} />;
 }
 
 export function TBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn("[&_tr]:transition-colors [&_tr]:duration-100 [&_tr]:hover:bg-slate-50/70", className)} {...props} />;
+  return <tbody className={cn("[&_tr]:transition-colors [&_tr]:duration-100 [&_tr]:hover:bg-slate-50/70 dark:[&_tr]:hover:bg-secondary/70", className)} {...props} />;
 }
 
 export function TH({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
@@ -19,5 +19,5 @@ export function TH({ className, ...props }: ThHTMLAttributes<HTMLTableCellElemen
 }
 
 export function TD({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("border-t border-border px-4 py-3 align-top text-slate-700 transition-colors duration-100", className)} {...props} />;
+  return <td className={cn("border-t border-border px-4 py-3 align-top text-slate-700 transition-colors duration-100 dark:text-foreground", className)} {...props} />;
 }

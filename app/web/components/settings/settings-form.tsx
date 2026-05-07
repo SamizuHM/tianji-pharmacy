@@ -78,7 +78,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
               <Save className="size-4" />
               {pending ? "保存中..." : "保存设置"}
             </Button>
-            {message ? <Alert className="mt-4 border-blue-100 bg-blue-50 text-primary">{message}</Alert> : null}
+            {message ? <Alert className="mt-4 border-primary/30 bg-primary/10 text-foreground">{message}</Alert> : null}
           </div>
         </CardContent>
       </Card>

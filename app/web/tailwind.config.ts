@@ -12,20 +12,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#f1f5f9",
-        foreground: "#0f172a",
-        card: "#ffffff",
-        border: "#e2e8f0",
-        primary: "#2563eb",
-        primaryForeground: "#ffffff",
-        secondary: "#f1f5f9",
-        muted: "#64748b",
-        accent: "#eef2ff",
-        destructive: "#ef4444",
-        success: "#10b981",
-        warning: "#f97316",
-        info: "#0ea5e9",
-        sidebar: "#172554"
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
+        card: "hsl(var(--card) / <alpha-value>)",
+        border: "hsl(var(--border) / <alpha-value>)",
+        primary: "hsl(var(--primary) / <alpha-value>)",
+        primaryForeground: "hsl(var(--primary-foreground) / <alpha-value>)",
+        secondary: "hsl(var(--secondary) / <alpha-value>)",
+        muted: "hsl(var(--muted) / <alpha-value>)",
+        accent: "hsl(var(--accent) / <alpha-value>)",
+        destructive: "hsl(var(--destructive) / <alpha-value>)",
+        success: "hsl(var(--success) / <alpha-value>)",
+        warning: "hsl(var(--warning) / <alpha-value>)",
+        info: "hsl(var(--info) / <alpha-value>)",
+        sidebar: "hsl(var(--sidebar) / <alpha-value>)"
       },
       borderRadius: {
         sm: "0.125rem",

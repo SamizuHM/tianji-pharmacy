@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime, parseTags } from "@/lib/presentation";
-import { getAttachmentItems } from "@/lib/utils";
+import { cn, getAttachmentItems } from "@/lib/utils";
 
 import { OrgTreeSelect } from "./org-tree-select";
 
@@ -225,16 +225,16 @@ export function TicketDetailClient(props: {
             <CardDescription>用户问题、AI 初答、人工补充和系统流转记录</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="mb-6 rounded-xl border border-border bg-white p-4">
+            <div className="mb-6 rounded-xl border border-border bg-white p-4 dark:bg-card">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="font-medium text-slate-900">用户问题</div>
+                <div className="font-medium text-slate-900 dark:text-foreground">用户问题</div>
                 <span className="text-xs text-muted">{formatDateTime(props.ticket.createdAt)}</span>
               </div>
               <div className="whitespace-pre-wrap text-sm leading-6">{props.ticket.latestUserQuestion}</div>
             </div>
-            <div className="mb-8 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+            <div className="mb-8 rounded-xl border border-blue-100 bg-blue-50/60 p-4 dark:border-border dark:bg-secondary/60">
               <div className="mb-2 flex items-center gap-2">
-                <Badge className="bg-blue-100 text-primary">AI 初始回答</Badge>
+                <Badge className="bg-blue-100 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">AI 初始回答</Badge>
               </div>
               <div className="whitespace-pre-wrap text-sm leading-6">{props.ticket.aiAnswerSnapshot}</div>
             </div>
@@ -247,14 +247,21 @@ export function TicketDetailClient(props: {
                     {index < props.ticket.messages.length - 1 ? (
                       <div className="absolute left-5 top-10 h-[calc(100%+1.25rem)] w-px bg-border" />
                     ) : null}
-                    <div className="z-10 flex size-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-slate-600 shadow-sm">
+                    <div
+                      className={cn(
+                        "z-10 flex size-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-slate-600 shadow-sm dark:border-card",
+                        message.senderRole === "system" && "dark:border-info/30 dark:bg-info/10 dark:text-info",
+                        message.senderRole === "user" && "dark:border-primary/30 dark:bg-primary/10 dark:text-primary",
+                        message.senderRole === "agent" && "dark:border-success/30 dark:bg-success/10 dark:text-success"
+                      )}
+                    >
                       {message.senderRole === "system" ? "系" : message.senderRole === "user" ? "用" : "人"}
                     </div>
-                    <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
+                    <div className="rounded-lg border border-border bg-white p-4 shadow-sm dark:bg-card">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Badge>{message.senderUser?.displayName || senderLabel(message.senderRole)}</Badge>
-                          <Badge className="bg-slate-100 text-slate-600">{message.messageType}</Badge>
+                          <Badge className="bg-slate-100 text-slate-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{message.messageType}</Badge>
                         </div>
                         <span className="text-xs text-muted">{formatDateTime(message.createdAt)}</span>
                       </div>
@@ -299,7 +306,7 @@ export function TicketDetailClient(props: {
               {canEscalate && props.departments ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-left text-orange-600 transition hover:bg-orange-100 disabled:opacity-60"
+                  className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-left text-orange-600 transition hover:bg-orange-100 disabled:opacity-60 dark:border-warning/30 dark:bg-warning/10 dark:text-warning dark:hover:bg-secondary"
                   onClick={() => setShowEscalate(!showEscalate)}
                   disabled={pending}
                 >
@@ -313,7 +320,7 @@ export function TicketDetailClient(props: {
               {canSubmitResolution ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-emerald-600 transition hover:bg-emerald-100 disabled:opacity-60"
+                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-emerald-600 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-success/30 dark:bg-success/10 dark:text-success dark:hover:bg-secondary"
                   onClick={() => document.getElementById("resolution-input")?.focus()}
                   disabled={pending}
                 >
@@ -327,7 +334,7 @@ export function TicketDetailClient(props: {
               {canResolve ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-cyan-100 bg-cyan-50 px-4 py-3 text-left text-cyan-600 transition hover:bg-cyan-100 disabled:opacity-60"
+                  className="flex items-center justify-between rounded-lg border border-cyan-100 bg-cyan-50 px-4 py-3 text-left text-cyan-600 transition hover:bg-cyan-100 disabled:opacity-60 dark:border-info/30 dark:bg-info/10 dark:text-info dark:hover:bg-secondary"
                   onClick={resolveTicket}
                   disabled={pending}
                 >
@@ -341,7 +348,7 @@ export function TicketDetailClient(props: {
               {canGenerateKnowledge ? (
                 <button
                   type="button"
-                  className="flex items-center justify-between rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-left text-purple-600 transition hover:bg-purple-100 disabled:opacity-60"
+                  className="flex items-center justify-between rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-left text-purple-600 transition hover:bg-purple-100 disabled:opacity-60 dark:border-info/30 dark:bg-info/10 dark:text-info dark:hover:bg-secondary"
                   onClick={() => setShowKnowledgeEntry(!showKnowledgeEntry)}
                   disabled={pending}
                 >
@@ -352,7 +359,7 @@ export function TicketDetailClient(props: {
                   <BookOpen className="size-5" />
                 </button>
               ) : null}
-              {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
+              {error ? <Alert className="border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">{error}</Alert> : null}
             </CardContent>
           </Card>
 
@@ -387,9 +394,9 @@ export function TicketDetailClient(props: {
           ) : null}
 
           {/* Knowledge writeback info */}
-          <Card className="border-blue-100 bg-blue-50/60">
+          <Card className="border-blue-100 bg-blue-50/60 dark:border-border dark:bg-secondary/60">
             <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-slate-900">知识写回状态：{knowledgeStatusLabel(props.ticket.knowledgeStatus)}</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">知识写回状态：{knowledgeStatusLabel(props.ticket.knowledgeStatus)}</h3>
               {latestKnowledgeDraft ? (
                 <KnowledgeDraftPreview draft={latestKnowledgeDraft} />
               ) : (
@@ -412,7 +419,7 @@ export function TicketDetailClient(props: {
                 label="问题标签"
                 value={
                   <span className="flex flex-wrap gap-1">
-                    {tags.length ? tags.map((tag) => <Badge key={tag} className="bg-slate-100 text-slate-600">{tag}</Badge>) : "-"}
+                    {tags.length ? tags.map((tag) => <Badge key={tag} className="bg-slate-100 text-slate-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{tag}</Badge>) : "-"}
                   </span>
                 }
               />
@@ -462,7 +469,7 @@ export function TicketDetailClient(props: {
                 <CardTitle>确认问题解决</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                <Alert className="border-primary/30 bg-blue-50 text-foreground">
+                <Alert className="border-primary/30 bg-blue-50 text-foreground dark:bg-primary/10">
                   人工客服已提交处理方案。确认问题解决后，客服才能勾选素材生成待入库知识。
                 </Alert>
                 <Textarea
@@ -484,7 +491,7 @@ export function TicketDetailClient(props: {
                 <CardTitle>关闭工单</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                <Alert className="border-primary/30 bg-blue-50 text-foreground">
+                <Alert className="border-primary/30 bg-blue-50 text-foreground dark:bg-primary/10">
                   问题已确认解决。关闭工单后，待入库答案会写回知识库。
                 </Alert>
                 <Textarea
@@ -493,7 +500,7 @@ export function TicketDetailClient(props: {
                   readOnly
                 />
                 {!canCloseWithWriteback ? (
-                  <Alert className="border-orange-200 bg-orange-50 text-orange-700">
+                  <Alert className="border-orange-200 bg-orange-50 text-orange-700 dark:border-warning/30 dark:bg-warning/10 dark:text-foreground">
                     客服尚未生成待入库答案，暂不能关闭并写回知识库。
                   </Alert>
                 ) : null}
@@ -512,12 +519,12 @@ export function TicketDetailClient(props: {
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 {props.ticket.status === "closed" ? (
-                  <Alert className="border-primary/30 bg-blue-50 text-foreground">
+                  <Alert className="border-primary/30 bg-blue-50 text-foreground dark:bg-primary/10">
                     工单已关闭。如需补充图片或说明，请重新发起新工单，避免知识回写和处理记录前后不一致。
                   </Alert>
                 ) : null}
                 <Textarea placeholder="补充处理说明" value={content} onChange={(event) => setContent(event.target.value)} />
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary dark:bg-card">
                   <Upload className="size-4" />
                   上传图片
                   <input
@@ -616,7 +623,7 @@ function KnowledgeDraftBuilder(props: {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-sm font-semibold text-slate-900">生成待入库答案</div>
+        <div className="text-sm font-semibold text-slate-900 dark:text-foreground">生成待入库答案</div>
         <p className="mt-1 text-xs leading-5 text-muted">
           勾选本次工单中真正有效的问题、回答和附件，由大模型整理成一条可写入知识库的优质 QA。
         </p>
@@ -630,13 +637,13 @@ function KnowledgeDraftBuilder(props: {
           加载历史对话...
         </div>
       ) : (
-        <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-white">
+        <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-white dark:bg-card">
           {materials.map((material) => {
             const checked = selectedIds.has(material.id);
             return (
               <label
                 key={material.id}
-                className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-slate-50"
+                className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-slate-50 dark:hover:bg-secondary"
               >
                 <input
                   type="checkbox"
@@ -647,10 +654,10 @@ function KnowledgeDraftBuilder(props: {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>{material.roleLabel}</Badge>
-                    <Badge className="bg-slate-100 text-slate-600">{material.sourceLabel}</Badge>
+                    <Badge className="bg-slate-100 text-slate-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{material.sourceLabel}</Badge>
                     <span className="text-[11px] text-muted">{formatDateTime(material.createdAt)}</span>
                   </div>
-                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-700">{material.contentText}</div>
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-700 dark:text-foreground">{material.contentText}</div>
                   <AttachmentGallery attachments={material.attachments} linkClassName="rounded border border-border px-3 py-2 text-xs" />
                 </div>
               </label>
@@ -659,7 +666,7 @@ function KnowledgeDraftBuilder(props: {
         </div>
       )}
 
-      {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
+      {error ? <Alert className="border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">{error}</Alert> : null}
 
       <Button
         size="sm"
@@ -684,22 +691,22 @@ function KnowledgeDraftPreview({ draft }: { draft: TicketKnowledgeDraftWithUser 
   }));
 
   return (
-    <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-sm">
+    <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-sm dark:border-border dark:bg-card">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Badge className="bg-blue-100 text-primary">待入库</Badge>
+        <Badge className="bg-blue-100 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">待入库</Badge>
         <span className="text-xs text-muted">
           {draft.generatedBy?.displayName ? `生成：${draft.generatedBy.displayName}` : "客服已生成"}
         </span>
       </div>
       <div className="text-xs text-muted">分类</div>
-      <div className="mt-1 font-medium text-slate-900">{draft.categoryL1} / {draft.categoryL2}</div>
+      <div className="mt-1 font-medium text-slate-900 dark:text-foreground">{draft.categoryL1} / {draft.categoryL2}</div>
       <div className="mt-3 text-xs text-muted">问题</div>
-      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800">{draft.question}</div>
+      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800 dark:text-foreground">{draft.question}</div>
       <div className="mt-3 text-xs text-muted">优质答案</div>
-      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800">{draft.answer}</div>
+      <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800 dark:text-foreground">{draft.answer}</div>
       {tags.length ? (
         <div className="mt-3 flex flex-wrap gap-1">
-          {tags.map((tag) => <Badge key={tag} className="bg-slate-100 text-slate-600">{tag}</Badge>)}
+          {tags.map((tag) => <Badge key={tag} className="bg-slate-100 text-slate-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{tag}</Badge>)}
         </div>
       ) : null}
       <AttachmentGallery attachments={attachments} linkClassName="rounded border border-border px-3 py-2 text-xs" />
@@ -722,7 +729,7 @@ function InfoBlock({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div className="text-xs text-muted">{label}</div>
-      <div className="mt-1 text-sm font-medium text-slate-900">{value}</div>
+      <div className="mt-1 text-sm font-medium text-slate-900 dark:text-foreground">{value}</div>
     </div>
   );
 }
@@ -731,7 +738,7 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <span className="text-muted">{label}</span>
-      <span className="text-right font-medium text-slate-900">{value}</span>
+      <span className="text-right font-medium text-slate-900 dark:text-foreground">{value}</span>
     </div>
   );
 }
@@ -740,11 +747,11 @@ function ActionButton(props: { title: string; description: string; tone: "blue";
   return (
     <button
       type="button"
-      className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-left text-primary transition hover:bg-blue-100"
+      className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-left text-primary transition hover:bg-blue-100 dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-secondary"
       onClick={props.onClick}
     >
       <span className="flex items-center gap-3">
-        <span className="flex size-8 items-center justify-center rounded-full bg-blue-100">{props.icon}</span>
+        <span className="flex size-8 items-center justify-center rounded-full bg-blue-100 text-primary dark:border dark:border-primary/30 dark:bg-card/60">{props.icon}</span>
         <span>
           <span className="block text-sm font-medium">{props.title}</span>
           <span className="text-xs text-muted">{props.description}</span>

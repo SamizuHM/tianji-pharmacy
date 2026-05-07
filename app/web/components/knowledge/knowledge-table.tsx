@@ -215,7 +215,7 @@ export function KnowledgeTable({
                   : [];
 
               return (
-                <tr key={item.id} className={detailId === item.id ? "bg-blue-50/60" : ""}>
+                <tr key={item.id} className={detailId === item.id ? "bg-blue-50/60 dark:bg-secondary" : ""}>
                   {editingId === item.id ? (
                     <TD colSpan={9}>
                       <KnowledgeEditForm item={item} onCancel={() => setEditingId(null)} />
@@ -228,7 +228,7 @@ export function KnowledgeTable({
                       <TD>{item.categoryL1}</TD>
                       <TD>{item.categoryL2}</TD>
                       <TD>
-                        <button className="max-w-[240px] truncate text-left font-medium text-slate-900 transition-colors duration-150 hover:text-primary" onClick={() => openDetail(item.id)}>
+                        <button className="max-w-[240px] truncate text-left font-medium text-slate-900 transition-colors duration-150 hover:text-primary dark:text-foreground" onClick={() => openDetail(item.id)}>
                           {item.question}
                         </button>
                         {imagePaths.length ? (
@@ -253,7 +253,7 @@ export function KnowledgeTable({
                         <div className="max-w-[160px] truncate text-muted">{item.sourceFile || item.sourceType}</div>
                       </TD>
                       <TD>
-                        <div className="font-medium text-slate-900">{item.hitCount}</div>
+                        <div className="font-medium text-slate-900 dark:text-foreground">{item.hitCount}</div>
                         <div className="text-xs text-muted">{formatDateTime(item.lastHitAt)}</div>
                       </TD>
                       <TD>
@@ -303,7 +303,7 @@ export function KnowledgeTable({
             {visibleDetail ? (
               <div className="flex flex-col gap-6">
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900">基本信息</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">基本信息</h3>
                   <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
                     <span className="text-muted">具体问题</span>
                     <span>{visibleDetail.question}</span>
@@ -320,27 +320,27 @@ export function KnowledgeTable({
                   </div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900">简要标准答案</h3>
-                  <div className="mt-3 rounded-lg border border-border bg-slate-50 p-4 text-sm leading-6">{visibleDetail.answer}</div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">简要标准答案</h3>
+                  <div className="mt-3 rounded-lg border border-border bg-slate-50 p-4 text-sm leading-6 dark:bg-secondary">{visibleDetail.answer}</div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900">标签</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">标签</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {parseTags(visibleDetail.tagsJson).length
-                      ? parseTags(visibleDetail.tagsJson).map((tag) => <Badge key={tag} className="bg-blue-50 text-primary">{tag}</Badge>)
+                      ? parseTags(visibleDetail.tagsJson).map((tag) => <Badge key={tag} className="bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{tag}</Badge>)
                       : <span className="text-sm text-muted">暂无标签</span>}
                   </div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900">多模态内容</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">多模态内容</h3>
                   <DetailAssets item={visibleDetail} onPreview={(images, index) => setLightbox({ images, index })} />
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900">分片内容</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">分片内容</h3>
                   <div className="mt-3 flex flex-col gap-2">
                     {visibleDetail.chunks?.length ? (
                       visibleDetail.chunks.map((chunk) => (
-                        <div key={chunk.id} className="rounded border border-border bg-white p-3 text-sm leading-6">
+                        <div key={chunk.id} className="rounded border border-border bg-white p-3 text-sm leading-6 dark:bg-card">
                           {chunk.chunkText}
                         </div>
                       ))
@@ -384,10 +384,10 @@ function DetailAssets({
 
   return (
     <div className="mt-3 flex flex-wrap gap-3">
-      <div className="flex min-w-56 items-center gap-3 rounded-lg border border-border bg-white p-3">
+      <div className="flex min-w-56 items-center gap-3 rounded-lg border border-border bg-white p-3 dark:bg-card">
         <FileText className="size-5 text-red-500" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-slate-900">{item.sourceFile || "手动录入知识"}</div>
+          <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.sourceFile || "手动录入知识"}</div>
           <div className="text-xs text-muted">{item.sourceType}</div>
         </div>
       </div>
@@ -395,7 +395,7 @@ function DetailAssets({
         <button
           key={img}
           type="button"
-          className="flex size-20 items-center justify-center rounded-lg border border-dashed border-border bg-slate-50"
+          className="flex size-20 items-center justify-center rounded-lg border border-dashed border-border bg-slate-50 dark:bg-secondary"
           onClick={() => onPreview(imagePaths, index)}
         >
           <ImageIcon className="size-5 text-muted" />

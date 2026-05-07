@@ -10,11 +10,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary px-4 py-2 text-primaryForeground shadow-sm hover:bg-blue-700 hover:shadow-md",
-        secondary: "bg-blue-50 px-4 py-2 text-primary hover:bg-blue-100",
-        outline: "border border-border bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 hover:border-slate-300",
-        ghost: "px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-        destructive: "bg-destructive px-4 py-2 text-white hover:bg-red-600"
+        default: "bg-primary px-4 py-2 text-primaryForeground shadow-sm hover:bg-blue-700 hover:shadow-md dark:border dark:border-primary/30 dark:bg-primary/10 dark:text-primary dark:hover:bg-secondary",
+        secondary: "bg-blue-50 px-4 py-2 text-primary hover:bg-blue-100 dark:border dark:border-primary/30 dark:bg-primary/10 dark:text-primary dark:hover:bg-secondary",
+        outline: "border border-border bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:bg-card dark:text-foreground dark:hover:border-border dark:hover:bg-secondary",
+        ghost: "px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground",
+        destructive: "bg-destructive px-4 py-2 text-white hover:bg-red-600 dark:hover:bg-destructive/90"
       },
       size: {
         default: "h-10",

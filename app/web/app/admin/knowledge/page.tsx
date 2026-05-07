@@ -60,7 +60,7 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
               <CardTitle>知识入库</CardTitle>
               <CardDescription className="mt-1">上传业务文档或手动维护单条标准问答。</CardDescription>
             </div>
-            <div className="flex size-10 items-center justify-center rounded bg-blue-50 text-primary">
+            <div className="flex size-10 items-center justify-center rounded bg-blue-50 text-primary dark:border dark:border-primary/30 dark:bg-primary/10">
               <FileUp className="size-5" />
             </div>
           </CardHeader>
@@ -89,14 +89,14 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
             <RebuildIndexButton />
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-border bg-slate-50 p-4">
+            <div className="rounded-lg border border-border bg-slate-50 p-4 dark:bg-secondary/60">
               <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded bg-emerald-50 text-emerald-600">
+                <div className="flex size-9 items-center justify-center rounded bg-emerald-50 text-emerald-600 dark:border dark:border-success/30 dark:bg-success/10 dark:text-success">
                   <Target className="size-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-slate-900">发布率</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">
+                  <div className="text-sm font-medium text-slate-900 dark:text-foreground">发布率</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-foreground">
                     {knowledgeResult.summary.total ? Math.round((knowledgeResult.summary.published / knowledgeResult.summary.total) * 1000) / 10 : 0}%
                   </div>
                 </div>
@@ -104,12 +104,12 @@ export default async function AdminKnowledgePage(props: { searchParams: Promise<
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-semibold text-slate-900">最近导入</div>
+              <div className="mb-2 text-sm font-semibold text-slate-900 dark:text-foreground">最近导入</div>
               <div className="space-y-2">
                 {jobs.slice(0, 4).map((job) => (
-                  <div key={job.id} className="rounded border border-border bg-white px-3 py-2">
+                  <div key={job.id} className="rounded border border-border bg-white px-3 py-2 dark:bg-card">
                     <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="font-medium text-slate-900">{job.status}</span>
+                      <span className="font-medium text-slate-900 dark:text-foreground">{job.status}</span>
                       <span className="text-xs text-muted">{new Date(job.createdAt).toLocaleString("zh-CN")}</span>
                     </div>
                     <div className="mt-1 truncate text-xs text-muted">{job.summary || "-"}</div>

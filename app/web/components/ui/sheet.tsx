@@ -38,7 +38,7 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed top-0 z-50 flex h-full w-full max-w-md flex-col border-border bg-white shadow-2xl outline-none",
+        "fixed top-0 z-50 flex h-full w-full max-w-md flex-col border-border bg-white shadow-2xl outline-none dark:bg-card dark:text-foreground",
         side === "right"
           ? "right-0 border-l data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right"
           : "left-0 border-r data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left",
@@ -47,7 +47,7 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+      <SheetPrimitive.Close className="absolute right-4 top-4 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground">
         <X className="size-5" />
         <span className="sr-only">关闭</span>
       </SheetPrimitive.Close>
@@ -64,7 +64,7 @@ const SheetTitle = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <SheetPrimitive.Title ref={ref} className={cn("text-lg font-semibold text-slate-900", className)} {...props} />
+  <SheetPrimitive.Title ref={ref} className={cn("text-lg font-semibold text-slate-900 dark:text-foreground", className)} {...props} />
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 

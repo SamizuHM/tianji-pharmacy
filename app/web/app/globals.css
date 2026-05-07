@@ -6,7 +6,39 @@
 
 @layer base {
   :root {
+    --background: 210 40% 96%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --border: 214 32% 91%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --muted: 215 16% 47%;
+    --accent: 226 100% 97%;
+    --destructive: 0 84% 60%;
+    --success: 160 84% 39%;
+    --warning: 24 95% 53%;
+    --info: 199 89% 48%;
+    --sidebar: 226 71% 19%;
     color-scheme: light;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 11%;
+    --border: 217 33% 20%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --muted: 215 20% 65%;
+    --accent: 217 33% 18%;
+    --destructive: 0 72% 51%;
+    --success: 160 84% 39%;
+    --warning: 24 95% 53%;
+    --info: 199 89% 48%;
+    --sidebar: 226 71% 12%;
+    color-scheme: dark;
   }
 
   * {
@@ -35,7 +67,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: hsl(var(--muted) / 0.45);
     border-radius: 9999px;
   }
 }

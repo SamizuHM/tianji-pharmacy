@@ -616,18 +616,20 @@ export function ChatClient(props: {
           <div
             key={item.id}
             className={`flex min-w-0 items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
-              activeConversation?.id === item.id ? "border-blue-200 bg-blue-50 shadow-sm" : "border-transparent hover:bg-slate-50 hover:border-slate-200"
+              activeConversation?.id === item.id
+                ? "border-blue-200 bg-blue-50 shadow-sm dark:border-primary/20 dark:bg-accent"
+                : "border-transparent hover:bg-slate-50 hover:border-slate-200 dark:hover:border-border dark:hover:bg-secondary"
             }`}
           >
             <button type="button" onClick={() => openConversation(item.id)} className="min-w-0 flex-1 overflow-hidden text-left">
-              <div className="truncate font-medium text-slate-900">{item.title}</div>
+              <div className="truncate font-medium text-slate-900 dark:text-foreground">{item.title}</div>
               <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
             </button>
             <Dialog open={confirmingDeleteId === item.id} onOpenChange={(open) => setConfirmingDeleteId(open ? item.id : null)}>
               <DialogTrigger asChild>
                 <button
                   type="button"
-                  className="shrink-0 rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500"
+                  className="shrink-0 rounded p-1 text-muted transition-all duration-150 hover:bg-red-50 hover:text-red-500 dark:hover:bg-destructive/10 dark:hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -661,11 +663,11 @@ export function ChatClient(props: {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-full bg-blue-100 text-primary">
+            <div className="flex size-16 items-center justify-center rounded-full bg-blue-100 text-primary dark:border dark:border-primary/30 dark:bg-primary/10">
               <Bot className="size-8" />
             </div>
             <div>
-              <div className="font-semibold text-slate-900">药店智能助手</div>
+              <div className="font-semibold text-slate-900 dark:text-foreground">药店智能助手</div>
               <div className="mt-1 flex items-center gap-2 text-sm text-emerald-600">
                 <span className="size-2 rounded-full bg-emerald-500" />
                 在线
@@ -681,7 +683,7 @@ export function ChatClient(props: {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {["药品知识", "合规政策", "经营管理", "系统操作", "医保政策", "会员权益"].map((item) => (
-            <Badge key={item} className="border border-border bg-white px-3 py-2 text-slate-600">
+            <Badge key={item} className="border border-border bg-white px-3 py-2 text-slate-600 dark:border-primary/30 dark:bg-primary/10 dark:text-primary">
               {item}
             </Badge>
           ))}
@@ -693,7 +695,7 @@ export function ChatClient(props: {
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           {["企业 SOP 手册", "药品法规政策", "常见问题库", "医保政策库", "系统操作指南", "培训资料库"].map((item) => (
-            <div key={item} className="flex items-center gap-2 text-slate-700">
+            <div key={item} className="flex items-center gap-2 text-slate-700 dark:text-foreground">
               <BookOpenIcon />
               {item}
             </div>
@@ -726,7 +728,7 @@ export function ChatClient(props: {
           <p className="text-sm text-muted [@media(max-height:830px)]:hidden">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
         </CardHeader>
         <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
-          <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 xl:hidden">
+          <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 dark:bg-card xl:hidden">
             <Sheet open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen}>
               <SheetTrigger asChild>
                 <Button size="sm" variant="ghost">历史</Button>
@@ -745,7 +747,7 @@ export function ChatClient(props: {
               </SheetContent>
             </Sheet>
             <div className="min-w-0 text-center">
-              <div className="truncate text-sm font-semibold text-slate-950">门店智能问答</div>
+              <div className="truncate text-sm font-semibold text-slate-950 dark:text-foreground">门店智能问答</div>
               <div className="truncate text-[11px] text-muted">{activeConversation?.title ?? "新会话"}</div>
             </div>
             <Sheet open={mobileAssistantOpen} onOpenChange={setMobileAssistantOpen}>
@@ -763,16 +765,16 @@ export function ChatClient(props: {
           <ScrollArea
             viewportRef={scrollContainerRef}
             onViewportScroll={handleScroll}
-            className="min-h-0 flex-1 bg-slate-50/60"
+            className="min-h-0 flex-1 bg-slate-50/60 dark:bg-secondary/50"
             viewportClassName="[&>div]:!block [&>div]:h-full"
           >
             <div className="flex h-full flex-col px-3 pb-8 pt-4 sm:px-5 sm:pb-10 sm:pt-5">
               {!messages.length ? (
                 <div className="flex flex-1 flex-col items-center justify-center text-center">
-                  <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary dark:bg-accent">
                     <Sparkles className="size-7" />
                   </div>
-                  <h3 className="mt-5 text-lg font-semibold text-slate-900">门店智能问答</h3>
+                  <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-foreground">门店智能问答</h3>
                   <p className="mt-2 max-w-xs text-sm text-muted">
                     在下方输入您的门店相关问题，支持文字、图片与图文混合输入
                   </p>
@@ -804,7 +806,7 @@ export function ChatClient(props: {
                     ) : null}
                     <div
                       className={`max-w-[92%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[86%] sm:px-4 sm:py-3 ${
-                        isUser ? "border-blue-100 bg-blue-50 text-slate-900" : "border-border bg-white"
+                        isUser ? "border-blue-100 bg-blue-50 text-slate-900 dark:border-primary/20 dark:bg-accent dark:text-foreground" : "border-border bg-white dark:bg-card dark:text-foreground"
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
@@ -830,20 +832,20 @@ export function ChatClient(props: {
                       {message.role === "assistant" ? (
                         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-muted">
                           {retrievalDebug[0] ? (
-                            <div className="mr-auto rounded border border-border bg-slate-50 px-3 py-2">
+                            <div className="mr-auto rounded border border-border bg-slate-50 px-3 py-2 dark:bg-secondary">
                               命中知识：{retrievalDebug[0].question || "无"} · 相似度 {retrievalDebug[0].rerankScore.toFixed(2)}
                             </div>
                           ) : null}
                           <button
                             type="button"
-                            className={`rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 ${message.feedback === "helpful" ? "bg-blue-50 text-primary" : ""}`}
+                            className={`rounded p-1.5 transition-all duration-150 hover:bg-blue-50 hover:text-primary active:scale-90 dark:hover:bg-accent ${message.feedback === "helpful" ? "bg-blue-50 text-primary dark:bg-accent" : ""}`}
                             onClick={() => updateFeedback(message.id, "helpful")}
                           >
                             <ThumbsUp className="size-4" />
                           </button>
                           <button
                             type="button"
-                            className={`rounded p-1.5 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90 ${message.feedback === "unhelpful" ? "bg-red-50 text-red-500" : ""}`}
+                            className={`rounded p-1.5 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90 dark:hover:bg-destructive/10 dark:hover:text-destructive ${message.feedback === "unhelpful" ? "bg-red-50 text-red-500 dark:bg-destructive/10 dark:text-destructive" : ""}`}
                             onClick={() => updateFeedback(message.id, "unhelpful")}
                           >
                             <ThumbsDown className="size-4" />
@@ -855,11 +857,11 @@ export function ChatClient(props: {
                         </div>
                       ) : null}
                       {retrievalDebug.length > 1 ? (
-                        <details className="mt-3 rounded-lg border border-border bg-slate-50 p-3 text-xs">
+                        <details className="mt-3 rounded-lg border border-border bg-slate-50 p-3 text-xs dark:bg-secondary">
                           <summary className="cursor-pointer text-muted">查看更多命中来源</summary>
                           <div className="mt-2 flex flex-col gap-2">
                             {retrievalDebug.slice(1).map((item, index) => (
-                              <div key={`${message.id}-${index}`} className="rounded border border-border bg-white p-2">
+                              <div key={`${message.id}-${index}`} className="rounded border border-border bg-white p-2 dark:bg-card">
                                 <div>问题：{item.question}</div>
                                 <div>来源：{item.sourceFile || "未知来源"}</div>
                                 <div>分数：{item.rerankScore.toFixed(4)}</div>
@@ -882,10 +884,10 @@ export function ChatClient(props: {
             </div>
           </ScrollArea>
 
-          <div className="relative shrink-0 border-t border-border bg-white p-3 [@media(max-height:830px)]:sm:p-3 sm:p-5">
+          <div className="relative shrink-0 border-t border-border bg-white p-3 dark:bg-card [@media(max-height:830px)]:sm:p-3 sm:p-5">
             <button
               type="button"
-              className={`absolute -top-12 right-3 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 ${
+              className={`absolute -top-12 right-3 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 dark:border dark:border-primary/30 dark:bg-card dark:text-primary dark:hover:bg-secondary ${
                 showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
               }`}
               onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
@@ -895,18 +897,18 @@ export function ChatClient(props: {
             {/* 手机端：单行输入框 + 内嵌图标按钮 */}
             <div className="relative sm:hidden [@media(max-height:830px)]:!block">
               {attachments.length ? (
-                <div className="flex flex-wrap gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm">
+                <div className="flex flex-wrap gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm dark:border-border dark:bg-card">
                   {attachments.map((item) => (
-                    <span key={item.path} className="inline-flex items-center gap-1 rounded border border-border bg-slate-50 px-2 py-1 text-xs">
+                    <span key={item.path} className="inline-flex items-center gap-1 rounded border border-border bg-slate-50 px-2 py-1 text-xs dark:bg-secondary">
                       {item.name}
-                      <button type="button" className="text-slate-400 hover:text-red-500" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                      <button type="button" className="text-slate-400 hover:text-red-500 dark:text-muted" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
                         <X className="size-3" />
                       </button>
                     </span>
                   ))}
                 </div>
               ) : null}
-              <div className="flex items-end rounded-lg border border-blue-100 bg-white shadow-sm focus-within:border-primary focus-within:shadow-md">
+              <div className="flex items-end rounded-lg border border-blue-100 bg-white shadow-sm focus-within:border-primary focus-within:shadow-md dark:border-border dark:bg-card">
                 <textarea
                   ref={textareaRef}
                   placeholder="请输入门店问题..."
@@ -924,11 +926,11 @@ export function ChatClient(props: {
                     }
                   }}
                   rows={1}
-                  className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 [@media(max-height:830px)]:max-h-20"
+                  className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 dark:text-foreground dark:placeholder:text-muted [@media(max-height:830px)]:max-h-20"
                   style={{ fieldSizing: "content" }}
                 />
                 <div className="flex shrink-0 items-center gap-1 pr-2 pb-1">
-                  <label className="flex size-8 cursor-pointer items-center justify-center rounded-full text-primary transition-all duration-150 hover:bg-blue-50 active:scale-90">
+                  <label className="flex size-8 cursor-pointer items-center justify-center rounded-full text-primary transition-all duration-150 hover:bg-blue-50 active:scale-90 dark:hover:bg-accent">
                     <ImagePlus className="size-5" />
                     <input
                       type="file"
@@ -947,7 +949,7 @@ export function ChatClient(props: {
                     type="button"
                     onClick={sending ? stopGenerating : sendMessage}
                     disabled={!sending && !text.trim() && !attachments.length}
-                    className="flex size-8 items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-blue-700 active:scale-90 disabled:opacity-50"
+                    className="flex size-8 items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-blue-700 active:scale-90 disabled:opacity-50 dark:border dark:border-primary/30 dark:bg-primary/10 dark:text-primary dark:hover:bg-secondary"
                   >
                     {sending ? <Square className="size-3.5 fill-current" /> : <SendHorizontal className="size-4" />}
                   </button>
@@ -956,7 +958,7 @@ export function ChatClient(props: {
             </div>
 
             {/* PC端：保持原有多行布局 */}
-            <div className="hidden rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md sm:block [@media(max-height:830px)]:!hidden">
+            <div className="hidden rounded-lg border border-blue-100 bg-white shadow-sm transition-all duration-200 focus-within:border-primary focus-within:shadow-md dark:border-border dark:bg-card sm:block [@media(max-height:830px)]:!hidden">
               <Textarea
                 placeholder="请输入门店问题，或粘贴截图后补充说明..."
                 value={text}
@@ -976,16 +978,16 @@ export function ChatClient(props: {
               />
               <div className="flex flex-wrap gap-2 px-4 [@media(max-height:830px)]:px-3">
                 {attachments.map((item) => (
-                  <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300">
+                  <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300 dark:bg-secondary dark:hover:border-border">
                     {item.name}
-                    <button type="button" className="rounded transition-colors duration-150 hover:bg-red-50 hover:text-red-500" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                    <button type="button" className="rounded transition-colors duration-150 hover:bg-red-50 hover:text-red-500 dark:hover:bg-destructive/10 dark:hover:text-destructive" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
                       <X className="size-3" />
                     </button>
                   </span>
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border px-4 py-3 [@media(max-height:830px)]:mt-2 [@media(max-height:830px)]:gap-2 [@media(max-height:830px)]:px-3 [@media(max-height:830px)]:py-2">
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97]">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded border border-border bg-white px-3 text-sm text-primary transition-all duration-150 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm active:scale-[0.97] dark:bg-card dark:hover:border-primary/30 dark:hover:bg-accent">
                   <ImagePlus className="size-4" />
                   上传图片
                   <input
@@ -1001,7 +1003,7 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] [@media(max-height:830px)]:hidden">
+                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground [@media(max-height:830px)]:hidden">
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>
@@ -1012,7 +1014,7 @@ export function ChatClient(props: {
               </div>
             </div>
 
-            {error ? <Alert className="mt-3 border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
+            {error ? <Alert className="mt-3 border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">{error}</Alert> : null}
           </div>
         </CardContent>
       </Card>
@@ -1160,7 +1162,7 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
     showDetails && popoverPosition && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed z-[1000] overflow-y-auto rounded-2xl border border-border bg-white p-3 shadow-2xl"
+            className="fixed z-[1000] overflow-y-auto rounded-2xl border border-border bg-white p-3 shadow-2xl dark:bg-card"
             style={{
               left: popoverPosition.left,
               top: popoverPosition.top,
@@ -1237,7 +1239,7 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
       <button
         ref={triggerRef}
         type="button"
-        className="flex w-full items-center justify-between rounded-2xl border border-border bg-white/80 px-3 py-2 text-left"
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-white/80 px-3 py-2 text-left dark:bg-card/80"
         onClick={() => {
           clearCloseTimer();
           if (typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches) {

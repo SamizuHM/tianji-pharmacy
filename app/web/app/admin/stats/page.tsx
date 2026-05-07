@@ -81,9 +81,9 @@ export default async function AdminStatsPage(props: {
                     background: `conic-gradient(#0ea5e9 0% ${kbRate}%, #8b5cf6 ${kbRate}% ${kbRate + llmRate}%, #e2e8f0 ${kbRate + llmRate}% 100%)`
                   }}
                 >
-                  <div className="flex size-28 flex-col items-center justify-center rounded-full bg-white">
+                  <div className="flex size-28 flex-col items-center justify-center rounded-full bg-white dark:bg-card">
                     <span className="text-xs text-muted">总提问数</span>
-                    <span className="text-2xl font-semibold text-slate-900">{summary.totalQuestions}</span>
+                    <span className="text-2xl font-semibold text-slate-900 dark:text-foreground">{summary.totalQuestions}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 text-sm">
@@ -120,7 +120,7 @@ export default async function AdminStatsPage(props: {
                   {messages.items.map((message) => (
                     <tr key={message.id}>
                       <TD>
-                        <div className="max-w-[260px] truncate font-medium text-slate-900">{message.contentText}</div>
+                        <div className="max-w-[260px] truncate font-medium text-slate-900 dark:text-foreground">{message.contentText}</div>
                       </TD>
                       <TD>{message.conversation.user.displayName}</TD>
                       <TD>{message.sourceType}</TD>
@@ -151,7 +151,7 @@ export default async function AdminStatsPage(props: {
                 <TBody>
                   {tickets.items.map((ticket) => (
                     <tr key={ticket.id}>
-                      <TD className="font-medium text-slate-900">{ticket.ticketNo}</TD>
+                      <TD className="font-medium text-slate-900 dark:text-foreground">{ticket.ticketNo}</TD>
                       <TD>{ticket.category}</TD>
                       <TD>{ticket.priority}</TD>
                       <TD><TicketStatusBadge status={ticket.status} /></TD>
@@ -164,7 +164,7 @@ export default async function AdminStatsPage(props: {
           </Card>
         </div>
 
-        <div className="rounded border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-primary">
+        <div className="rounded border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-primary dark:border-border dark:bg-secondary dark:text-muted">
           数据统计仅包含近两年记录，每日 00:00 更新。
         </div>
       </div>
@@ -179,4 +179,3 @@ function Legend({ color, label }: { color: string; label: string }) {
     </span>
   );
 }
-

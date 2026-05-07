@@ -63,7 +63,7 @@ export function PaginationBar(props: {
             type="button"
             size="icon"
             variant={page === props.page ? "secondary" : "ghost"}
-            className={cn("size-8", page === props.page ? "border border-primary bg-blue-50 text-primary" : "")}
+            className={cn("size-8", page === props.page ? "border border-primary bg-blue-50 text-primary dark:border-primary/30 dark:bg-primary/10" : "")}
             disabled={disabled}
             onClick={() => update({ page: String(page) })}
           >

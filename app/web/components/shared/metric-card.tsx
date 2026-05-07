@@ -15,12 +15,12 @@ export function MetricCard(props: {
   const Icon = props.icon;
   const TrendIcon = props.trendDirection === "down" ? ArrowDownRight : ArrowUpRight;
   const toneClass = {
-    blue: "bg-blue-100 text-blue-600",
-    green: "bg-emerald-100 text-emerald-600",
-    purple: "bg-purple-100 text-purple-600",
-    orange: "bg-orange-100 text-orange-600",
-    indigo: "bg-indigo-100 text-indigo-600",
-    teal: "bg-teal-100 text-teal-600"
+    blue: "bg-blue-100 text-blue-600 dark:border dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
+    green: "bg-emerald-100 text-emerald-600 dark:border dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    purple: "bg-purple-100 text-purple-600 dark:border dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300",
+    orange: "bg-orange-100 text-orange-600 dark:border dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-300",
+    indigo: "bg-indigo-100 text-indigo-600 dark:border dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300",
+    teal: "bg-teal-100 text-teal-600 dark:border dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
   }[props.tone ?? "blue"];
 
   return (
@@ -43,7 +43,7 @@ export function MetricCard(props: {
       </div>
       <div>
         <div className="text-sm text-muted">{props.label}</div>
-        <div className="mt-2 text-3xl font-semibold leading-none text-slate-900">{props.value}</div>
+        <div className="mt-2 text-3xl font-semibold leading-none text-slate-900 dark:text-foreground">{props.value}</div>
         {props.description ? <div className="mt-2 text-xs text-muted">{props.description}</div> : null}
       </div>
     </div>

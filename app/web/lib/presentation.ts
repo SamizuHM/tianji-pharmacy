@@ -31,17 +31,17 @@ export function statusLabel(status: TicketStatus) {
 export function statusTone(status: TicketStatus) {
   switch (status) {
     case "pending_claim":
-      return "border-orange-100 bg-orange-50 text-orange-600";
+      return "border-orange-100 bg-orange-50 text-orange-600 dark:border-warning/30 dark:bg-warning/10 dark:text-warning";
     case "processing":
-      return "border-blue-100 bg-blue-50 text-blue-600";
+      return "border-blue-100 bg-blue-50 text-blue-600 dark:border-primary/30 dark:bg-primary/10 dark:text-primary";
     case "escalated":
-      return "border-purple-100 bg-purple-50 text-purple-600";
+      return "border-purple-100 bg-purple-50 text-purple-600 dark:border-info/30 dark:bg-info/10 dark:text-info";
     case "resolved":
-      return "border-cyan-100 bg-cyan-50 text-cyan-600";
+      return "border-cyan-100 bg-cyan-50 text-cyan-600 dark:border-info/30 dark:bg-info/10 dark:text-info";
     case "closed":
-      return "border-emerald-100 bg-emerald-50 text-emerald-600";
+      return "border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-success/30 dark:bg-success/10 dark:text-success";
     default:
-      return "border-slate-100 bg-slate-50 text-slate-600";
+      return "border-slate-100 bg-slate-50 text-slate-600 dark:border-border dark:bg-secondary dark:text-muted";
   }
 }
 
@@ -61,13 +61,13 @@ export function priorityLabel(priority: TicketPriority) {
 export function priorityTone(priority: TicketPriority) {
   switch (priority) {
     case "high":
-      return "border-red-100 bg-red-50 text-red-600";
+      return "border-red-100 bg-red-50 text-red-600 dark:border-destructive/30 dark:bg-destructive/10 dark:text-destructive";
     case "medium":
-      return "border-orange-100 bg-orange-50 text-orange-600";
+      return "border-orange-100 bg-orange-50 text-orange-600 dark:border-warning/30 dark:bg-warning/10 dark:text-warning";
     case "low":
-      return "border-emerald-100 bg-emerald-50 text-emerald-600";
+      return "border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-success/30 dark:bg-success/10 dark:text-success";
     default:
-      return "border-slate-100 bg-slate-50 text-slate-600";
+      return "border-slate-100 bg-slate-50 text-slate-600 dark:border-border dark:bg-secondary dark:text-muted";
   }
 }
 
@@ -87,13 +87,13 @@ export function knowledgeStatusLabel(status: "draft" | "published" | "archived")
 export function knowledgeStatusTone(status: "draft" | "published" | "archived") {
   switch (status) {
     case "published":
-      return "border-emerald-100 bg-emerald-50 text-emerald-600";
+      return "border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-success/30 dark:bg-success/10 dark:text-success";
     case "draft":
-      return "border-orange-100 bg-orange-50 text-orange-600";
+      return "border-orange-100 bg-orange-50 text-orange-600 dark:border-warning/30 dark:bg-warning/10 dark:text-warning";
     case "archived":
-      return "border-slate-100 bg-slate-100 text-slate-600";
+      return "border-slate-100 bg-slate-100 text-slate-600 dark:border-border dark:bg-secondary dark:text-muted";
     default:
-      return "border-slate-100 bg-slate-50 text-slate-600";
+      return "border-slate-100 bg-slate-50 text-slate-600 dark:border-border dark:bg-secondary dark:text-muted";
   }
 }
 

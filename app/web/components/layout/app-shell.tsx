@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { sidebarThemes } from "@/lib/themes";
-import type { SidebarThemeName } from "@/lib/themes";
+import type { ColorModeName, SidebarThemeName } from "@/lib/themes";
 import { roleLabel, statusLabel } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +84,7 @@ export function AppShell(props: {
   initialPendingCounts?: PendingCounts;
   userDepartmentName?: string | null;
   sidebarTheme: SidebarThemeName;
+  colorMode: ColorModeName;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -93,6 +94,26 @@ export function AppShell(props: {
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const navItems = useMemo(() => getNavItems(props.role, props.userDepartmentName), [props.role, props.userDepartmentName]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyColorMode = () => {
+      const shouldUseDark = props.colorMode === "dark" || (props.colorMode === "system" && media.matches);
+      root.classList.toggle("dark", shouldUseDark);
+      root.dataset.colorMode = props.colorMode;
+      root.style.colorScheme = shouldUseDark ? "dark" : "light";
+    };
+
+    applyColorMode();
+    if (props.colorMode !== "system") {
+      return;
+    }
+
+    media.addEventListener("change", applyColorMode);
+    return () => media.removeEventListener("change", applyColorMode);
+  }, [props.colorMode]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
@@ -155,7 +176,7 @@ export function AppShell(props: {
   }, []);
 
   return (
-    <div className="h-dvh min-h-0 overflow-hidden bg-background text-slate-900">
+    <div className="h-dvh min-h-0 overflow-hidden bg-background text-slate-900 dark:text-foreground">
       <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
       <div className={config.contentArea.wrapper}>
         <header className={config.contentArea.header}>
@@ -176,13 +197,13 @@ export function AppShell(props: {
               </SheetContent>
             </Sheet>
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-slate-950">{props.title}</h1>
+              <h1 className="truncate text-lg font-semibold text-slate-950 dark:text-foreground">{props.title}</h1>
               {props.description ? <p className="hidden truncate text-xs text-muted md:block">{props.description}</p> : null}
             </div>
           </div>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
             <GlobalSearch role={props.role} />
-            <button type="button" className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95">
+            <button type="button" className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground">
               <Bell className="size-5" />
               {pendingCounts.pendingClaim + pendingCounts.escalated > 0 ? (
                 <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
@@ -190,12 +211,12 @@ export function AppShell(props: {
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded px-2 py-1.5 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98]">
+                <button className="flex items-center gap-2 rounded px-2 py-1.5 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:hover:bg-secondary">
                   <Avatar>
                     <AvatarFallback>{props.displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <span className="hidden min-w-0 flex-col text-left md:flex">
-                    <span className="truncate text-sm font-medium text-slate-900">{props.displayName}</span>
+                    <span className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{props.displayName}</span>
                     <span className="truncate text-[11px] text-muted">{roleLabel(props.role)}</span>
                   </span>
                   <ChevronDown className="hidden size-4 text-muted md:block" />
@@ -224,12 +245,12 @@ export function AppShell(props: {
       {notifications.length ? (
         <div className="fixed right-4 top-20 z-50 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3">
           {notifications.map((item) => (
-            <div key={item.id} className="animate-slide-in-from-top rounded-lg border border-border bg-white p-4 shadow-xl">
+            <div key={item.id} className="animate-slide-in-from-top rounded-lg border border-border bg-white p-4 shadow-xl dark:bg-card">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-foreground">{item.title}</div>
                 <button
                   type="button"
-                  className="rounded p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600"
+                  className="rounded p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground"
                   onClick={() => setNotifications((current) => current.filter((entry) => entry.id !== item.id))}
                 >
                   <X className="size-4" />
@@ -379,31 +400,31 @@ function GlobalSearch({ role }: { role: UserRole }) {
 
   return (
     <div className="relative hidden w-full max-w-md md:block">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-muted" />
       <Input
         value={query}
         onFocus={() => setOpen(Boolean(query.trim()))}
         onChange={(event) => setQuery(event.target.value)}
         placeholder="搜索问题、工单或知识点"
-        className="h-9 rounded-lg bg-slate-50 pl-9 pr-12"
+        className="h-9 rounded-lg bg-slate-50 pl-9 pr-12 dark:bg-secondary"
       />
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-white px-1.5 font-mono text-[11px] text-slate-400">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-white px-1.5 font-mono text-[11px] text-slate-400 dark:bg-card dark:text-muted">
         ⌘K
       </span>
       {open && results ? (
-        <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-border bg-white shadow-xl">
+        <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-border bg-white shadow-xl dark:bg-card">
           <SearchSection title="工单">
             {results.tickets.map((item) => (
-              <Link key={item.id} href={`${ticketBase}/${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
-                <div className="text-sm font-medium text-slate-900">{item.ticketNo}</div>
+              <Link key={item.id} href={`${ticketBase}/${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
+                <div className="text-sm font-medium text-slate-900 dark:text-foreground">{item.ticketNo}</div>
                 <div className="truncate text-xs text-muted">{item.title} · {statusLabel(item.status as never)}</div>
               </Link>
             ))}
           </SearchSection>
           <SearchSection title="知识库">
             {results.knowledge.map((item) => (
-              <Link key={item.id} href={`/admin/knowledge?selected=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
-                <div className="truncate text-sm font-medium text-slate-900">{item.question}</div>
+              <Link key={item.id} href={`/admin/knowledge?selected=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
+                <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.question}</div>
                 <div className="text-xs text-muted">{item.categoryL1} / {item.categoryL2} · 命中 {item.hitCount}</div>
               </Link>
             ))}
@@ -411,13 +432,13 @@ function GlobalSearch({ role }: { role: UserRole }) {
           {role === "staff" ? (
             <SearchSection title="会话">
               {results.conversations.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
-                  <div className="truncate text-sm font-medium text-slate-900">{item.title}</div>
+                <Link key={item.id} href={`/staff/chat?conversationId=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
+                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.title}</div>
                 </Link>
               ))}
               {results.messages.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.conversationId}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50" onClick={() => setOpen(false)}>
-                  <div className="truncate text-sm font-medium text-slate-900">{item.contentText}</div>
+                <Link key={item.id} href={`/staff/chat?conversationId=${item.conversationId}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
+                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.contentText}</div>
                   <div className="text-xs text-muted">{item.sourceType}</div>
                 </Link>
               ))}

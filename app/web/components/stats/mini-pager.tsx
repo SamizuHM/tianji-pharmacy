@@ -32,7 +32,7 @@ export function MiniPager({
     <div className="flex items-center gap-2 text-xs text-muted">
       <button
         type="button"
-        className="rounded border border-border px-2 py-1 transition-colors duration-150 hover:bg-slate-50 disabled:opacity-50"
+        className="rounded border border-border px-2 py-1 transition-colors duration-150 hover:bg-slate-50 disabled:opacity-50 dark:hover:bg-secondary"
         disabled={current <= 1 || isPending}
         onClick={() => navigate(prev)}
       >
@@ -44,7 +44,7 @@ export function MiniPager({
       </span>
       <button
         type="button"
-        className="rounded border border-border px-2 py-1 transition-colors duration-150 hover:bg-slate-50 disabled:opacity-50"
+        className="rounded border border-border px-2 py-1 transition-colors duration-150 hover:bg-slate-50 disabled:opacity-50 dark:hover:bg-secondary"
         disabled={current >= pageCount || isPending}
         onClick={() => navigate(next)}
       >

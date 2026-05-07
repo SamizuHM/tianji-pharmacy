@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
 const themeSchema = z.object({
-  theme: z.enum(["blue", "light"])
+  theme: z.enum(["blue", "light"]).optional(),
+  colorMode: z.enum(["light", "dark", "system"]).optional()
 });
 
 export async function PUT(request: Request) {
@@ -19,10 +20,17 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "主题参数不合法" }, { status: 400 });
   }
 
+  if (!parsed.data.theme && !parsed.data.colorMode) {
+    return NextResponse.json({ error: "没有可更新的主题参数" }, { status: 400 });
+  }
+
   await prisma.user.update({
     where: { id: user.id },
-    data: { sidebarTheme: parsed.data.theme }
+    data: {
+      ...(parsed.data.theme ? { sidebarTheme: parsed.data.theme } : {}),
+      ...(parsed.data.colorMode ? { colorMode: parsed.data.colorMode } : {})
+    }
   });
 
-  return NextResponse.json({ theme: parsed.data.theme });
+  return NextResponse.json(parsed.data);
 }

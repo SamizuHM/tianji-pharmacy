@@ -42,7 +42,7 @@ export function OrgTreeSelect(props: {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-sm font-medium text-slate-900">选择升级目标</div>
+      <div className="text-sm font-medium text-slate-900 dark:text-foreground">选择升级目标</div>
       <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
         {props.departments.map((dept) => {
           const isExpanded = expanded.has(dept.name);
@@ -53,7 +53,7 @@ export function OrgTreeSelect(props: {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="flex shrink-0 items-center justify-center p-1.5 text-slate-400 transition-colors hover:text-slate-600"
+                  className="flex shrink-0 items-center justify-center p-1.5 text-slate-400 transition-colors hover:text-slate-600 dark:text-muted dark:hover:text-foreground"
                   onClick={() => toggle(dept.name)}
                 >
                   {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
@@ -62,11 +62,11 @@ export function OrgTreeSelect(props: {
                   type="button"
                   className={cn(
                     "flex flex-1 items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
-                    isDeptSelected ? "bg-blue-50 text-primary font-medium" : "hover:bg-slate-50"
+                    isDeptSelected ? "bg-blue-50 text-primary font-medium dark:bg-primary/10" : "hover:bg-slate-50 dark:hover:bg-secondary"
                   )}
                   onClick={() => selectDept(dept.name)}
                 >
-                  <Building2 className="size-4 text-slate-400" />
+                  <Building2 className="size-4 text-slate-400 dark:text-muted" />
                   {dept.name}
                   <span className="ml-auto text-xs text-muted">{dept.users.length} 人</span>
                 </button>
@@ -81,11 +81,11 @@ export function OrgTreeSelect(props: {
                         type="button"
                         className={cn(
                           "flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors",
-                          isUserSelected ? "bg-blue-50 text-primary font-medium" : "text-slate-600 hover:bg-slate-50"
+                          isUserSelected ? "bg-blue-50 text-primary font-medium dark:bg-primary/10" : "text-slate-600 hover:bg-slate-50 dark:text-muted dark:hover:bg-secondary"
                         )}
                         onClick={() => selectUser(dept.name, u.id)}
                       >
-                        <User className="size-3.5 text-slate-400" />
+                        <User className="size-3.5 text-slate-400 dark:text-muted" />
                         {u.displayName}
                       </button>
                     );
@@ -97,7 +97,7 @@ export function OrgTreeSelect(props: {
         })}
       </div>
       {selected ? (
-        <div className="rounded bg-blue-50 px-3 py-2 text-xs text-primary">
+        <div className="rounded bg-blue-50 px-3 py-2 text-xs text-primary dark:border dark:border-border dark:bg-secondary">
           已选择：{selected.targetDept}
           {selected.targetUserId ? " > 指定人员" : "（整个部门）"}
         </div>

@@ -20,7 +20,10 @@ export default async function AdminSettingsPage() {
         <SettingsForm initialSettings={settings} />
       </TabsContent>
       <TabsContent value="theme">
-        <ThemeSettings currentTheme={user.sidebarTheme} />
+        <ThemeSettings
+          currentTheme={user.sidebarTheme}
+          currentColorMode={(user as { colorMode?: "light" | "dark" | "system" }).colorMode ?? "system"}
+        />
       </TabsContent>
     </Tabs>
   );

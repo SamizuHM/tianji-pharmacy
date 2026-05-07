@@ -72,12 +72,14 @@ export function TicketList(props: {
               type="button"
               className={cn(
                 "rounded px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.97]",
-                props.currentStatusGroup === tab.key ? "bg-primary text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+                props.currentStatusGroup === tab.key
+                  ? "bg-primary text-white shadow-sm dark:bg-primary/10 dark:text-primary"
+                  : "text-slate-600 hover:bg-slate-50 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground"
               )}
               onClick={() => update({ statusGroup: tab.key })}
             >
               {tab.label}
-              <span className={cn("ml-2 text-xs", props.currentStatusGroup === tab.key ? "text-blue-100" : "text-slate-400")}>
+              <span className={cn("ml-2 text-xs", props.currentStatusGroup === tab.key ? "text-blue-100 dark:text-primary" : "text-slate-400 dark:text-muted")}>
                 {tab.count}
               </span>
             </button>
@@ -88,7 +90,7 @@ export function TicketList(props: {
           action={(formData) => update({ q: String(formData.get("q") || "") })}
         >
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-muted" />
             <Input name="q" defaultValue={props.q} placeholder="搜索工单编号、问题摘要、创建人" className="pl-9" />
           </div>
           <Button type="submit" variant="outline">
@@ -99,7 +101,7 @@ export function TicketList(props: {
       </div>
 
       <div>
-        <h2 className="mb-3 text-base font-semibold text-slate-900">今日工单概览</h2>
+        <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-foreground">今日工单概览</h2>
         <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-6", isPending && "opacity-60")}>
           <MetricCard label="待认领" value={result.summary.pending} description="等待人工响应" icon={FileText} tone="blue" trend="12.5%" />
           <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
@@ -132,15 +134,15 @@ export function TicketList(props: {
               ) : (
                 result.items.map((ticket) => (
                   <tr key={ticket.id}>
-                    <TD className="font-medium text-slate-900">{ticket.ticketNo}</TD>
+                    <TD className="font-medium text-slate-900 dark:text-foreground">{ticket.ticketNo}</TD>
                     <TD>
                       <div className="max-w-[280px]">
-                        <div className="truncate font-medium text-slate-900">{ticket.title}</div>
+                        <div className="truncate font-medium text-slate-900 dark:text-foreground">{ticket.title}</div>
                         <div className="mt-1 truncate text-xs text-muted">{ticket.latestUserQuestion}</div>
                       </div>
                     </TD>
                     <TD>
-                      <Badge className="border border-blue-100 bg-blue-50 text-primary">{ticket.category}</Badge>
+                      <Badge className="border border-blue-100 bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{ticket.category}</Badge>
                     </TD>
                     <TD>
                       <TicketStatusBadge status={ticket.status} />
@@ -157,7 +159,7 @@ export function TicketList(props: {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`${props.basePath}/${ticket.id}`}
-                          className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                          className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97] dark:bg-card dark:text-foreground dark:hover:border-border dark:hover:bg-secondary"
                         >
                           查看详情
                         </Link>
