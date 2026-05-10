@@ -179,11 +179,13 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 关键点：
 
 - API 使用 SSE 返回进度和最终答案。
+- 发送、编辑后重发、重新生成都复用 `app/web/lib/services/chat-generation.ts`。
 - 客户端可能断开连接。
 - 助手消息会先以 `status=streaming` 入库，完成后变为 `completed`，失败或超时为 `failed`。
 - 刷新页面后客户端会通过 resume/stream 路由续接仍活跃的回复；停止生成会调用 stop 路由。
 - 服务端要避免在 stream controller close 后继续 enqueue。
 - 用户消息和 assistant 消息都要正确入库。
+- 新助手消息不要把固定转人工提示写入正文；读取历史旧消息时仍要剥离该提示，避免把 UI 固定文案当成模型上下文。
 - `retrievalDebugJson` 对排查很重要，不要随意删。
 
 验证：
@@ -195,6 +197,9 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 5. 大模型兜底。
 6. 浏览器刷新或中断流时服务端不应报 `Controller is already closed`。
 7. 生成中点击停止后，不能继续追加重复助手消息。
+8. 编辑用户消息后重新发送，原消息之后的旧回复应被删除并生成新回复。
+9. 重新生成助手消息时应复用原助手消息，不新增重复回答。
+10. Markdown 表格、列表、代码块可以正常展示，HTML 不应被直接执行。
 
 ---
 
@@ -527,12 +532,19 @@ app/web/components/ui/*
 app/web/tailwind.config.ts
 app/web/app/globals.css
 app/web/components.json
+app/web/lib/themes.ts
+app/web/components/settings/theme-settings.tsx
+app/web/components/layout/app-shell.tsx
+app/web/app/api/settings/theme/route.ts
 ```
 
 注意：
 
 - 本项目使用本地 shadcn 风格组件。
 - shadcn 组件是源码复制进项目，不是运行时远程依赖。
+- 侧边栏主题和颜色模式都通过 `/api/settings/theme` 更新。
+- 颜色模式取值为 `light`、`dark`、`system`，持久化在 `User.colorMode`。
+- 修改主题或颜色模式后，需要同时验证蓝色经典、简约白色、白天、夜间、跟随系统。
 - 当前 Button 已有项目定制风格。
 - 修改 Button 会影响全站。
 

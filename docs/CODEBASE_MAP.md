@@ -183,6 +183,9 @@ app/web/lib/auth/session.ts
 app/web/app/api/conversations/route.ts
 app/web/app/api/conversations/[id]/route.ts
 app/web/app/api/conversations/[id]/messages/route.ts
+app/web/app/api/messages/[id]/route.ts
+app/web/app/api/messages/[id]/resend/route.ts
+app/web/app/api/messages/[id]/regenerate/route.ts
 ```
 
 职责：
@@ -191,12 +194,16 @@ app/web/app/api/conversations/[id]/messages/route.ts
 - 新建会话。
 - 软删除会话。
 - 发送消息。
+- 编辑或删除单条消息。
+- 编辑用户消息后重新发送。
+- 重新生成助手消息。
 - SSE 流式返回进度和答案。
 
 底层：
 
 ```text
 app/web/lib/services/conversations.ts
+app/web/lib/services/chat-generation.ts
 app/web/lib/services/retrieval.ts
 app/web/lib/openai.ts
 ```
@@ -204,10 +211,10 @@ app/web/lib/openai.ts
 最复杂的是：
 
 ```text
-app/web/app/api/conversations/[id]/messages/route.ts
+app/web/lib/services/chat-generation.ts
 ```
 
-它同时处理：
+它被发送消息、重新发送、重新生成三类入口复用，同时处理：
 
 - 用户消息入库。
 - 附件解析。
@@ -216,6 +223,9 @@ app/web/app/api/conversations/[id]/messages/route.ts
 - SSE 输出进度。
 - assistant 消息入库。
 - 错误和断流处理。
+- 固定转人工提示从历史上下文中剥离。
+
+`app/web/app/api/conversations/[id]/messages/route.ts` 现在主要负责权限校验、请求解析和调用生成服务。
 
 修改前一定先读 `docs/RAG_MULTIMODAL_PIPELINE.md`。
 
@@ -347,6 +357,8 @@ Prisma Client 单例。
 ### `app/web/lib/env.ts`
 
 运行时配置读取。
+
+该文件会先计算仓库根目录，再主动加载根目录 `.env` 中尚未存在于 `process.env` 的变量。这样从项目根目录运行 `pnpm dev` 或从 `app/web` 目录单独启动 Web 时，环境变量来源保持一致。
 
 重要配置包括：
 
@@ -510,10 +522,20 @@ app/web/components/chat/chat-client.tsx
 - 断点续传和停止生成。
 - 进度展示。
 - 消息渲染。
+- Markdown 渲染。
+- 复制、下载、编辑、删除消息。
+- 编辑用户消息后重新发送。
+- 重新生成助手消息。
 - 转人工。
 - 删除会话确认。
 
 改聊天页 UI 多半在这里。
+
+Markdown 渲染单独在：
+
+```text
+app/web/components/chat/markdown-message.tsx
+```
 
 ### 工单
 
@@ -540,6 +562,8 @@ app/web/components/settings/theme-settings.tsx
 app/web/components/stats/trend-chart.tsx
 app/web/components/stats/mini-pager.tsx
 ```
+
+`theme-settings.tsx` 同时管理侧边栏主题和颜色模式。颜色模式取值为 `light`、`dark`、`system`，由 `AppShell` 写入 `document.documentElement.classList`、`data-color-mode` 和 `color-scheme`。
 
 ### UI 基础组件
 
@@ -731,6 +755,7 @@ app/web/app/staff/chat/page.tsx
 
 ```text
 app/web/app/api/conversations/[id]/messages/route.ts
+app/web/lib/services/chat-generation.ts
 ```
 
 再看：
@@ -738,6 +763,14 @@ app/web/app/api/conversations/[id]/messages/route.ts
 ```text
 app/web/lib/services/retrieval.ts
 app/web/lib/openai.ts
+```
+
+如果需求涉及“编辑后重发”或“重新生成”，还要看：
+
+```text
+app/web/app/api/messages/[id]/route.ts
+app/web/app/api/messages/[id]/resend/route.ts
+app/web/app/api/messages/[id]/regenerate/route.ts
 ```
 
 ### 修改知识库命中规则

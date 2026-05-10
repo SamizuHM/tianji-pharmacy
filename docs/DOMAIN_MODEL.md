@@ -120,8 +120,13 @@ displayName
 passwordHash
 role
 sidebarTheme
+colorMode
 departmentId
 ```
+
+`sidebarTheme` 保存用户侧边栏主题偏好，当前由前端约束为 `blue` 或 `light`。
+
+`colorMode` 保存用户颜色模式偏好，当前由前端约束为 `light`、`dark` 或 `system`。`system` 表示跟随操作系统明暗色偏好。
 
 ### Session
 
@@ -177,6 +182,11 @@ updatedAt
 app/web/lib/services/conversations.ts
 app/web/app/api/conversations/route.ts
 app/web/app/api/conversations/[id]/route.ts
+app/web/app/api/conversations/[id]/messages/route.ts
+app/web/app/api/messages/[id]/route.ts
+app/web/app/api/messages/[id]/resend/route.ts
+app/web/app/api/messages/[id]/regenerate/route.ts
+app/web/lib/services/chat-generation.ts
 ```
 
 ### ChatMessage
@@ -228,8 +238,17 @@ status
 - 来源文件。
 - vector score。
 - rerank score。
+- 知识库命中时用于展示的来源图片路径。
 
 这对排查“为什么看起来命中了但没走知识库”很重要。
+
+消息编辑与重发相关规则：
+
+- `streaming` 状态的消息不能编辑或删除。
+- 编辑普通消息只更新当前消息内容。
+- 编辑用户消息后点击重新发送，会删除该用户消息之后的会话消息，再重新生成助手回复。
+- 重新生成助手消息会复用原助手消息 ID，并基于它之前最近的一条用户消息重新生成内容。
+- 新助手消息不再把固定转人工提示写入 `contentText`；历史助手消息进入模型上下文前仍会移除可能存在的旧提示，避免提示词污染历史上下文。
 
 ---
 
@@ -660,6 +679,7 @@ docs/INCIDENT_2026-04-28_QDRANT_INDEX_DELETION.md
 - 知识库命中阈值。
 - 服务热线。
 - UI/业务配置。
+- 用户侧边栏主题和颜色模式偏好，其中颜色模式保存在 `User.colorMode`。
 
 相关代码：
 
@@ -667,6 +687,9 @@ docs/INCIDENT_2026-04-28_QDRANT_INDEX_DELETION.md
 app/web/lib/services/settings.ts
 app/web/app/api/settings/route.ts
 app/web/app/api/settings/theme/route.ts
+app/web/lib/themes.ts
+app/web/components/settings/theme-settings.tsx
+app/web/components/layout/app-shell.tsx
 ```
 
 ---

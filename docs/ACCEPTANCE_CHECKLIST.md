@@ -212,6 +212,20 @@ POST /api/auth/logout
 - 后端能处理 `imagePaths`。
 - ML Service 不报图片路径错误。
 
+### 消息操作
+
+对已完成的聊天消息执行复制、下载、编辑、删除、重新发送和重新生成。
+
+预期：
+
+- 助手消息 Markdown 表格、列表、代码块显示正常。
+- 复制 Markdown 保留格式，复制纯文本去除 Markdown 标记。
+- 编辑用户消息后只保存，不会自动重新生成回答。
+- 点击重新发送后，该用户消息之后的旧消息被删除，并生成新的助手回复。
+- 点击重新生成助手消息后，原助手消息被清空并复用，不新增重复助手消息。
+- 正在生成中的消息不能编辑或删除，接口返回 `409`。
+- 重新发送或重新生成期间，会话中不能并发启动另一个助手回复。
+
 ### 会话删除
 
 点击历史会话删除按钮。
@@ -337,6 +351,26 @@ POST /api/auth/logout
 ```text
 /admin/knowledge
 ```
+
+## 6.1 系统设置验收
+
+入口：
+
+```text
+/admin/settings
+```
+
+### 主题和颜色模式
+
+切换侧边栏主题和颜色模式。
+
+预期：
+
+- 侧边栏主题可在蓝色经典和简约白色之间切换。
+- 颜色模式可在白天、夜间、跟随系统之间切换。
+- 切换后刷新页面仍保持当前用户的选择。
+- `User.sidebarTheme` 和 `User.colorMode` 按当前用户更新。
+- 不同账号的偏好互不影响。
 
 ### 列表
 
@@ -552,6 +586,8 @@ pnpm compose:rebuild:web
 8. Docker 启动时 `web` entrypoint 做了什么？
 9. 改 `schema.prisma` 后应该提交哪些文件？
 10. 历史文档里的 SQLite 和当前 PostgreSQL 如何理解？
+11. 消息编辑、重新发送、重新生成分别走哪些 API？
+12. 用户颜色模式保存在哪里，支持哪些取值？
 
 如果答不上来，优先阅读：
 
@@ -577,4 +613,6 @@ docs/DOCKER_DEPLOYMENT_GUIDE.md
 - 能解释 KnowledgeItem、KnowledgeChunk、Qdrant point 的关系。
 - 能执行并理解 `pnpm kb:reconcile`。
 - 能说明 Docker 中 web entrypoint 的职责。
+- 能解释聊天消息编辑、重新发送、重新生成的差异。
+- 能说明侧边栏主题和颜色模式的持久化字段。
 - 能完成一次小 UI 改动并通过 TypeScript 检查。

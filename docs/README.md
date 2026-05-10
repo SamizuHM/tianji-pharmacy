@@ -67,6 +67,8 @@
 2. [DEVELOPMENT_PLAYBOOK.md](./DEVELOPMENT_PLAYBOOK.md)
 3. [RAG_MULTIMODAL_PIPELINE.md](./RAG_MULTIMODAL_PIPELINE.md)
 
+如果涉及消息编辑、重新发送、重新生成或 Markdown 展示，也要对照 [API_GUIDE.md](./API_GUIDE.md) 的消息接口说明。
+
 ### 我要改工单
 
 先看：

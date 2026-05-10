@@ -177,6 +177,12 @@ http://127.0.0.1:3000
 
 消息发送和 SSE：
   app/web/app/api/conversations/[id]/messages/route.ts
+  app/web/lib/services/chat-generation.ts
+
+消息编辑、重新发送、重新生成：
+  app/web/app/api/messages/[id]/route.ts
+  app/web/app/api/messages/[id]/resend/route.ts
+  app/web/app/api/messages/[id]/regenerate/route.ts
 
 RAG 检索：
   app/web/lib/services/retrieval.ts
@@ -323,6 +329,9 @@ app/web/app/api/conversations/[id]/messages/route.ts
 - 点击“新建会话”不立即写数据库。
 - 用户发送第一条消息时才创建 `Conversation`。
 - 消息 API 用 SSE 流式返回进度和答案。
+- 聊天生成逻辑集中在 `chat-generation.ts`，发送、编辑后重发、重新生成都复用它。
+- 助手消息展示支持 Markdown，固定转人工提示由前端单独展示，新助手消息不再把它写入正文。
+- 编辑用户消息后重新发送会删除该消息之后的旧消息；重新生成助手消息会复用原助手消息。
 
 ### 3. RAG 检索
 

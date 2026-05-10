@@ -88,6 +88,7 @@ pnpm dev
 说明：
 
 - `pnpm dev` 会并发启动 `web` 与 `ml-service`。
+- Web 侧 `app/web/lib/env.ts` 会在进程启动时读取项目根目录 `.env`，因此从根目录或 `app/web` 目录启动都能拿到同一套环境变量。
 - `dev:ml` 脚本会自动加载根目录 `.env`，并优先使用 `app/ml-service/.venv`。
 
 ### 3. 容器部署模式（`docker compose up -d --build`）
@@ -189,6 +190,10 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 | GET | /api/conversations/[id]/resume | 查询是否有可续接的流式回复 | staff |
 | GET | /api/conversations/[id]/stream | 订阅指定助手消息的续接流 | staff |
 | POST | /api/conversations/[id]/stop | 停止当前生成中的回复 | staff |
+| PATCH | /api/messages/[id] | 编辑单条聊天消息 | 已登录且可访问会话 |
+| DELETE | /api/messages/[id] | 删除单条聊天消息 | 已登录且可访问会话 |
+| POST | /api/messages/[id]/resend | 编辑用户消息后重新发送 | 已登录且可访问会话 |
+| POST | /api/messages/[id]/regenerate | 重新生成助手消息 | 已登录且可访问会话 |
 | GET | /api/notifications/stream | 订阅实时通知 SSE 流 | 已登录 |
 | GET | /api/tickets | 工单列表 | 已登录 |
 | POST | /api/tickets | 创建工单 | staff |
@@ -202,6 +207,9 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 | POST | /api/tickets/[id]/close | 关闭并写回知识库 | staff/agent |
 | GET | /api/stats/summary | 统计摘要 | 已登录 |
 | GET | /api/stats/trends | 趋势数据 | 已登录 |
+| GET | /api/settings | 获取检索与问答参数 | 已登录 |
+| PUT | /api/settings | 更新检索与问答参数 | 已登录 |
+| PUT | /api/settings/theme | 更新当前用户个人偏好 | 已登录 |
 | GET | /api/knowledge | 知识库列表 | 已登录 |
 | POST | /api/knowledge | 全量导入知识 | 已登录 |
 | POST | /api/knowledge/reindex/[id] | 单条重建索引 | 已登录 |
@@ -538,15 +546,17 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 
 **核心接口** — 发送消息并获取 AI 回答。完整流程：
 
-1. 构建 multimodal 查询文本（有图片时调用 DashScope Vision API）
-2. 文本向量化（DashScope Embedding）
-3. Qdrant 向量检索 top-K 候选
-4. Rerank 重排序（DashScope Rerank）
-5. 如果最高分 >= 阈值(0.72)，命中知识库
-6. 无图片时，直接生成文本流式回答
-7. 有图片时，再调用 ML Service 的 `/chat-multimodal-stream`，让最终回答也参考图片内容
-8. 统一以 SSE 事件流返回前端
-9. 助手消息先以 `status=streaming` 入库，流式过程中增量更新内容，完成后变为 `completed`
+1. 用户消息入库，首次提问会刷新会话标题。
+2. 读取最近 `MAX_CONTEXT_TURNS` 轮已完成消息作为上下文，历史助手消息会先移除可能存在的旧固定转人工提示后再进入模型上下文。
+3. 构建 multimodal 查询文本（有图片时调用 DashScope Vision API）。
+4. 文本向量化（DashScope Embedding）。
+5. Qdrant 向量检索 top-K 候选。
+6. Rerank 重排序（DashScope Rerank）。
+7. 如果最高分 >= 阈值(0.72)，命中知识库。
+8. 无图片且历史上下文无图片时，直接调用文本模型流式回答。
+9. 当前消息或历史上下文包含图片时，调用 ML Service 的 `/chat-multimodal-stream`，让最终回答也参考图片内容。
+10. 助手消息先以 `status=streaming` 入库，流式过程中增量更新内容，完成后变为 `completed`。
+11. 统一以 SSE 事件流返回前端，并同步写入可续接的进程内流。
 
 **请求**：
 ```json
@@ -562,6 +572,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 
 - `meta`：来源信息
 - `debug`：命中来源和图片路径
+- `progress`：生成步骤、耗时和首字/首包延迟信息
 - `delta`：增量文本
 - `done`：结束事件
 - `error`：错误事件
@@ -571,6 +582,8 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 - 同一会话存在 `streaming` 助手消息时，再次发送会返回 `409`。
 - 前端刷新后可通过 `GET /api/conversations/[id]/resume` 和 `GET /api/conversations/[id]/stream?messageId=...` 续接仍活跃的回复。
 - 用户点击停止生成时调用 `POST /api/conversations/[id]/stop`。
+- 固定转人工提示由共享常量维护，前端单独展示，不再作为新助手消息正文写入数据库，避免它污染后续模型上下文。
+- 聊天页支持 Markdown 渲染，渲染链路使用 GFM 和 HTML sanitize。
 
 **SSE 示例**：
 ```text
@@ -579,6 +592,9 @@ data: {"conversationId":"cmobs2y8...","sourceType":"kb","sourceLabel":"知识库
 
 event: debug
 data: {"retrievalDebug":[{"knowledgeItemId":"cmobs52u...","rerankScore":0.878}],"imagePaths":[]}
+
+event: progress
+data: {"stepKey":"retrieve_vector","label":"向量检索","status":"completed","durationMs":128}
 
 event: delta
 data: {"text":"根据知识库："}
@@ -592,6 +608,64 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 
 > `sourceType` 取值：`kb`（知识库命中）| `llm`（大模型兜底）
 > 有图片时，最终回答也会进入多模态模型，不再只是检索阶段看图。
+
+### PATCH /api/messages/[id]
+
+编辑一条聊天消息。
+
+**请求**：
+```json
+{
+  "contentText": "修改后的消息内容",
+  "imagePaths": ["uploads/example.png"]
+}
+```
+
+说明：
+
+- `staff` 只能编辑自己会话中的消息；其他已登录角色必须能访问该会话。
+- `streaming` 状态的消息不能编辑，返回 `409`。
+- 用户消息不能为空，除非原消息带有附件。
+- 编辑助手消息时可同步更新 `retrievalDebugJson.imagePaths`，用于调整展示的来源图片。
+
+### DELETE /api/messages/[id]
+
+删除一条聊天消息。
+
+说明：
+
+- `streaming` 状态的消息不能删除，返回 `409`。
+- 删除是单条消息硬删除，不等同于删除整个会话。
+
+### POST /api/messages/[id]/resend
+
+编辑某条用户消息后，删除该消息之后的会话消息，并基于新内容重新生成助手回复。
+
+**请求**：
+```json
+{
+  "contentText": "重新发送的问题"
+}
+```
+
+说明：
+
+- `id` 必须指向 `role=user` 的消息。
+- 如果会话中已有正在生成的助手消息，返回 `409`。
+- 原用户消息的附件会被保留；请求体只更新文本内容。
+- 响应同样是 `text/event-stream`，事件类型与发送消息接口一致。
+
+### POST /api/messages/[id]/regenerate
+
+基于某条助手消息之前最近的用户问题，重新生成该助手消息。
+
+说明：
+
+- `id` 必须指向 `role=assistant` 的消息。
+- 目标助手消息会被清空、标记为 `streaming`，完成后恢复为 `completed`。
+- 重新生成时不会新增一条助手消息，而是在原助手消息上更新内容。
+- 如果会话中已有其他正在生成的助手消息，返回 `409`。
+- 响应同样是 `text/event-stream`，事件类型与发送消息接口一致。
 
 ### GET /api/conversations/[id]/resume
 
@@ -644,6 +718,62 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 
 - 没有正在生成的消息时返回 `404`。
 - 当前实现会把该助手消息标记为 `completed`，并关闭进程内订阅流。
+
+### GET /api/settings
+
+获取当前检索与问答参数。
+
+**响应**：
+```json
+{
+  "settings": {
+    "retrievalTopK": 8,
+    "rerankTopN": 5,
+    "kbHitThreshold": 0.72,
+    "maxContextTurns": 6
+  }
+}
+```
+
+### PUT /api/settings
+
+更新全局检索与问答参数。
+
+**请求**：
+```json
+{
+  "retrievalTopK": 8,
+  "rerankTopN": 5,
+  "kbHitThreshold": 0.72,
+  "maxContextTurns": 6
+}
+```
+
+约束：
+
+- `retrievalTopK`、`rerankTopN` 范围为 1 到 50。
+- `kbHitThreshold` 范围为 0 到 1。
+- `maxContextTurns` 范围为 1 到 20。
+- `rerankTopN` 不能大于 `retrievalTopK`。
+
+### PUT /api/settings/theme
+
+更新当前登录用户的个人偏好。
+
+**请求**：
+```json
+{
+  "theme": "light",
+  "colorMode": "system"
+}
+```
+
+说明：
+
+- `theme` 可选，取值为 `blue` 或 `light`。
+- `colorMode` 可选，取值为 `light`、`dark` 或 `system`。
+- 请求中至少要包含一个可更新字段。
+- 偏好写入当前用户的 `sidebarTheme` 和 `colorMode` 字段，不影响其他用户。
 
 ### GET /api/notifications/stream
 

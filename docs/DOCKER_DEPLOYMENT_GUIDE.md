@@ -369,6 +369,7 @@ prisma migrate reset
 prisma/migrations/migration_lock.toml
 prisma/migrations/20260505000000_init_postgresql/migration.sql
 prisma/migrations/20260505091948_add_user_sidebar_theme/migration.sql
+prisma/migrations/20260507000000_add_user_color_mode/migration.sql
 ```
 
 这些文件通常由：
@@ -405,6 +406,28 @@ ALTER TABLE "User" ADD COLUMN "sidebarTheme" TEXT NOT NULL DEFAULT 'blue';
 
 ```prisma
 sidebarTheme String @default("blue")
+```
+
+### 20260507000000_add_user_color_mode
+
+该迁移给 `User` 表新增：
+
+```sql
+ALTER TABLE "User" ADD COLUMN "colorMode" TEXT NOT NULL DEFAULT 'system';
+```
+
+对应当前 `schema.prisma` 中：
+
+```prisma
+colorMode String @default("system")
+```
+
+它用于保存每个用户的颜色模式偏好，取值由前端和 API 约束为：
+
+```text
+light
+dark
+system
 ```
 
 ### migration_lock.toml

@@ -34,6 +34,7 @@
 入口：
 
 - `app/web/app/api/conversations/[id]/messages/route.ts`
+- `app/web/lib/services/chat-generation.ts`
 
 用户发送文字和图片后，系统先保存用户消息，再进入 RAG 检索。
 
@@ -42,19 +43,22 @@
 - 前端上传得到 `AttachmentItem.path`
 - 后端整理为 `attachmentImagePaths`
 
-### 2. 上下文摘要
+### 2. 上下文组装
 
 位置：
 
-- `app/web/lib/services/retrieval.ts`
-- `summarizeContext(conversationId, maxTurns)`
+- `app/web/lib/services/chat-generation.ts`
+- `toModelHistoryMessages(...)`
 
-系统会读取最近若干轮消息，生成 `contextSummary`。
+系统会读取最近若干轮已完成消息，组装为模型历史上下文。
 
 用途：
 
 - 不再参与检索 query 构造。
 - 仍参与最终答案生成 prompt。
+- 用户消息会携带历史图片路径。
+- 助手和人工消息会按 assistant 历史消息传给模型。
+- 新助手消息不再把固定转人工提示写入正文；历史助手消息进入上下文前仍会移除可能存在的旧提示，避免提示文案在多轮对话中反复累积。
 
 当前配置项：
 
@@ -364,6 +368,7 @@ query + candidates -> rerank model -> scores
 - `sourceFile`
 - `rerankScore`
 - `vectorScore`
+- `imagePaths`
 
 这些字段用于解释一次回答为什么命中知识库或为什么走大模型。
 
