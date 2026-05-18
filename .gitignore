@@ -40,3 +40,6 @@ uploads/*
 docs/USER_MANUAL.pdf
 docs/USER_MANUAL.docx
 docs/.~*.docx
+
+# Test coverage reports
+coverage/

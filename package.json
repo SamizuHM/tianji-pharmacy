@@ -22,15 +22,20 @@
     "compose:up": "docker compose up -d",
     "compose:rebuild:web": "docker compose up -d --build web cloudflared",
     "compose:rebuild:ml": "docker compose up -d --build ml-service web cloudflared",
-    "compose:rebuild:all": "docker compose up -d --build"
+    "compose:rebuild:all": "docker compose up -d --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "concurrently": "^9.2.1",
     "dotenv": "^17.2.3",
     "prisma": "^6.7.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
   },
   "dependencies": {
     "@pharmacy/shared": "workspace:*",
