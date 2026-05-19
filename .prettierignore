@@ -1,0 +1,10 @@
+node_modules
+.next
+coverage
+pnpm-lock.yaml
+*.db
+*.db-journal
+app/ml-service/.venv
+.agents
+seed_knowledge
+信息部常见问题详解

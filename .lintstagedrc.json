@@ -1,0 +1,8 @@
+{
+  "*.{ts,tsx}": ["eslint --fix --report-unused-disable-directives", "prettier --write"],
+  "*.{json,css,md}": ["prettier --write"],
+  "app/ml-service/**/*.py": [
+    "cd app/ml-service && .venv/bin/ruff check --fix",
+    "cd app/ml-service && .venv/bin/ruff format"
+  ]
+}

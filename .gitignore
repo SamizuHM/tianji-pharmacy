@@ -43,3 +43,7 @@ docs/.~*.docx
 
 # Test coverage reports
 coverage/
+
+# Lint/format cache
+.eslintcache
+.ruff_cache
