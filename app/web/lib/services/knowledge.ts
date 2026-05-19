@@ -1,7 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { KnowledgeIndexTaskStatus, KnowledgeIndexTaskType, KnowledgeSourceType, KnowledgeStatus, Prisma } from "@prisma/client";
+import {
+  KnowledgeIndexTaskStatus,
+  KnowledgeIndexTaskType,
+  KnowledgeSourceType,
+  KnowledgeStatus,
+  Prisma,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
@@ -10,7 +16,7 @@ import {
   buildStablePointId,
   prepareKnowledgeChunkUpsertTasks,
   tryDrainKnowledgeIndexTasks,
-  type KnowledgeChunkProjectionSource
+  type KnowledgeChunkProjectionSource,
 } from "@/lib/services/knowledge-index";
 
 type UpsertKnowledgeInput = {
@@ -68,7 +74,7 @@ function buildKnowledgeWhere(params: KnowledgeListParams): Prisma.KnowledgeItemW
 
   if (params.category && params.category !== "all") {
     and.push({
-      OR: [{ categoryL1: params.category }, { categoryL2: params.category }]
+      OR: [{ categoryL1: params.category }, { categoryL2: params.category }],
     });
   }
 
@@ -79,8 +85,8 @@ function buildKnowledgeWhere(params: KnowledgeListParams): Prisma.KnowledgeItemW
         { answer: { contains: q } },
         { categoryL1: { contains: q } },
         { categoryL2: { contains: q } },
-        { sourceFile: { contains: q } }
-      ]
+        { sourceFile: { contains: q } },
+      ],
     });
   }
 
@@ -106,7 +112,7 @@ function buildChunkMetadata(
     categoryL1: input.categoryL1,
     categoryL2: input.categoryL2,
     imagePath: input.imagePath ?? null,
-    imagePaths: buildImagePaths(input)
+    imagePaths: buildImagePaths(input),
   };
 }
 
@@ -121,13 +127,13 @@ async function findExistingKnowledgeItem(input: {
       question: input.question,
       sourceFile: input.sourceFile ?? null,
       sourceTicketId: input.sourceTicketId ?? null,
-      sourceType: input.sourceType
+      sourceType: input.sourceType,
     },
     include: {
       chunks: {
-        orderBy: { chunkIndex: "asc" }
-      }
-    }
+        orderBy: { chunkIndex: "asc" },
+      },
+    },
   });
 }
 
@@ -148,10 +154,14 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       sourceFile: input.sourceFile,
       docType: input.docType,
       qdrantPointId: buildStablePointId(chunkId),
-      metadataJson: JSON.stringify(buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, input))
+      metadataJson: JSON.stringify(
+        buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, input)
+      ),
     };
   });
-  const staleChunks = existingChunks.filter((chunk) => !chunkPlans.some((plan) => plan.id === chunk.id));
+  const staleChunks = existingChunks.filter(
+    (chunk) => !chunkPlans.some((plan) => plan.id === chunk.id)
+  );
   const taskSources: KnowledgeChunkProjectionSource[] = chunkPlans.map((chunk) => ({
     knowledgeItemId: itemId,
     chunkId: chunk.id,
@@ -167,8 +177,8 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       categoryL1: input.categoryL1,
       categoryL2: input.categoryL2,
       imagePath: input.imagePath ?? null,
-      imagePaths
-    }
+      imagePaths,
+    },
   }));
   const upsertTasks = await prepareKnowledgeChunkUpsertTasks(taskSources);
 
@@ -185,20 +195,20 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       sourceFile: input.sourceFile ?? null,
       docType: input.docType ?? null,
       imagePath: input.imagePath ?? null,
-      imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null
+      imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
     };
 
     if (existing) {
       await tx.knowledgeItem.update({
         where: { id: existing.id },
-        data: itemData
+        data: itemData,
       });
     } else {
       await tx.knowledgeItem.create({
         data: {
           id: itemId,
-          ...itemData
-        }
+          ...itemData,
+        },
       });
     }
 
@@ -213,17 +223,17 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           sourceFile: chunk.sourceFile ?? null,
           docType: chunk.docType ?? null,
           qdrantPointId: chunk.qdrantPointId,
-          metadataJson: chunk.metadataJson
+          metadataJson: chunk.metadataJson,
         },
-        create: chunk
+        create: chunk,
       });
     }
 
     if (staleChunks.length) {
       await tx.knowledgeChunk.deleteMany({
         where: {
-          id: { in: staleChunks.map((chunk) => chunk.id) }
-        }
+          id: { in: staleChunks.map((chunk) => chunk.id) },
+        },
       });
     }
 
@@ -234,7 +244,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
         knowledgeItemId: task.knowledgeItemId,
         chunkId: task.chunkId,
         pointId: task.pointId,
-        payloadJson: task.payloadJson
+        payloadJson: task.payloadJson,
       })),
       ...staleChunks.map((chunk) => ({
         taskType: KnowledgeIndexTaskType.delete,
@@ -242,23 +252,23 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
         knowledgeItemId: existing?.id ?? itemId,
         chunkId: chunk.id,
         pointId: chunk.qdrantPointId,
-        payloadJson: JSON.stringify({ reason: "stale_chunk_delete" })
-      }))
+        payloadJson: JSON.stringify({ reason: "stale_chunk_delete" }),
+      })),
     ];
 
     if (taskData.length) {
       await tx.knowledgeIndexTask.createMany({
-        data: taskData
+        data: taskData,
       });
     }
 
     return tx.knowledgeItem.findUniqueOrThrow({
-      where: { id: itemId }
+      where: { id: itemId },
     });
   });
 
   await tryDrainKnowledgeIndexTasks({
-    limit: Math.max(20, upsertTasks.length + staleChunks.length)
+    limit: Math.max(20, upsertTasks.length + staleChunks.length),
   });
 
   return item;
@@ -269,7 +279,7 @@ export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
     question: input.question,
     sourceFile: input.sourceFile,
     sourceTicketId: input.sourceTicketId,
-    sourceType: input.sourceType
+    sourceType: input.sourceType,
   });
 
   return persistKnowledgeItem(input, existing);
@@ -285,18 +295,18 @@ export async function listKnowledgeItems(params: KnowledgeListParams = {}) {
       where,
       orderBy: [{ updatedAt: "desc" }],
       skip: (page - 1) * pageSize,
-      take: pageSize
+      take: pageSize,
     }),
     prisma.knowledgeItem.count({ where }),
     getKnowledgeSummary(),
     prisma.knowledgeItem.findMany({
       select: {
         categoryL1: true,
-        categoryL2: true
+        categoryL2: true,
       },
       distinct: ["categoryL1", "categoryL2"],
-      orderBy: [{ categoryL1: "asc" }, { categoryL2: "asc" }]
-    })
+      orderBy: [{ categoryL1: "asc" }, { categoryL2: "asc" }],
+    }),
   ]);
 
   const categoryOptions = Array.from(
@@ -310,7 +320,7 @@ export async function listKnowledgeItems(params: KnowledgeListParams = {}) {
     pageSize,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     summary,
-    categoryOptions
+    categoryOptions,
   };
 }
 
@@ -319,23 +329,24 @@ export async function getKnowledgeSummary() {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const [total, imageCount, todayCreated, published, draft, archived, hitSum, recentHits] = await Promise.all([
-    prisma.knowledgeItem.count(),
-    prisma.knowledgeItem.count({
-      where: {
-        OR: [{ imagePath: { not: null } }, { imagePathsJson: { not: null } }]
-      }
-    }),
-    prisma.knowledgeItem.count({ where: { createdAt: { gte: todayStart } } }),
-    prisma.knowledgeItem.count({ where: { status: "published" } }),
-    prisma.knowledgeItem.count({ where: { status: "draft" } }),
-    prisma.knowledgeItem.count({ where: { status: "archived" } }),
-    prisma.knowledgeItem.aggregate({ _sum: { hitCount: true } }),
-    prisma.knowledgeItem.aggregate({
-      where: { lastHitAt: { gte: sevenDaysAgo } },
-      _sum: { hitCount: true }
-    })
-  ]);
+  const [total, imageCount, todayCreated, published, draft, archived, hitSum, recentHits] =
+    await Promise.all([
+      prisma.knowledgeItem.count(),
+      prisma.knowledgeItem.count({
+        where: {
+          OR: [{ imagePath: { not: null } }, { imagePathsJson: { not: null } }],
+        },
+      }),
+      prisma.knowledgeItem.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.knowledgeItem.count({ where: { status: "published" } }),
+      prisma.knowledgeItem.count({ where: { status: "draft" } }),
+      prisma.knowledgeItem.count({ where: { status: "archived" } }),
+      prisma.knowledgeItem.aggregate({ _sum: { hitCount: true } }),
+      prisma.knowledgeItem.aggregate({
+        where: { lastHitAt: { gte: sevenDaysAgo } },
+        _sum: { hitCount: true },
+      }),
+    ]);
 
   return {
     total,
@@ -345,7 +356,7 @@ export async function getKnowledgeSummary() {
     draft,
     archived,
     totalHits: hitSum._sum.hitCount ?? 0,
-    recentHits: recentHits._sum.hitCount ?? 0
+    recentHits: recentHits._sum.hitCount ?? 0,
   };
 }
 
@@ -354,9 +365,9 @@ export async function getKnowledgeItemDetail(id: string) {
     where: { id },
     include: {
       chunks: {
-        orderBy: { chunkIndex: "asc" }
-      }
-    }
+        orderBy: { chunkIndex: "asc" },
+      },
+    },
   });
 }
 
@@ -365,8 +376,8 @@ export async function recordKnowledgeHit(id: string) {
     where: { id },
     data: {
       hitCount: { increment: 1 },
-      lastHitAt: new Date()
-    }
+      lastHitAt: new Date(),
+    },
   });
 }
 
@@ -375,9 +386,9 @@ export async function deleteKnowledgeItem(id: string) {
     where: { id },
     include: {
       chunks: {
-        orderBy: { chunkIndex: "asc" }
-      }
-    }
+        orderBy: { chunkIndex: "asc" },
+      },
+    },
   });
 
   if (!existing) {
@@ -393,18 +404,18 @@ export async function deleteKnowledgeItem(id: string) {
           knowledgeItemId: existing.id,
           chunkId: chunk.id,
           pointId: chunk.qdrantPointId,
-          payloadJson: JSON.stringify({ reason: "knowledge_item_delete" })
-        }))
+          payloadJson: JSON.stringify({ reason: "knowledge_item_delete" }),
+        })),
       });
     }
 
     await tx.knowledgeItem.delete({
-      where: { id: existing.id }
+      where: { id: existing.id },
     });
   });
 
   await tryDrainKnowledgeIndexTasks({
-    limit: Math.max(20, existing.chunks.length)
+    limit: Math.max(20, existing.chunks.length),
   });
 }
 
@@ -423,7 +434,7 @@ export async function collectKnowledgeSourceFiles() {
 
   const rootExtras = [
     path.resolve(repoRoot, "药店门店智能问答轻量级知识库.docx"),
-    path.resolve(repoRoot, "信息部常见问题详解/full.md")
+    path.resolve(repoRoot, "信息部常见问题详解/full.md"),
   ];
 
   for (const file of rootExtras) {
@@ -452,8 +463,8 @@ export async function importKnowledgeFromFiles(
   const job = await prisma.importJob.create({
     data: {
       source: filePaths.join("\n"),
-      status: "running"
-    }
+      status: "running",
+    },
   });
 
   for (const filePath of filePaths) {
@@ -480,7 +491,7 @@ export async function importKnowledgeFromFiles(
           imagePaths: item.imagePaths,
           originalText: item.originalText,
           normalizedText: item.normalizedText,
-          chunkTexts: item.chunkTexts
+          chunkTexts: item.chunkTexts,
         });
         importedChunks += item.chunkTexts.length;
       }
@@ -490,7 +501,7 @@ export async function importKnowledgeFromFiles(
       skippedFiles += 1;
       errors.push({
         file: filePath,
-        reason: error instanceof Error ? error.message : "未知错误"
+        reason: error instanceof Error ? error.message : "未知错误",
       });
     }
   }
@@ -499,8 +510,8 @@ export async function importKnowledgeFromFiles(
     where: { id: job.id },
     data: {
       status: errors.length ? "failed" : "success",
-      summary: JSON.stringify({ importedFiles, importedChunks, skippedFiles, errors })
-    }
+      summary: JSON.stringify({ importedFiles, importedChunks, skippedFiles, errors }),
+    },
   });
 
   await tryDrainKnowledgeIndexTasks({ limit: 100 });
@@ -523,13 +534,16 @@ export async function updateKnowledgeItem(
     where: { id },
     include: {
       chunks: {
-        orderBy: { chunkIndex: "asc" }
-      }
-    }
+        orderBy: { chunkIndex: "asc" },
+      },
+    },
   });
   if (!existing) throw new Error("知识条目不存在");
 
-  const tags = Array.from(new Set(input.question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5);
+  const tags = Array.from(new Set(input.question.split(/[，。；、\s]+/).filter(Boolean))).slice(
+    0,
+    5
+  );
 
   return persistKnowledgeItem(
     {
@@ -547,7 +561,7 @@ export async function updateKnowledgeItem(
       imagePaths: input.imagePaths ?? [],
       originalText: `${input.question}\n${input.answer}`,
       normalizedText: `${input.question}\n${input.answer}`,
-      chunkTexts: [`问题：${input.question}\n答案：${input.answer}`]
+      chunkTexts: [`问题：${input.question}\n答案：${input.answer}`],
     },
     existing
   );
@@ -572,7 +586,7 @@ export async function bulkUpdateKnowledgeItems(input: {
   const status: KnowledgeStatus = input.action === "publish" ? "published" : "archived";
   const result = await prisma.knowledgeItem.updateMany({
     where: { id: { in: ids } },
-    data: { status }
+    data: { status },
   });
 
   return { affected: result.count };

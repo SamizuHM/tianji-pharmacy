@@ -19,7 +19,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
 
   const streamingMessage = await prisma.chatMessage.findFirst({
     where: { conversationId: id, role: "assistant", status: "streaming" },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
 
   if (!streamingMessage) {
@@ -28,7 +28,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
 
   await prisma.chatMessage.update({
     where: { id: streamingMessage.id },
-    data: { status: "completed" }
+    data: { status: "completed" },
   });
 
   failStream(streamingMessage.id);

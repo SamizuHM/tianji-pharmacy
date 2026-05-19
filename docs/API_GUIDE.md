@@ -39,12 +39,12 @@
 
 差异简表：
 
-| 对比项 | `pnpm dev` | `docker compose up -d --build` |
-|---|---|---|
-| 进程位置 | 宿主机本地进程 | 容器内进程 |
-| 服务地址 | `127.0.0.1` | `qdrant` / `ml-service` / `web` 服务名 |
-| 端口策略 | 本地监听端口 | 内网 `expose` + `cloudflared` 对外 |
-| 数据持久化 | 本地文件 | Docker volumes |
+| 对比项     | `pnpm dev`     | `docker compose up -d --build`         |
+| ---------- | -------------- | -------------------------------------- |
+| 进程位置   | 宿主机本地进程 | 容器内进程                             |
+| 服务地址   | `127.0.0.1`    | `qdrant` / `ml-service` / `web` 服务名 |
+| 端口策略   | 本地监听端口   | 内网 `expose` + `cloudflared` 对外     |
+| 数据持久化 | 本地文件       | Docker volumes                         |
 
 ### 1. 环境变量
 
@@ -149,14 +149,15 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 **内置用户**：
 
-| 用户名 | 密码 | 角色 | 首页 |
-|--------|------|------|------|
-| 药店工作人员 | demo123 | staff | /staff/chat |
-| 人工处理1 | demo123 | agent | /agent/tickets |
-| 人工处理2 | demo123 | agent | /agent/tickets |
+| 用户名               | 密码    | 角色  | 首页           |
+| -------------------- | ------- | ----- | -------------- |
+| 药店工作人员         | demo123 | staff | /staff/chat    |
+| 人工处理1            | demo123 | agent | /agent/tickets |
+| 人工处理2            | demo123 | agent | /agent/tickets |
 | 营运-张伟 等部门专家 | demo123 | agent | /agent/tickets |
 
 **角色权限**：
+
 - `staff`：发起对话、创建工单、查看自己的工单
 - `agent`：认领、回复、升级、提交处理方案、生成待入库知识、在满足条件时关闭工单
 
@@ -166,54 +167,54 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 ### ML Service（端口 8001）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /health | 健康检查 |
-| POST | /embed | 文本向量化 |
-| POST | /rerank | 重排序 |
-| POST | /parse-document | 文档解析 |
+| 方法 | 路径                    | 说明           |
+| ---- | ----------------------- | -------------- |
+| GET  | /health                 | 健康检查       |
+| POST | /embed                  | 文本向量化     |
+| POST | /rerank                 | 重排序         |
+| POST | /parse-document         | 文档解析       |
 | POST | /chat-multimodal-stream | 多模态流式回答 |
 
 ### Web API（端口 3000）
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| POST | /api/auth/login | 登录 | 公开 |
-| POST | /api/auth/logout | 登出 | 已登录 |
-| GET | /api/me | 当前用户信息 | 已登录 |
-| POST | /api/uploads | 文件上传 | 已登录 |
-| GET | /api/conversations | 会话列表 | staff |
-| POST | /api/conversations | 创建会话 | staff |
-| DELETE | /api/conversations/[id] | 软删除会话 | staff |
-| GET | /api/conversations/[id]/messages | 消息历史 | staff |
-| POST | /api/conversations/[id]/messages | 发送消息 | staff |
-| GET | /api/conversations/[id]/resume | 查询是否有可续接的流式回复 | staff |
-| GET | /api/conversations/[id]/stream | 订阅指定助手消息的续接流 | staff |
-| POST | /api/conversations/[id]/stop | 停止当前生成中的回复 | staff |
-| PATCH | /api/messages/[id] | 编辑单条聊天消息 | 已登录且可访问会话 |
-| DELETE | /api/messages/[id] | 删除单条聊天消息 | 已登录且可访问会话 |
-| POST | /api/messages/[id]/resend | 编辑用户消息后重新发送 | 已登录且可访问会话 |
-| POST | /api/messages/[id]/regenerate | 重新生成助手消息 | 已登录且可访问会话 |
-| GET | /api/notifications/stream | 订阅实时通知 SSE 流 | 已登录 |
-| GET | /api/tickets | 工单列表 | 已登录 |
-| POST | /api/tickets | 创建工单 | staff |
-| GET | /api/tickets/[id] | 工单详情 | 已登录 |
-| POST | /api/tickets/[id]/reply | 回复工单 | agent |
-| POST | /api/tickets/[id]/escalate | 升级工单 | agent |
-| POST | /api/tickets/[id]/submit-resolution | 提交处理方案 | agent |
-| POST | /api/tickets/[id]/resolve | 员工确认问题已解决 | staff |
-| GET | /api/tickets/[id]/knowledge-materials | 获取待入库材料 | 已登录且可访问工单 |
-| POST | /api/tickets/[id]/knowledge-draft | 生成待入库知识草稿 | agent |
-| POST | /api/tickets/[id]/close | 关闭并写回知识库 | staff/agent |
-| GET | /api/stats/summary | 统计摘要 | 已登录 |
-| GET | /api/stats/trends | 趋势数据 | 已登录 |
-| GET | /api/settings | 获取检索与问答参数 | 已登录 |
-| PUT | /api/settings | 更新检索与问答参数 | 已登录 |
-| PUT | /api/settings/theme | 更新当前用户个人偏好 | 已登录 |
-| GET | /api/knowledge | 知识库列表 | 已登录 |
-| POST | /api/knowledge | 全量导入知识 | 已登录 |
-| POST | /api/knowledge/reindex/[id] | 单条重建索引 | 已登录 |
-| GET | /api/files/[...path] | 文件访问 | 已登录 |
+| 方法   | 路径                                  | 说明                       | 权限               |
+| ------ | ------------------------------------- | -------------------------- | ------------------ |
+| POST   | /api/auth/login                       | 登录                       | 公开               |
+| POST   | /api/auth/logout                      | 登出                       | 已登录             |
+| GET    | /api/me                               | 当前用户信息               | 已登录             |
+| POST   | /api/uploads                          | 文件上传                   | 已登录             |
+| GET    | /api/conversations                    | 会话列表                   | staff              |
+| POST   | /api/conversations                    | 创建会话                   | staff              |
+| DELETE | /api/conversations/[id]               | 软删除会话                 | staff              |
+| GET    | /api/conversations/[id]/messages      | 消息历史                   | staff              |
+| POST   | /api/conversations/[id]/messages      | 发送消息                   | staff              |
+| GET    | /api/conversations/[id]/resume        | 查询是否有可续接的流式回复 | staff              |
+| GET    | /api/conversations/[id]/stream        | 订阅指定助手消息的续接流   | staff              |
+| POST   | /api/conversations/[id]/stop          | 停止当前生成中的回复       | staff              |
+| PATCH  | /api/messages/[id]                    | 编辑单条聊天消息           | 已登录且可访问会话 |
+| DELETE | /api/messages/[id]                    | 删除单条聊天消息           | 已登录且可访问会话 |
+| POST   | /api/messages/[id]/resend             | 编辑用户消息后重新发送     | 已登录且可访问会话 |
+| POST   | /api/messages/[id]/regenerate         | 重新生成助手消息           | 已登录且可访问会话 |
+| GET    | /api/notifications/stream             | 订阅实时通知 SSE 流        | 已登录             |
+| GET    | /api/tickets                          | 工单列表                   | 已登录             |
+| POST   | /api/tickets                          | 创建工单                   | staff              |
+| GET    | /api/tickets/[id]                     | 工单详情                   | 已登录             |
+| POST   | /api/tickets/[id]/reply               | 回复工单                   | agent              |
+| POST   | /api/tickets/[id]/escalate            | 升级工单                   | agent              |
+| POST   | /api/tickets/[id]/submit-resolution   | 提交处理方案               | agent              |
+| POST   | /api/tickets/[id]/resolve             | 员工确认问题已解决         | staff              |
+| GET    | /api/tickets/[id]/knowledge-materials | 获取待入库材料             | 已登录且可访问工单 |
+| POST   | /api/tickets/[id]/knowledge-draft     | 生成待入库知识草稿         | agent              |
+| POST   | /api/tickets/[id]/close               | 关闭并写回知识库           | staff/agent        |
+| GET    | /api/stats/summary                    | 统计摘要                   | 已登录             |
+| GET    | /api/stats/trends                     | 趋势数据                   | 已登录             |
+| GET    | /api/settings                         | 获取检索与问答参数         | 已登录             |
+| PUT    | /api/settings                         | 更新检索与问答参数         | 已登录             |
+| PUT    | /api/settings/theme                   | 更新当前用户个人偏好       | 已登录             |
+| GET    | /api/knowledge                        | 知识库列表                 | 已登录             |
+| POST   | /api/knowledge                        | 全量导入知识               | 已登录             |
+| POST   | /api/knowledge/reindex/[id]           | 单条重建索引               | 已登录             |
+| GET    | /api/files/[...path]                  | 文件访问                   | 已登录             |
 
 ---
 
@@ -224,8 +225,9 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 健康检查。
 
 **响应**：
+
 ```json
-{"status": "ok"}
+{ "status": "ok" }
 ```
 
 ### POST /embed
@@ -233,6 +235,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 将文本列表转换为向量，兼容现有文本调用，底层仍走多模态 embedding 模型 `qwen3-vl-embedding`。
 
 **请求**：
+
 ```json
 {
   "texts": ["药店收银系统怎么操作", "医保卡怎么使用"]
@@ -240,6 +243,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 ```
 
 **响应**：
+
 ```json
 {
   "vectors": [[0.0123, -0.0456, ...], [0.0789, 0.0234, ...]]
@@ -249,6 +253,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 > 向量维度：1024
 
 **示例**：
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/embed \
   -H "Content-Type: application/json" \
@@ -260,6 +265,7 @@ curl -s -X POST http://127.0.0.1:8001/embed \
 对候选文档按与 query 的相关性重新排序，兼容现有文本调用，底层仍走多模态 rerank 模型 `qwen3-vl-rerank`。
 
 **请求**：
+
 ```json
 {
   "query": "药店收银系统怎么操作",
@@ -272,6 +278,7 @@ curl -s -X POST http://127.0.0.1:8001/embed \
 ```
 
 **响应**：
+
 ```json
 {
   "scores": [0.647, 0.279, 0.431]
@@ -281,6 +288,7 @@ curl -s -X POST http://127.0.0.1:8001/embed \
 > scores 数组与 documents 数组一一对应，分数越高越相关。
 
 **示例**：
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/rerank \
   -H "Content-Type: application/json" \
@@ -292,6 +300,7 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 解析文档（txt/md/pdf/docx/doc/图片），提取结构化知识条目。
 
 **请求**：
+
 ```json
 {
   "file_path": "/path/to/document.docx"
@@ -299,6 +308,7 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 ```
 
 **响应**：
+
 ```json
 {
   "items": [
@@ -320,6 +330,7 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 ```
 
 **支持的文件格式**：
+
 - `.txt` / `.md` — 纯文本解析
 - `.pdf` — PDF 文本提取
 - `.docx` — Word 文档 + 图片提取
@@ -327,6 +338,7 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 - `.png` / `.jpg` / `.jpeg` / `.webp` — AI 图片理解
 
 **示例**：
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/parse-document \
   -H "Content-Type: application/json" \
@@ -344,6 +356,7 @@ curl -s -X POST http://127.0.0.1:8001/parse-document \
 - 本接口只负责“最终回答生成”
 
 **请求**：
+
 ```json
 {
   "system_prompt": "你是药店门店信息化支持助手...",
@@ -359,6 +372,7 @@ curl -s -X POST http://127.0.0.1:8001/parse-document \
 - 每个 chunk 是一段模型生成文本
 
 **示例**：
+
 ```bash
 curl -N -X POST http://127.0.0.1:8001/chat-multimodal-stream \
   -H "Content-Type: application/json" \
@@ -381,6 +395,7 @@ curl -N -X POST http://127.0.0.1:8001/chat-multimodal-stream \
 用户登录。
 
 **请求**：
+
 ```json
 {
   "username": "药店工作人员",
@@ -389,6 +404,7 @@ curl -N -X POST http://127.0.0.1:8001/chat-multimodal-stream \
 ```
 
 **成功响应**：
+
 ```json
 {
   "ok": true,
@@ -398,11 +414,13 @@ curl -N -X POST http://127.0.0.1:8001/chat-multimodal-stream \
 ```
 
 **失败响应**：
+
 ```json
-{"error": "用户名或密码错误"}
+{ "error": "用户名或密码错误" }
 ```
 
 **示例**：
+
 ```bash
 curl -s -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -420,6 +438,7 @@ curl -s -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/login \
 获取当前登录用户信息。
 
 **响应**：
+
 ```json
 {
   "user": {
@@ -439,6 +458,7 @@ curl -s -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/login \
 **请求**：`multipart/form-data`，字段名 `files`
 
 **响应**：
+
 ```json
 {
   "files": [
@@ -453,6 +473,7 @@ curl -s -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/login \
 ```
 
 **示例**：
+
 ```bash
 curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
   -F "files=@/path/to/file.pdf"
@@ -463,11 +484,13 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 创建新会话。
 
 **请求**：
+
 ```json
-{"title": "可选，默认'新会话'"}
+{ "title": "可选，默认'新会话'" }
 ```
 
 **响应**：
+
 ```json
 {
   "conversation": {
@@ -484,6 +507,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 获取当前用户的会话列表。
 
 **响应**：
+
 ```json
 {
   "conversations": [
@@ -508,8 +532,9 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 - 不影响统计和知识回写结果
 
 **响应**：
+
 ```json
-{"success": true}
+{ "success": true }
 ```
 
 ### GET /api/conversations/[id]/messages
@@ -517,6 +542,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 获取会话的消息历史。
 
 **响应**：
+
 ```json
 {
   "messages": [
@@ -559,10 +585,11 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 11. 统一以 SSE 事件流返回前端，并同步写入可续接的进程内流。
 
 **请求**：
+
 ```json
 {
   "text": "药店收银系统怎么操作？",
-  "attachments": [{"path": "uploads/image.png"}]
+  "attachments": [{ "path": "uploads/image.png" }]
 }
 ```
 
@@ -586,6 +613,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/uploads \
 - 聊天页支持 Markdown 渲染，渲染链路使用 GFM 和 HTML sanitize。
 
 **SSE 示例**：
+
 ```text
 event: meta
 data: {"conversationId":"cmobs2y8...","sourceType":"kb","sourceLabel":"知识库"}
@@ -614,6 +642,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 编辑一条聊天消息。
 
 **请求**：
+
 ```json
 {
   "contentText": "修改后的消息内容",
@@ -642,6 +671,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 编辑某条用户消息后，删除该消息之后的会话消息，并基于新内容重新生成助手回复。
 
 **请求**：
+
 ```json
 {
   "contentText": "重新发送的问题"
@@ -711,7 +741,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 **响应**：
 
 ```json
-{"messageId": "cmobs4kx..."}
+{ "messageId": "cmobs4kx..." }
 ```
 
 说明：
@@ -724,6 +754,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 获取当前检索与问答参数。
 
 **响应**：
+
 ```json
 {
   "settings": {
@@ -740,6 +771,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 更新全局检索与问答参数。
 
 **请求**：
+
 ```json
 {
   "retrievalTopK": 8,
@@ -761,6 +793,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 更新当前登录用户的个人偏好。
 
 **请求**：
+
 ```json
 {
   "theme": "light",
@@ -808,11 +841,13 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 将对话转为人工工单。
 
 **请求**：
+
 ```json
-{"conversationId": "cmobs2y8..."}
+{ "conversationId": "cmobs2y8..." }
 ```
 
 **响应**：
+
 ```json
 {
   "ticket": {
@@ -831,10 +866,12 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取工单列表，按角色过滤。
 
 **查询参数**：
+
 - `status`：`pending_claim` | `processing` | `escalated` | `resolved` | `closed` | `all`
 - `statusGroup`：`pending` | `processing` | `escalated` | `resolved` | `closed` | `all`
 
 **响应**：
+
 ```json
 {
   "tickets": [
@@ -843,7 +880,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
       "ticketNo": "TK20260424357323",
       "status": "pending_claim",
       "title": "药店收银系统怎么操作？",
-      "createdBy": {"username": "药店工作人员", "role": "staff"},
+      "createdBy": { "username": "药店工作人员", "role": "staff" },
       "createdAt": "2026-04-23T17:53:00.321Z"
     }
   ]
@@ -855,6 +892,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取工单详情，包含完整消息记录。
 
 **响应**：
+
 ```json
 {
   "ticket": {
@@ -878,14 +916,16 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 回复工单。
 
 **请求**：
+
 ```json
 {
   "content": "您好，请问是哪个品牌的收银系统？",
-  "attachments": [{"path": "uploads/screenshot.png"}]
+  "attachments": [{ "path": "uploads/screenshot.png" }]
 }
 ```
 
 **响应**：
+
 ```json
 {
   "message": {
@@ -905,10 +945,11 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 **请求**：
 
 ```json
-{"targetDept": "营运部", "targetUserId": null}
+{ "targetDept": "营运部", "targetUserId": null }
 ```
 
 **响应**：
+
 ```json
 {
   "ticket": {
@@ -924,11 +965,13 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 当前认领客服提交处理方案。
 
 **请求**：
+
 ```json
-{"resolutionText": "已确认为智云系统，远程指导完成收银模块配置。"}
+{ "resolutionText": "已确认为智云系统，远程指导完成收银模块配置。" }
 ```
 
 **响应**：
+
 ```json
 {
   "ticket": {
@@ -999,7 +1042,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 **请求**：
 
 ```json
-{"selectedMaterialIds": ["ticketMessage:cmobs5ik..."]}
+{ "selectedMaterialIds": ["ticketMessage:cmobs5ik..."] }
 ```
 
 ### POST /api/tickets/[id]/close
@@ -1018,7 +1061,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 {
   "ticket": {
     "status": "closed",
-    "closedBy": {"username": "营运-张伟"},
+    "closedBy": { "username": "营运-张伟" },
     "closedAt": "2026-04-23T17:54:47.688Z",
     "knowledgeStatus": "written"
   }
@@ -1032,6 +1075,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取统计摘要。
 
 **响应**：
+
 ```json
 {
   "totalQuestions": 6,
@@ -1051,6 +1095,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取近 7 天趋势数据。
 
 **响应**：
+
 ```json
 {
   "trends": [
@@ -1070,6 +1115,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 获取知识库条目列表和导入任务记录。
 
 **响应**：
+
 ```json
 {
   "items": [
@@ -1093,6 +1139,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 触发全量知识库导入（从 `seed_knowledge/` 目录和根目录知识文档）。
 
 **响应**：
+
 ```json
 {
   "importedFiles": 2,
@@ -1107,8 +1154,9 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 单条知识重建索引。当前版本返回 501。
 
 **响应**：
+
 ```json
-{"ok": false, "message": "最小版本暂未单条重建索引，请使用全量导入。"}
+{ "ok": false, "message": "最小版本暂未单条重建索引，请使用全量导入。" }
 ```
 
 ### 索引维护命令
@@ -1128,6 +1176,7 @@ pnpm kb:rebuild
 访问上传的文件。
 
 **示例**：
+
 ```bash
 curl -b cookies.txt http://127.0.0.1:3000/api/files/uploads/1776966943356-u-W5ZD.txt
 ```

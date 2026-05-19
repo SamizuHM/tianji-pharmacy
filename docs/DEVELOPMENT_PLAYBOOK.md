@@ -82,14 +82,14 @@ pnpm --filter web exec tsc --noEmit
 
 根据改动类型追加验证：
 
-| 改动类型 | 建议验证 |
-|---|---|
-| 前端 UI | 浏览器手动验证桌面和移动端 |
-| API | curl 或页面触发 |
-| Prisma schema | `pnpm db:migrate` + 检查 migration.sql |
-| RAG/知识库 | 问答命中、`pnpm kb:reconcile` |
-| Docker | `docker compose config` + 对应 compose rebuild |
-| ML Service | `curl /health` + 相关接口样例 |
+| 改动类型      | 建议验证                                       |
+| ------------- | ---------------------------------------------- |
+| 前端 UI       | 浏览器手动验证桌面和移动端                     |
+| API           | curl 或页面触发                                |
+| Prisma schema | `pnpm db:migrate` + 检查 migration.sql         |
+| RAG/知识库    | 问答命中、`pnpm kb:reconcile`                  |
+| Docker        | `docker compose config` + 对应 compose rebuild |
+| ML Service    | `curl /health` + 相关接口样例                  |
 
 ### 5. 提交
 
@@ -576,15 +576,15 @@ prisma/migrations/.../migration.sql
 
 安全判断：
 
-| 变更 | 风险 |
-|---|---|
-| 新增可空字段 | 低 |
-| 新增有默认值字段 | 中低 |
-| 新增非空无默认字段 | 高，已有数据会失败 |
-| 字段改名 | 高，可能变成 drop + add |
-| 删除字段 | 高，会丢数据 |
-| 拆表/合表 | 高，需要数据迁移脚本 |
-| enum 删除值 | 高，已有数据可能不兼容 |
+| 变更               | 风险                    |
+| ------------------ | ----------------------- |
+| 新增可空字段       | 低                      |
+| 新增有默认值字段   | 中低                    |
+| 新增非空无默认字段 | 高，已有数据会失败      |
+| 字段改名           | 高，可能变成 drop + add |
+| 删除字段           | 高，会丢数据            |
+| 拆表/合表          | 高，需要数据迁移脚本    |
+| enum 删除值        | 高，已有数据可能不兼容  |
 
 部署环境只用：
 

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { createTicketFromConversation, listTickets, type TicketStatusGroup } from "@/lib/services/tickets";
+import {
+  createTicketFromConversation,
+  listTickets,
+  type TicketStatusGroup,
+} from "@/lib/services/tickets";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -28,7 +32,7 @@ export async function GET(request: Request) {
     statusGroup: statusGroup ?? "all",
     q: searchParams.get("q") ?? undefined,
     page: Number(searchParams.get("page") ?? 1),
-    pageSize: Number(searchParams.get("pageSize") ?? 10)
+    pageSize: Number(searchParams.get("pageSize") ?? 10),
   });
 
   return NextResponse.json(result);
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
 
   const ticket = await createTicketFromConversation({
     createdByUserId: user.id,
-    conversationId: body.conversationId
+    conversationId: body.conversationId,
   });
 
   return NextResponse.json({ ticket });

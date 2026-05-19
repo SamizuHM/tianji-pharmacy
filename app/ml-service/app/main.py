@@ -22,7 +22,6 @@ from openai import OpenAI
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-
 ROOT_DIR = Path(os.getenv("ROOT_DIR") or str(Path(__file__).resolve().parents[3]))
 UPLOAD_DIR = ROOT_DIR / os.getenv("UPLOAD_DIR", "./uploads").replace("./", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
@@ -36,6 +35,7 @@ app = FastAPI(title="药店门店智能问答 ML Service")
 
 
 # ---------- Request Models ----------
+
 
 class EmbedRequest(BaseModel):
     texts: list[str]
@@ -88,6 +88,7 @@ class MultiModalChatStreamRequest(BaseModel):
 
 # ---------- Clients ----------
 
+
 def get_openai_client() -> OpenAI:
     if not OPENAI_BASE_URL or not OPENAI_API_KEY or not OPENAI_MODEL:
         raise HTTPException(status_code=500, detail="未配置 OpenAI 兼容模型环境变量")
@@ -107,10 +108,13 @@ def normalize_relative_image_path(image_path: str) -> Path:
 def get_rerank_client() -> OpenAI:
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="未配置 OPENAI_API_KEY")
-    return OpenAI(api_key=OPENAI_API_KEY, base_url="https://dashscope.aliyuncs.com/compatible-api/v1")
+    return OpenAI(
+        api_key=OPENAI_API_KEY, base_url="https://dashscope.aliyuncs.com/compatible-api/v1"
+    )
 
 
 # ---------- Health ----------
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -118,6 +122,7 @@ def health() -> dict[str, str]:
 
 
 # ---------- Text-only Embed / Rerank (kept for compat) ----------
+
 
 @app.post("/embed")
 def embed(request: EmbedRequest) -> dict[str, list[list[float]]]:
@@ -184,6 +189,7 @@ def chat_multimodal_stream(request: MultiModalChatStreamRequest):
 
 
 # ---------- Multimodal Embed ----------
+
 
 @app.post("/embed-multimodal")
 def embed_multimodal(request: MultimodalEmbedRequest) -> dict[str, list[list[float]]]:
@@ -272,7 +278,9 @@ def _embed_multimodal_impl(items: list[MultimodalEmbedItem]) -> dict[str, list[l
                 dimension=1024,
             )
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"多模态 Embedding 调用失败：{exc}") from exc
+            raise HTTPException(
+                status_code=502, detail=f"多模态 Embedding 调用失败：{exc}"
+            ) from exc
 
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"多模态 Embedding 失败：{resp.message}")
@@ -293,9 +301,8 @@ def summarize_images_for_retrieval(text: str, image_paths: list[str]) -> str:
     content: list[dict[str, Any]] = [
         {
             "type": "text",
-            "text":
-                "请仅基于这些图片，总结与检索相关的简短中文线索。不要分点，不要扩展，不要编造。\n"
-                f"用户问题：{text or '用户上传了图片，请根据图片理解诉求'}"
+            "text": "请仅基于这些图片，总结与检索相关的简短中文线索。不要分点，不要扩展，不要编造。\n"
+            f"用户问题：{text or '用户上传了图片，请根据图片理解诉求'}",
         }
     ]
     for image_path in image_paths:
@@ -311,11 +318,14 @@ def summarize_images_for_retrieval(text: str, image_paths: list[str]) -> str:
 
 # ---------- Multimodal Rerank ----------
 
+
 @app.post("/rerank-multimodal")
 def rerank_multimodal(request: MultimodalRerankRequest) -> dict[str, list[float]]:
     if not request.documents:
         return {"scores": []}
-    return _rerank_multimodal_impl(request.query, request.query_image_paths or [], request.documents)
+    return _rerank_multimodal_impl(
+        request.query, request.query_image_paths or [], request.documents
+    )
 
 
 def _rerank_multimodal_impl(
@@ -384,6 +394,7 @@ def _rerank_multimodal_impl(
 
 # ---------- Document Parsing ----------
 
+
 @app.post("/parse-document")
 def parse_document(request: ParseDocumentRequest) -> dict[str, Any]:
     target = Path(request.file_path)
@@ -409,7 +420,9 @@ def parse_document(request: ParseDocumentRequest) -> dict[str, Any]:
     elif suffix == ".doc":
         converted_docx = convert_doc_to_docx(target)
         if not converted_docx:
-            raise HTTPException(status_code=500, detail="旧版 .doc 文件转换失败。请安装 LibreOffice。")
+            raise HTTPException(
+                status_code=500, detail="旧版 .doc 文件转换失败。请安装 LibreOffice。"
+            )
         text, image_map = extract_docx_with_image_map(converted_docx)
         items = parse_knowledge_items(text, target.name, suffix, image_map)
     elif suffix in {".png", ".jpg", ".jpeg", ".webp"}:
@@ -422,12 +435,14 @@ def parse_document(request: ParseDocumentRequest) -> dict[str, Any]:
 
 # ---------- PDF ----------
 
+
 def extract_pdf_text(target: Path) -> str:
     reader = PdfReader(str(target))
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
 # ---------- DOCX Parsing (v2: tables + image map) ----------
+
 
 def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]]:
     """解析 docx，返回 (规范化文本, {段落索引: [图片相对路径]})。"""
@@ -475,8 +490,12 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
 
             # 检查段落中的图片引用
             para_images: list[str] = []
-            for blip in element.findall(".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"):
-                rId = blip.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+            for blip in element.findall(
+                ".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"
+            ):
+                rId = blip.get(
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                )
                 if rId and rId in image_rels:
                     img_name = image_rels[rId]
                     img_file = output_dir / img_name
@@ -502,8 +521,12 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
                     ct = "".join(t.text for t in cell.findall(".//" + qn("w:t")) if t.text).strip()
                     cell_texts.append(ct)
                     # 检查单元格中的图片
-                    for blip in cell.findall(".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"):
-                        rId = blip.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+                    for blip in cell.findall(
+                        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"
+                    ):
+                        rId = blip.get(
+                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                        )
                         if rId and rId in image_rels:
                             img_name = image_rels[rId]
                             img_file = output_dir / img_name
@@ -511,7 +534,9 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
                                 row_images.append(img_file.relative_to(ROOT_DIR).as_posix())
 
                 # 跳过表头行
-                if ri == 0 and any(h in "".join(cell_texts) for h in ["序号", "具体问题", "简要标准答案"]):
+                if ri == 0 and any(
+                    h in "".join(cell_texts) for h in ["序号", "具体问题", "简要标准答案"]
+                ):
                     continue
 
                 if any(ct for ct in cell_texts):
@@ -525,6 +550,7 @@ def extract_docx_with_image_map(target: Path) -> tuple[str, dict[int, list[str]]
 
 
 # ---------- DOC Conversion ----------
+
 
 def convert_doc_to_docx(target: Path) -> Path | None:
     """将 .doc 转换为临时 .docx 并返回路径。"""
@@ -553,8 +579,13 @@ def convert_doc_to_docx(target: Path) -> Path | None:
 def convert_doc_with_office(target: Path, output_dir: Path) -> Path | None:
     for binary in ["soffice", "libreoffice"]:
         command = [
-            binary, "--headless", "--convert-to", "docx",
-            str(target), "--outdir", str(output_dir),
+            binary,
+            "--headless",
+            "--convert-to",
+            "docx",
+            str(target),
+            "--outdir",
+            str(output_dir),
         ]
         try:
             subprocess.run(command, check=True, capture_output=True, text=True, timeout=120)
@@ -578,6 +609,7 @@ def convert_doc_with_tool(target: Path, command: list[str]) -> str | None:
 # ---------- Knowledge Item Parsing ----------
 
 # ---------- Markdown with images ----------
+
 
 def parse_md_with_images(text: str, source: Path) -> list[dict[str, Any]]:
     """解析含 ![](images/xxx.jpg) 的 markdown 文件，按章节拆分问答条目并关联图片。"""
@@ -777,7 +809,11 @@ def parse_explicit_label_items(
         if not question or not answer:
             return
         imgs = _get_images_for_range(image_map, question_line, end_line)
-        items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
+        items.append(
+            build_item(
+                category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs
+            )
+        )
         question = ""
         answer = ""
         question_line = -1
@@ -798,7 +834,11 @@ def parse_explicit_label_items(
         elif line.startswith("简要标准答案："):
             answer = line.replace("简要标准答案：", "", 1).strip()
         elif line.startswith("标签："):
-            tags = [item.strip() for item in re.split(r"[，,、]", line.replace("标签：", "", 1)) if item.strip()]
+            tags = [
+                item.strip()
+                for item in re.split(r"[，,、]", line.replace("标签：", "", 1))
+                if item.strip()
+            ]
 
     flush_item(len(lines))
 
@@ -833,7 +873,18 @@ def parse_table_qa_items(
                 if question and answer and question != "具体问题":
                     tags = derive_tags(category_l1, category_l2, question)
                     imgs = _get_images_for_range(image_map, i, i + 1)
-                    items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
+                    items.append(
+                        build_item(
+                            category_l1,
+                            category_l2,
+                            question,
+                            answer,
+                            tags,
+                            source_file,
+                            doc_type,
+                            imgs,
+                        )
+                    )
             continue
 
         # 兼容旧格式：纯数字序号后跟问题行
@@ -847,9 +898,11 @@ def parse_table_qa_items(
             cursor = answer_index
             while cursor < len(lines):
                 cursor_line = lines[cursor]
-                if (re.match(r"^\d+$", cursor_line)
+                if (
+                    re.match(r"^\d+$", cursor_line)
                     or re.match(r"^[一二三四五六七八九十]+、", cursor_line)
-                    or re.match(r"^\d+\.\d+\s+", cursor_line)):
+                    or re.match(r"^\d+\.\d+\s+", cursor_line)
+                ):
                     break
                 if cursor_line not in {"序号", "具体问题", "简要标准答案"}:
                     answer_lines.append(cursor_line)
@@ -858,7 +911,18 @@ def parse_table_qa_items(
             if question and answer:
                 tags = derive_tags(category_l1, category_l2, question)
                 imgs = _get_images_for_range(image_map, i, cursor)
-                items.append(build_item(category_l1, category_l2, question, answer, tags, source_file, doc_type, imgs))
+                items.append(
+                    build_item(
+                        category_l1,
+                        category_l2,
+                        question,
+                        answer,
+                        tags,
+                        source_file,
+                        doc_type,
+                        imgs,
+                    )
+                )
 
     return items
 
@@ -877,10 +941,13 @@ def build_generic_items(
         all_images.extend(imgs)
     return [
         build_item(
-            "知识文档", "原文切片",
+            "知识文档",
+            "原文切片",
             f"{Path(source_file).stem} - 第 {idx + 1} 段",
-            chunk, [Path(source_file).stem],
-            source_file, doc_type,
+            chunk,
+            [Path(source_file).stem],
+            source_file,
+            doc_type,
             all_images if idx == 0 else [],
             original_text=text,
             normalized_text=text,
@@ -953,7 +1020,13 @@ def describe_image_as_knowledge(target: Path) -> dict[str, Any]:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        payload = {"summary": raw, "ocr_text": "", "elements": "", "scene": "", "keywords": target.stem}
+        payload = {
+            "summary": raw,
+            "ocr_text": "",
+            "elements": "",
+            "scene": "",
+            "keywords": target.stem,
+        }
 
     merged_text = (
         f"图片内容摘要：{payload.get('summary', '')}\n"
@@ -981,6 +1054,7 @@ def describe_image_as_knowledge(target: Path) -> dict[str, Any]:
 
 
 # ---------- Utilities ----------
+
 
 def normalize_line(value: str) -> str:
     return re.sub(r"[^\S\t]+", " ", value).strip()

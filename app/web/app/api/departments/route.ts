@@ -13,10 +13,10 @@ export async function GET() {
     include: {
       users: {
         select: { id: true, displayName: true },
-        orderBy: { displayName: "asc" }
-      }
+        orderBy: { displayName: "asc" },
+      },
     },
-    orderBy: { name: "asc" }
+    orderBy: { name: "asc" },
   });
 
   return NextResponse.json({ departments });

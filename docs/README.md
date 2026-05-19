@@ -6,37 +6,37 @@
 
 ### 1. 建立项目主线
 
-| 文档 | 作用 |
-|---|---|
-| [ONBOARDING.md](./ONBOARDING.md) | 项目接手路线图，说明接手首日应该看什么、跑什么、验证什么 |
-| [CODEBASE_MAP.md](./CODEBASE_MAP.md) | 代码地图，说明页面、API、service、脚本、Docker 文件在哪里 |
-| [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) | 业务模型，说明会话、消息、工单、知识库、索引任务之间的关系 |
-| [GLOSSARY.md](./GLOSSARY.md) | 名词表，解释当前术语和历史表述差异 |
-| [DEVELOPMENT_PLAYBOOK.md](./DEVELOPMENT_PLAYBOOK.md) | 开发任务手册，说明常见需求应该改哪些文件、如何验证 |
-| [ACCEPTANCE_CHECKLIST.md](./ACCEPTANCE_CHECKLIST.md) | 接手验收清单和回归测试清单 |
-| [USER_MANUAL.md](./USER_MANUAL.md) | 用户视角操作手册，用完整案例说明问答、工单、升级、知识回写闭环 |
+| 文档                                                 | 作用                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| [ONBOARDING.md](./ONBOARDING.md)                     | 项目接手路线图，说明接手首日应该看什么、跑什么、验证什么       |
+| [CODEBASE_MAP.md](./CODEBASE_MAP.md)                 | 代码地图，说明页面、API、service、脚本、Docker 文件在哪里      |
+| [DOMAIN_MODEL.md](./DOMAIN_MODEL.md)                 | 业务模型，说明会话、消息、工单、知识库、索引任务之间的关系     |
+| [GLOSSARY.md](./GLOSSARY.md)                         | 名词表，解释当前术语和历史表述差异                             |
+| [DEVELOPMENT_PLAYBOOK.md](./DEVELOPMENT_PLAYBOOK.md) | 开发任务手册，说明常见需求应该改哪些文件、如何验证             |
+| [ACCEPTANCE_CHECKLIST.md](./ACCEPTANCE_CHECKLIST.md) | 接手验收清单和回归测试清单                                     |
+| [USER_MANUAL.md](./USER_MANUAL.md)                   | 用户视角操作手册，用完整案例说明问答、工单、升级、知识回写闭环 |
 
 ### 2. 启动、部署、运维
 
-| 文档 | 作用 |
-|---|---|
+| 文档                                                       | 作用                                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------- |
 | [DOCKER_DEPLOYMENT_GUIDE.md](./DOCKER_DEPLOYMENT_GUIDE.md) | Docker Compose、Dockerfile、entrypoint、Prisma migration 和部署链路说明 |
-| [API_GUIDE.md](./API_GUIDE.md) | API、环境变量、启动方式、接口示例 |
-| [DEMO_GUIDE.md](./DEMO_GUIDE.md) | 演示流程和业务场景验证 |
+| [API_GUIDE.md](./API_GUIDE.md)                             | API、环境变量、启动方式、接口示例                                       |
+| [DEMO_GUIDE.md](./DEMO_GUIDE.md)                           | 演示流程和业务场景验证                                                  |
 
 ### 3. RAG、知识库和索引一致性
 
-| 文档 | 作用 |
-|---|---|
-| [RAG_MULTIMODAL_PIPELINE.md](./RAG_MULTIMODAL_PIPELINE.md) | RAG 多模态检索、重排、生成链路 |
-| [POSTGRES_QDRANT_INDEX_CONSISTENCY.md](./POSTGRES_QDRANT_INDEX_CONSISTENCY.md) | PostgreSQL 与 Qdrant 一致性原则 |
-| [KNOWLEDGE_IMPORT_GUIDE.md](./KNOWLEDGE_IMPORT_GUIDE.md) | 知识文档导入规范 |
+| 文档                                                                                           | 作用                                                  |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [RAG_MULTIMODAL_PIPELINE.md](./RAG_MULTIMODAL_PIPELINE.md)                                     | RAG 多模态检索、重排、生成链路                        |
+| [POSTGRES_QDRANT_INDEX_CONSISTENCY.md](./POSTGRES_QDRANT_INDEX_CONSISTENCY.md)                 | PostgreSQL 与 Qdrant 一致性原则                       |
+| [KNOWLEDGE_IMPORT_GUIDE.md](./KNOWLEDGE_IMPORT_GUIDE.md)                                       | 知识文档导入规范                                      |
 | [INCIDENT_2026-04-28_QDRANT_INDEX_DELETION.md](./INCIDENT_2026-04-28_QDRANT_INDEX_DELETION.md) | Qdrant 索引误删事故复盘，说明为什么索引删除逻辑要谨慎 |
 
 ### 4. 方案演进
 
-| 文档 | 作用 |
-|---|---|
+| 文档                                                     | 作用                                   |
+| -------------------------------------------------------- | -------------------------------------- |
 | [NOTIFICATION_WS_TO_SSE.md](./NOTIFICATION_WS_TO_SSE.md) | 通知方案从 WebSocket 切换到 SSE 的原因 |
 
 ---

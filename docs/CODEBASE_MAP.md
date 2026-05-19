@@ -73,10 +73,10 @@ lib/services/*.ts
 
 ### 登录
 
-| 路径 | 文件 | 说明 |
-|---|---|---|
-| `/login` | `app/web/app/login/page.tsx` | 登录页 |
-| `/` | `app/web/app/page.tsx` | 根据登录态和角色跳转 |
+| 路径     | 文件                         | 说明                 |
+| -------- | ---------------------------- | -------------------- |
+| `/login` | `app/web/app/login/page.tsx` | 登录页               |
+| `/`      | `app/web/app/page.tsx`       | 根据登录态和角色跳转 |
 
 相关组件：
 
@@ -101,12 +101,12 @@ app/web/lib/auth/session.ts
 
 ### 员工端
 
-| 路径 | 文件 | 说明 |
-|---|---|---|
-| `/staff/chat` | `app/web/app/staff/chat/page.tsx` | 员工智能问答页 |
-| `/staff/tickets` | `app/web/app/staff/tickets/page.tsx` | 员工查看自己提交的工单 |
-| `/staff/tickets/[id]` | `app/web/app/staff/tickets/[id]/page.tsx` | 员工工单详情 |
-| `/staff/*` layout | `app/web/app/staff/layout.tsx` | 员工端布局 |
+| 路径                  | 文件                                      | 说明                   |
+| --------------------- | ----------------------------------------- | ---------------------- |
+| `/staff/chat`         | `app/web/app/staff/chat/page.tsx`         | 员工智能问答页         |
+| `/staff/tickets`      | `app/web/app/staff/tickets/page.tsx`      | 员工查看自己提交的工单 |
+| `/staff/tickets/[id]` | `app/web/app/staff/tickets/[id]/page.tsx` | 员工工单详情           |
+| `/staff/*` layout     | `app/web/app/staff/layout.tsx`            | 员工端布局             |
 
 关键组件：
 
@@ -118,11 +118,11 @@ app/web/components/tickets/ticket-detail-client.tsx
 
 ### 人工处理端
 
-| 路径 | 文件 | 说明 |
-|---|---|---|
-| `/agent/tickets` | `app/web/app/agent/tickets/page.tsx` | 人工处理工单列表 |
-| `/agent/tickets/[id]` | `app/web/app/agent/tickets/[id]/page.tsx` | 人工工单详情 |
-| `/agent/*` layout | `app/web/app/agent/layout.tsx` | 人工端布局 |
+| 路径                  | 文件                                      | 说明             |
+| --------------------- | ----------------------------------------- | ---------------- |
+| `/agent/tickets`      | `app/web/app/agent/tickets/page.tsx`      | 人工处理工单列表 |
+| `/agent/tickets/[id]` | `app/web/app/agent/tickets/[id]/page.tsx` | 人工工单详情     |
+| `/agent/*` layout     | `app/web/app/agent/layout.tsx`            | 人工端布局       |
 
 人工角色当前在 Prisma 中统一为：
 
@@ -134,12 +134,12 @@ UserRole.agent
 
 ### 管理端
 
-| 路径 | 文件 | 说明 |
-|---|---|---|
+| 路径               | 文件                                   | 说明       |
+| ------------------ | -------------------------------------- | ---------- |
 | `/admin/knowledge` | `app/web/app/admin/knowledge/page.tsx` | 知识库管理 |
-| `/admin/settings` | `app/web/app/admin/settings/page.tsx` | 系统设置 |
-| `/admin/stats` | `app/web/app/admin/stats/page.tsx` | 统计 |
-| `/admin/*` layout | `app/web/app/admin/layout.tsx` | 管理端布局 |
+| `/admin/settings`  | `app/web/app/admin/settings/page.tsx`  | 系统设置   |
+| `/admin/stats`     | `app/web/app/admin/stats/page.tsx`     | 统计       |
+| `/admin/*` layout  | `app/web/app/admin/layout.tsx`         | 管理端布局 |
 
 关键组件：
 

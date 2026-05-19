@@ -14,4 +14,3 @@
   },
   "include": ["app/**/*", "packages/**/*", "prisma/**/*", "scripts/**/*"]
 }
-

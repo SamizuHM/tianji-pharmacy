@@ -8,7 +8,7 @@ export const PROGRESS_STEP_LABELS = {
   decide_source: "判断知识命中",
   await_first_token: "等待模型响应",
   reasoning_answer: "模型推理中",
-  stream_answer: "流式生成回答"
+  stream_answer: "流式生成回答",
 } as const;
 
 export const PROGRESS_STEP_ORDER = Object.keys(PROGRESS_STEP_LABELS) as ProgressStepKey[];

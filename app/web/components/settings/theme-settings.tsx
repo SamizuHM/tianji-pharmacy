@@ -25,18 +25,19 @@ const themeOptions: Array<{
     previewAccent: "bg-blue-500/60",
     previewLine: "bg-white/25",
     previewNav: "bg-white/10",
-    previewNavActive: "border-l-2 border-blue-400 bg-white/15"
+    previewNavActive: "border-l-2 border-blue-400 bg-white/15",
   },
   {
     value: "light",
     label: "简约白色",
     description: "白色浮动侧边栏，清新简洁的现代风格",
-    previewBg: "bg-gradient-to-b from-white to-[#f5f7fb] border border-slate-200 dark:border-border dark:from-[#111827] dark:to-[#0f172a]",
+    previewBg:
+      "bg-gradient-to-b from-white to-[#f5f7fb] border border-slate-200 dark:border-border dark:from-[#111827] dark:to-[#0f172a]",
     previewAccent: "bg-cyan-500/60",
     previewLine: "bg-slate-300 dark:bg-slate-600",
     previewNav: "bg-white border border-slate-100 dark:border-border dark:bg-card",
-    previewNavActive: "bg-blue-50 border border-blue-200 dark:border-primary/30 dark:bg-primary/10"
-  }
+    previewNavActive: "bg-blue-50 border border-blue-200 dark:border-primary/30 dark:bg-primary/10",
+  },
 ];
 
 const colorModeOptions: Array<{
@@ -49,25 +50,25 @@ const colorModeOptions: Array<{
     value: "light",
     label: "白天",
     description: "始终使用明亮界面",
-    icon: Sun
+    icon: Sun,
   },
   {
     value: "dark",
     label: "夜间",
     description: "始终使用暗色界面",
-    icon: Moon
+    icon: Moon,
   },
   {
     value: "system",
     label: "跟随系统",
     description: "按操作系统自动切换",
-    icon: Monitor
-  }
+    icon: Monitor,
+  },
 ];
 
 export function ThemeSettings({
   currentTheme,
-  currentColorMode
+  currentColorMode,
 }: {
   currentTheme: string;
   currentColorMode: ColorModeName;
@@ -81,7 +82,7 @@ export function ThemeSettings({
       const response = await fetch("/api/settings/theme", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme })
+        body: JSON.stringify({ theme }),
       });
       if (response.ok) {
         router.refresh();
@@ -97,7 +98,7 @@ export function ThemeSettings({
       const response = await fetch("/api/settings/theme", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colorMode })
+        body: JSON.stringify({ colorMode }),
       });
       if (response.ok) {
         router.refresh();
@@ -130,7 +131,12 @@ export function ThemeSettings({
                     : "border-border hover:border-slate-300 hover:shadow-sm dark:hover:border-border"
                 )}
               >
-                <div className={cn("flex h-24 w-full flex-col gap-1.5 rounded-lg p-3", option.previewBg)}>
+                <div
+                  className={cn(
+                    "flex h-24 w-full flex-col gap-1.5 rounded-lg p-3",
+                    option.previewBg
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     <div className={cn("size-4 rounded", option.previewAccent)} />
                     <div className={cn("h-2 w-16 rounded-full", option.previewLine)} />
@@ -141,7 +147,9 @@ export function ThemeSettings({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900 dark:text-foreground">{option.label}</span>
+                    <span className="font-semibold text-slate-900 dark:text-foreground">
+                      {option.label}
+                    </span>
                     {selected ? (
                       <span className="flex size-5 items-center justify-center rounded-full bg-primary text-white dark:bg-primary/10 dark:text-primary">
                         <Check className="size-3" />
@@ -178,10 +186,14 @@ export function ThemeSettings({
                     : "border-border hover:border-slate-300 hover:bg-slate-50 dark:hover:border-border dark:hover:bg-secondary"
                 )}
               >
-                <span className={cn(
-                  "flex size-10 shrink-0 items-center justify-center rounded-lg border",
-                  selected ? "border-primary bg-primary text-white dark:border-primary/20 dark:bg-primary/10 dark:text-primary" : "border-border bg-white text-slate-500 dark:bg-card dark:text-muted"
-                )}>
+                <span
+                  className={cn(
+                    "flex size-10 shrink-0 items-center justify-center rounded-lg border",
+                    selected
+                      ? "border-primary bg-primary text-white dark:border-primary/20 dark:bg-primary/10 dark:text-primary"
+                      : "border-border bg-white text-slate-500 dark:bg-card dark:text-muted"
+                  )}
+                >
                   <Icon className="size-5" />
                 </span>
                 <span className="min-w-0 flex-1">

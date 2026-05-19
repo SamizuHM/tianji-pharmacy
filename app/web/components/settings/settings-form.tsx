@@ -18,7 +18,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
   function update<K extends keyof RuntimeSettingsInput>(key: K, value: string) {
     setSettings((current) => ({
       ...current,
-      [key]: Number(value)
+      [key]: Number(value),
     }));
   }
 
@@ -28,7 +28,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
       const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(settings),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -78,7 +78,11 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
               <Save className="size-4" />
               {pending ? "保存中..." : "保存设置"}
             </Button>
-            {message ? <Alert className="mt-4 border-primary/30 bg-primary/10 text-foreground">{message}</Alert> : null}
+            {message ? (
+              <Alert className="mt-4 border-primary/30 bg-primary/10 text-foreground">
+                {message}
+              </Alert>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -88,8 +92,12 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
           <CardTitle>运行说明</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 text-sm leading-6 text-muted">
-          <p>命中阈值越高，系统越谨慎，更多问题会进入大模型兜底；阈值越低，知识库命中率更高，但需要关注答案准确性。</p>
-          <p>召回数量和重排数量会影响响应速度。门店高频问答场景建议先保持默认值，再结合统计页命中率逐步调优。</p>
+          <p>
+            命中阈值越高，系统越谨慎，更多问题会进入大模型兜底；阈值越低，知识库命中率更高，但需要关注答案准确性。
+          </p>
+          <p>
+            召回数量和重排数量会影响响应速度。门店高频问答场景建议先保持默认值，再结合统计页命中率逐步调优。
+          </p>
         </CardContent>
       </Card>
     </div>

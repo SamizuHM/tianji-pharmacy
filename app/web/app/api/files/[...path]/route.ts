@@ -30,8 +30,8 @@ export async function GET(_: Request, context: { params: Promise<{ path: string[
 
     return new NextResponse(data, {
       headers: {
-        "Content-Type": contentType
-      }
+        "Content-Type": contentType,
+      },
     });
   } catch {
     return NextResponse.json({ error: "文件不存在" }, { status: 404 });

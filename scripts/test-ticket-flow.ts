@@ -10,7 +10,7 @@ async function login(username: string): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password: "demo123" }),
-    redirect: "manual"
+    redirect: "manual",
   });
   const cookie = res.headers.get("set-cookie");
   if (!cookie) throw new Error(`Login failed for ${username}`);
@@ -23,8 +23,8 @@ async function api(path: string, cookie: string, options?: RequestInit) {
     headers: {
       "Content-Type": "application/json",
       cookie,
-      ...options?.headers
-    }
+      ...options?.headers,
+    },
   });
   const data = await res.json();
   return { status: res.status, data };
@@ -60,7 +60,7 @@ async function main() {
   let conversation = await prisma.conversation.findFirst({ where: { userId: staffUser.id } });
   if (!conversation) {
     conversation = await prisma.conversation.create({
-      data: { title: "测试会话", userId: staffUser.id }
+      data: { title: "测试会话", userId: staffUser.id },
     });
   }
 
@@ -69,9 +69,20 @@ async function main() {
 
   await prisma.chatMessage.createMany({
     data: [
-      { conversationId: conversation.id, role: "user", sourceType: "manual", contentText: "医保刷卡失败了，显示错误代码E001，顾客很着急" },
-      { conversationId: conversation.id, role: "assistant", sourceType: "kb", contentText: "错误代码E001通常表示医保网络连接超时。请检查：1. 网络连接是否正常 2. 医保读卡器是否正确连接" }
-    ]
+      {
+        conversationId: conversation.id,
+        role: "user",
+        sourceType: "manual",
+        contentText: "医保刷卡失败了，显示错误代码E001，顾客很着急",
+      },
+      {
+        conversationId: conversation.id,
+        role: "assistant",
+        sourceType: "kb",
+        contentText:
+          "错误代码E001通常表示医保网络连接超时。请检查：1. 网络连接是否正常 2. 医保读卡器是否正确连接",
+      },
+    ],
   });
   console.log("✓ 测试会话和消息创建成功\n");
 
@@ -79,7 +90,7 @@ async function main() {
   console.log("--- 测试1: 创建工单 ---");
   const createRes = await api("/api/tickets", staffCookie, {
     method: "POST",
-    body: JSON.stringify({ conversationId: conversation.id })
+    body: JSON.stringify({ conversationId: conversation.id }),
   });
   console.log(`状态: ${createRes.status}`);
   if (createRes.status !== 200) {
@@ -117,7 +128,7 @@ async function main() {
   console.log("--- 测试5: Agent-1 回复工单 ---");
   const replyRes = await api(`/api/tickets/${ticketId}/reply`, agentCookie1, {
     method: "POST",
-    body: JSON.stringify({ content: "已排查，医保网络正常，建议重启读卡器后重试" })
+    body: JSON.stringify({ content: "已排查，医保网络正常，建议重启读卡器后重试" }),
   });
   console.log(`状态: ${replyRes.status}`);
   console.log();
@@ -126,7 +137,7 @@ async function main() {
   console.log("--- 测试6: Agent-1 升级到营运部 ---");
   const escalateRes = await api(`/api/tickets/${ticketId}/escalate`, agentCookie1, {
     method: "POST",
-    body: JSON.stringify({ targetDept: "营运部" })
+    body: JSON.stringify({ targetDept: "营运部" }),
   });
   console.log(`状态: ${escalateRes.status}`);
   console.log(`工单状态: ${escalateRes.data.ticket?.status}`);
@@ -144,7 +155,9 @@ async function main() {
   console.log("--- 测试8: 营运部用户回复 ---");
   const replyDeptRes = await api(`/api/tickets/${ticketId}/reply`, deptCookie, {
     method: "POST",
-    body: JSON.stringify({ content: "已联系医保中心，确认是系统升级导致的临时故障，建议等待30分钟后重试" })
+    body: JSON.stringify({
+      content: "已联系医保中心，确认是系统升级导致的临时故障，建议等待30分钟后重试",
+    }),
   });
   console.log(`状态: ${replyDeptRes.status}`);
   console.log();
@@ -153,7 +166,10 @@ async function main() {
   console.log("--- 测试9: 提交解决方案 ---");
   const submitRes = await api(`/api/tickets/${ticketId}/submit-resolution`, deptCookie, {
     method: "POST",
-    body: JSON.stringify({ resolutionText: "问题原因：医保系统升级导致临时故障。解决方案：等待30分钟后重试，若仍失败请联系医保中心技术支持。" })
+    body: JSON.stringify({
+      resolutionText:
+        "问题原因：医保系统升级导致临时故障。解决方案：等待30分钟后重试，若仍失败请联系医保中心技术支持。",
+    }),
   });
   console.log(`状态: ${submitRes.status}`);
   console.log();
@@ -162,7 +178,7 @@ async function main() {
   console.log("--- 测试10: 确认解决前生成知识草稿（应失败） ---");
   const draftBeforeResolveRes = await api(`/api/tickets/${ticketId}/knowledge-draft`, deptCookie, {
     method: "POST",
-    body: JSON.stringify({ selectedMaterialIds: ["ticketMessage:__invalid__"] })
+    body: JSON.stringify({ selectedMaterialIds: ["ticketMessage:__invalid__"] }),
   });
   console.log(`状态: ${draftBeforeResolveRes.status} (期望 400)`);
   console.log(`错误: ${draftBeforeResolveRes.data.error}`);
@@ -183,15 +199,16 @@ async function main() {
       categoryL1: "系统操作",
       categoryL2: "医保刷卡",
       question: "医保刷卡失败显示 E001 怎么处理？",
-      answer: "先检查网络和读卡器连接；如确认是医保系统升级导致，请等待 30 分钟后重试，仍失败则联系医保中心技术支持。",
+      answer:
+        "先检查网络和读卡器连接；如确认是医保系统升级导致，请等待 30 分钟后重试，仍失败则联系医保中心技术支持。",
       tagsJson: JSON.stringify(["医保", "刷卡", "E001"]),
       generatedByUserId: deptUser.id,
-      confirmedAt: new Date()
-    }
+      confirmedAt: new Date(),
+    },
   });
   await prisma.ticket.update({
     where: { id: ticketId },
-    data: { knowledgeStatus: "pending_writeback" }
+    data: { knowledgeStatus: "pending_writeback" },
   });
   console.log("✓ 已创建测试用待入库知识草稿\n");
 
@@ -199,7 +216,7 @@ async function main() {
   console.log("--- 测试12: 非当前处理客服尝试关闭（应失败） ---");
   const closeFailRes = await api(`/api/tickets/${ticketId}/close`, agentCookie1, {
     method: "POST",
-    body: JSON.stringify({})
+    body: JSON.stringify({}),
   });
   console.log(`状态: ${closeFailRes.status} (期望 400)`);
   console.log(`错误: ${closeFailRes.data.error}`);
@@ -209,7 +226,7 @@ async function main() {
   console.log("--- 测试13: 当前处理客服关闭工单 ---");
   const closeRes = await api(`/api/tickets/${ticketId}/close`, deptCookie, {
     method: "POST",
-    body: JSON.stringify({})
+    body: JSON.stringify({}),
   });
   console.log(`状态: ${closeRes.status}`);
   console.log(`工单状态: ${closeRes.data.ticket?.status}`);

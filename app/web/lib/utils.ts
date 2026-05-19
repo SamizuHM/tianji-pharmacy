@@ -46,7 +46,13 @@ export function getAttachmentItems(value: string | null | undefined) {
 }
 
 export function getAttachmentPaths(value: string | null | undefined) {
-  return Array.from(new Set(getAttachmentItems(value).map((item) => item.path).filter(Boolean)));
+  return Array.from(
+    new Set(
+      getAttachmentItems(value)
+        .map((item) => item.path)
+        .filter(Boolean)
+    )
+  );
 }
 
 export function getFileUrl(filePath: string) {

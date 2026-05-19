@@ -50,7 +50,7 @@ export function KnowledgeTable({
   categoryOptions,
   q,
   category,
-  status
+  status,
 }: {
   items: KnowledgeItemRow[];
   total: number;
@@ -126,7 +126,9 @@ export function KnowledgeTable({
   }
 
   function toggleOne(id: string, checked: boolean) {
-    setSelectedIds((current) => (checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id)));
+    setSelectedIds((current) =>
+      checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id)
+    );
   }
 
   function runBulk(action: "publish" | "archive" | "delete") {
@@ -142,7 +144,7 @@ export function KnowledgeTable({
       await fetch("/api/knowledge/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds, action })
+        body: JSON.stringify({ ids: selectedIds, action }),
       });
       setSelectedIds([]);
       router.refresh();
@@ -160,28 +162,54 @@ export function KnowledgeTable({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input name="q" defaultValue={q} placeholder="搜索具体问题或关键词" className="pl-9" />
           </div>
-          <Button type="submit" variant="outline">搜索</Button>
+          <Button type="submit" variant="outline">
+            搜索
+          </Button>
         </form>
-        <Select value={category ?? "all"} disabled={navPending} onChange={(event) => update({ category: event.target.value })} className="w-40">
+        <Select
+          value={category ?? "all"}
+          disabled={navPending}
+          onChange={(event) => update({ category: event.target.value })}
+          className="w-40"
+        >
           <option value="all">全部分类</option>
           {categoryOptions.map((item) => (
-            <option key={item} value={item}>{item}</option>
+            <option key={item} value={item}>
+              {item}
+            </option>
           ))}
         </Select>
-        <Select value={status ?? "all"} disabled={navPending} onChange={(event) => update({ status: event.target.value })} className="w-32">
+        <Select
+          value={status ?? "all"}
+          disabled={navPending}
+          onChange={(event) => update({ status: event.target.value })}
+          className="w-32"
+        >
           <option value="all">全部状态</option>
           <option value="published">已发布</option>
           <option value="draft">草稿</option>
           <option value="archived">已归档</option>
         </Select>
-        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("publish")}>
+        <Button
+          variant="outline"
+          disabled={!selectedIds.length || bulkPending}
+          onClick={() => runBulk("publish")}
+        >
           发布
         </Button>
-        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("archive")}>
+        <Button
+          variant="outline"
+          disabled={!selectedIds.length || bulkPending}
+          onClick={() => runBulk("archive")}
+        >
           <Archive className="size-4" />
           归档
         </Button>
-        <Button variant="outline" disabled={!selectedIds.length || bulkPending} onClick={() => runBulk("delete")}>
+        <Button
+          variant="outline"
+          disabled={!selectedIds.length || bulkPending}
+          onClick={() => runBulk("delete")}
+        >
           <Trash2 className="size-4" />
           删除
         </Button>
@@ -192,7 +220,10 @@ export function KnowledgeTable({
           <THead>
             <tr>
               <TH className="w-12 text-center">
-                <Checkbox checked={allSelected} onCheckedChange={(checked) => toggleAll(Boolean(checked))} />
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={(checked) => toggleAll(Boolean(checked))}
+                />
               </TH>
               <TH>一级分类</TH>
               <TH>二级分类</TH>
@@ -207,76 +238,95 @@ export function KnowledgeTable({
           <TBody>
             {navPending ? (
               <TableSkeleton columns={9} rows={5} />
-            ) : items.map((item) => {
-              const imagePaths: string[] = item.imagePathsJson
-                ? JSON.parse(item.imagePathsJson)
-                : item.imagePath
-                  ? [item.imagePath]
-                  : [];
+            ) : (
+              items.map((item) => {
+                const imagePaths: string[] = item.imagePathsJson
+                  ? JSON.parse(item.imagePathsJson)
+                  : item.imagePath
+                    ? [item.imagePath]
+                    : [];
 
-              return (
-                <tr key={item.id} className={detailId === item.id ? "bg-blue-50/60 dark:bg-secondary" : ""}>
-                  {editingId === item.id ? (
-                    <TD colSpan={9}>
-                      <KnowledgeEditForm item={item} onCancel={() => setEditingId(null)} />
-                    </TD>
-                  ) : (
-                    <>
-                      <TD className="text-center">
-                        <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleOne(item.id, Boolean(checked))} />
+                return (
+                  <tr
+                    key={item.id}
+                    className={detailId === item.id ? "bg-blue-50/60 dark:bg-secondary" : ""}
+                  >
+                    {editingId === item.id ? (
+                      <TD colSpan={9}>
+                        <KnowledgeEditForm item={item} onCancel={() => setEditingId(null)} />
                       </TD>
-                      <TD>{item.categoryL1}</TD>
-                      <TD>{item.categoryL2}</TD>
-                      <TD>
-                        <button className="max-w-[240px] truncate text-left font-medium text-slate-900 transition-colors duration-150 hover:text-primary dark:text-foreground" onClick={() => openDetail(item.id)}>
-                          {item.question}
-                        </button>
-                        {imagePaths.length ? (
-                          <div className="mt-2 flex items-center gap-2">
-                            {imagePaths.slice(0, 2).map((img, i) => (
-                              <img
-                                key={img}
-                                src={getFileUrl(img)}
-                                alt=""
-                                className="size-10 cursor-pointer rounded border border-border object-cover transition-all duration-150 hover:scale-110 hover:shadow-md"
-                                onClick={() => setLightbox({ images: imagePaths, index: i })}
-                              />
-                            ))}
-                            {imagePaths.length > 2 ? <span className="text-xs text-muted">+{imagePaths.length - 2}</span> : null}
+                    ) : (
+                      <>
+                        <TD className="text-center">
+                          <Checkbox
+                            checked={selectedIds.includes(item.id)}
+                            onCheckedChange={(checked) => toggleOne(item.id, Boolean(checked))}
+                          />
+                        </TD>
+                        <TD>{item.categoryL1}</TD>
+                        <TD>{item.categoryL2}</TD>
+                        <TD>
+                          <button
+                            className="max-w-[240px] truncate text-left font-medium text-slate-900 transition-colors duration-150 hover:text-primary dark:text-foreground"
+                            onClick={() => openDetail(item.id)}
+                          >
+                            {item.question}
+                          </button>
+                          {imagePaths.length ? (
+                            <div className="mt-2 flex items-center gap-2">
+                              {imagePaths.slice(0, 2).map((img, i) => (
+                                <img
+                                  key={img}
+                                  src={getFileUrl(img)}
+                                  alt=""
+                                  className="size-10 cursor-pointer rounded border border-border object-cover transition-all duration-150 hover:scale-110 hover:shadow-md"
+                                  onClick={() => setLightbox({ images: imagePaths, index: i })}
+                                />
+                              ))}
+                              {imagePaths.length > 2 ? (
+                                <span className="text-xs text-muted">+{imagePaths.length - 2}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </TD>
+                        <TD>
+                          <div className="max-w-[260px] truncate text-muted">{item.answer}</div>
+                        </TD>
+                        <TD>
+                          <div className="max-w-[160px] truncate text-muted">
+                            {item.sourceFile || item.sourceType}
                           </div>
-                        ) : null}
-                      </TD>
-                      <TD>
-                        <div className="max-w-[260px] truncate text-muted">{item.answer}</div>
-                      </TD>
-                      <TD>
-                        <div className="max-w-[160px] truncate text-muted">{item.sourceFile || item.sourceType}</div>
-                      </TD>
-                      <TD>
-                        <div className="font-medium text-slate-900 dark:text-foreground">{item.hitCount}</div>
-                        <div className="text-xs text-muted">{formatDateTime(item.lastHitAt)}</div>
-                      </TD>
-                      <TD>
-                        <KnowledgeStatusBadge status={item.status} />
-                      </TD>
-                      <TD className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingId(item.id)}>
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => openDetail(item.id)}>
-                            查看
-                          </Button>
-                        </div>
-                      </TD>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
+                        </TD>
+                        <TD>
+                          <div className="font-medium text-slate-900 dark:text-foreground">
+                            {item.hitCount}
+                          </div>
+                          <div className="text-xs text-muted">{formatDateTime(item.lastHitAt)}</div>
+                        </TD>
+                        <TD>
+                          <KnowledgeStatusBadge status={item.status} />
+                        </TD>
+                        <TD className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingId(item.id)}>
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openDetail(item.id)}>
+                              查看
+                            </Button>
+                          </div>
+                        </TD>
+                      </>
+                    )}
+                  </tr>
+                );
+              })
+            )}
           </TBody>
         </Table>
-        {!items.length && !navPending ? <div className="px-4 py-12 text-center text-sm text-muted">暂无知识条目</div> : null}
+        {!items.length && !navPending ? (
+          <div className="px-4 py-12 text-center text-sm text-muted">暂无知识条目</div>
+        ) : null}
       </div>
 
       <PaginationBar
@@ -303,7 +353,9 @@ export function KnowledgeTable({
             {visibleDetail ? (
               <div className="flex flex-col gap-6">
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">基本信息</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                    基本信息
+                  </h3>
                   <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
                     <span className="text-muted">具体问题</span>
                     <span>{visibleDetail.question}</span>
@@ -320,27 +372,52 @@ export function KnowledgeTable({
                   </div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">简要标准答案</h3>
-                  <div className="mt-3 rounded-lg border border-border bg-slate-50 p-4 text-sm leading-6 dark:bg-secondary">{visibleDetail.answer}</div>
-                </section>
-                <section>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">标签</h3>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {parseTags(visibleDetail.tagsJson).length
-                      ? parseTags(visibleDetail.tagsJson).map((tag) => <Badge key={tag} className="bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{tag}</Badge>)
-                      : <span className="text-sm text-muted">暂无标签</span>}
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                    简要标准答案
+                  </h3>
+                  <div className="mt-3 rounded-lg border border-border bg-slate-50 p-4 text-sm leading-6 dark:bg-secondary">
+                    {visibleDetail.answer}
                   </div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">多模态内容</h3>
-                  <DetailAssets item={visibleDetail} onPreview={(images, index) => setLightbox({ images, index })} />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                    标签
+                  </h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {parseTags(visibleDetail.tagsJson).length ? (
+                      parseTags(visibleDetail.tagsJson).map((tag) => (
+                        <Badge
+                          key={tag}
+                          className="bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary"
+                        >
+                          {tag}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted">暂无标签</span>
+                    )}
+                  </div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">分片内容</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                    多模态内容
+                  </h3>
+                  <DetailAssets
+                    item={visibleDetail}
+                    onPreview={(images, index) => setLightbox({ images, index })}
+                  />
+                </section>
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                    分片内容
+                  </h3>
                   <div className="mt-3 flex flex-col gap-2">
                     {visibleDetail.chunks?.length ? (
                       visibleDetail.chunks.map((chunk) => (
-                        <div key={chunk.id} className="rounded border border-border bg-white p-3 text-sm leading-6 dark:bg-card">
+                        <div
+                          key={chunk.id}
+                          className="rounded border border-border bg-white p-3 text-sm leading-6 dark:bg-card"
+                        >
                           {chunk.chunkText}
                         </div>
                       ))
@@ -371,7 +448,7 @@ export function KnowledgeTable({
 
 function DetailAssets({
   item,
-  onPreview
+  onPreview,
 }: {
   item: KnowledgeItemRow;
   onPreview: (images: string[], index: number) => void;
@@ -387,7 +464,9 @@ function DetailAssets({
       <div className="flex min-w-56 items-center gap-3 rounded-lg border border-border bg-white p-3 dark:bg-card">
         <FileText className="size-5 text-red-500" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.sourceFile || "手动录入知识"}</div>
+          <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
+            {item.sourceFile || "手动录入知识"}
+          </div>
           <div className="text-xs text-muted">{item.sourceType}</div>
         </div>
       </div>

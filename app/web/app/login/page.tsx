@@ -28,10 +28,26 @@ export default async function LoginPage() {
             <h2 className="mt-3 text-2xl font-medium text-primary">智能赋能 · 专业高效</h2>
             <div className="mt-12 flex flex-col gap-8">
               {[
-                { icon: Bot, title: "AI 智能问答", text: "基于知识库的智能问答，快速精准解答门店业务问题" },
-                { icon: BookOpen, title: "知识统一管理", text: "知识集中沉淀与管理，保障信息准确与一致" },
-                { icon: BarChart3, title: "数据驱动决策", text: "多维度统计分析，洞察业务趋势，助力科学决策" },
-                { icon: ShieldCheck, title: "安全合规可靠", text: "企业级安全防护与权限管控，确保数据安全合规" }
+                {
+                  icon: Bot,
+                  title: "AI 智能问答",
+                  text: "基于知识库的智能问答，快速精准解答门店业务问题",
+                },
+                {
+                  icon: BookOpen,
+                  title: "知识统一管理",
+                  text: "知识集中沉淀与管理，保障信息准确与一致",
+                },
+                {
+                  icon: BarChart3,
+                  title: "数据驱动决策",
+                  text: "多维度统计分析，洞察业务趋势，助力科学决策",
+                },
+                {
+                  icon: ShieldCheck,
+                  title: "安全合规可靠",
+                  text: "企业级安全防护与权限管控，确保数据安全合规",
+                },
               ].map((item) => {
                 const Icon = item.icon;
                 return (

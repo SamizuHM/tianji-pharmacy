@@ -6,7 +6,7 @@ import { buildUser } from "../../../helpers/factories";
 
 vi.mock("@/lib/auth/session", () => ({
   createSession: vi.fn(),
-  roleHome: vi.fn((role: string) => role === "staff" ? "/staff/chat" : "/agent/tickets"),
+  roleHome: vi.fn((role: string) => (role === "staff" ? "/staff/chat" : "/agent/tickets")),
 }));
 
 describe("POST /api/auth/login", () => {

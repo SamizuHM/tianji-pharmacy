@@ -62,9 +62,33 @@ describe("tickets 补全测试", () => {
       prisma.ticket.findUnique.mockResolvedValue(
         buildTicket({
           messages: [
-            { id: "m1", senderRole: "system", messageType: "system", content: "系统消息", attachments: null, createdAt: new Date(), senderUser: null },
-            { id: "m2", senderRole: "user", messageType: "text", content: "用户问题", attachments: null, createdAt: new Date(), senderUser: { displayName: "用户A" } },
-            { id: "m3", senderRole: "agent", messageType: "text", content: "客服回复", attachments: null, createdAt: new Date(), senderUser: { displayName: "客服B" } },
+            {
+              id: "m1",
+              senderRole: "system",
+              messageType: "system",
+              content: "系统消息",
+              attachments: null,
+              createdAt: new Date(),
+              senderUser: null,
+            },
+            {
+              id: "m2",
+              senderRole: "user",
+              messageType: "text",
+              content: "用户问题",
+              attachments: null,
+              createdAt: new Date(),
+              senderUser: { displayName: "用户A" },
+            },
+            {
+              id: "m3",
+              senderRole: "agent",
+              messageType: "text",
+              content: "客服回复",
+              attachments: null,
+              createdAt: new Date(),
+              senderUser: { displayName: "客服B" },
+            },
           ],
         })
       );
@@ -125,7 +149,15 @@ describe("tickets 补全测试", () => {
         buildTicket({
           status: "resolved",
           messages: [
-            { id: "m1", senderRole: "system", messageType: "system", content: "系统消息", attachments: null, createdAt: new Date(), senderUser: null },
+            {
+              id: "m1",
+              senderRole: "system",
+              messageType: "system",
+              content: "系统消息",
+              attachments: null,
+              createdAt: new Date(),
+              senderUser: null,
+            },
           ],
         })
       );
@@ -145,13 +177,29 @@ describe("tickets 补全测试", () => {
         ticketNo: "TK001",
         title: "测试工单",
         messages: [
-          { id: "tm:user1", senderRole: "user", messageType: "text", content: "用户问题内容", attachments: null, createdAt: new Date("2025-01-01"), senderUser: { displayName: "用户A" } },
-          { id: "tm:agent1", senderRole: "agent", messageType: "text", content: "客服回答内容", attachments: null, createdAt: new Date("2025-01-01"), senderUser: { displayName: "客服B" } },
+          {
+            id: "tm:user1",
+            senderRole: "user",
+            messageType: "text",
+            content: "用户问题内容",
+            attachments: null,
+            createdAt: new Date("2025-01-01"),
+            senderUser: { displayName: "用户A" },
+          },
+          {
+            id: "tm:agent1",
+            senderRole: "agent",
+            messageType: "text",
+            content: "客服回答内容",
+            attachments: null,
+            createdAt: new Date("2025-01-01"),
+            senderUser: { displayName: "客服B" },
+          },
         ],
       });
       prisma.ticket.findUnique
-        .mockResolvedValueOnce(ticket)   // generateTicketKnowledgeDraft 中查找
-        .mockResolvedValue(ticket);      // getTicketKnowledgeMaterials 中查找
+        .mockResolvedValueOnce(ticket) // generateTicketKnowledgeDraft 中查找
+        .mockResolvedValue(ticket); // getTicketKnowledgeMaterials 中查找
 
       (generateTicketKnowledgeDraftWithModel as ReturnType<typeof vi.fn>).mockResolvedValue({
         categoryL1: "用药咨询",

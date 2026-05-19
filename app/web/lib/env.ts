@@ -1,8 +1,9 @@
 import path from "node:path";
 import fs from "node:fs";
 
-export const repoRoot =
-  process.cwd().endsWith(path.join("app", "web")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
+export const repoRoot = process.cwd().endsWith(path.join("app", "web"))
+  ? path.resolve(process.cwd(), "..", "..")
+  : process.cwd();
 
 loadRootEnvFile();
 
@@ -39,7 +40,11 @@ function stringEnv(key: string, fallback: string) {
   return value && value.trim() ? value : fallback;
 }
 
-function numberEnv(key: string, fallback: number, options?: { integer?: boolean; min?: number; max?: number }) {
+function numberEnv(
+  key: string,
+  fallback: number,
+  options?: { integer?: boolean; min?: number; max?: number }
+) {
   const raw = process.env[key];
   const value = raw && raw.trim() ? Number(raw) : fallback;
   if (!Number.isFinite(value)) {
@@ -58,7 +63,10 @@ function numberEnv(key: string, fallback: number, options?: { integer?: boolean;
 }
 
 export const env = {
-  DATABASE_URL: stringEnv("DATABASE_URL", "postgresql://tianji:tianji_password@127.0.0.1:5432/tianji_pharmacy?schema=public"),
+  DATABASE_URL: stringEnv(
+    "DATABASE_URL",
+    "postgresql://tianji:tianji_password@127.0.0.1:5432/tianji_pharmacy?schema=public"
+  ),
   OPENAI_BASE_URL: stringEnv("OPENAI_BASE_URL", "http://127.0.0.1:9999/v1"),
   OPENAI_API_KEY: stringEnv("OPENAI_API_KEY", "demo-key"),
   OPENAI_MODEL: stringEnv("OPENAI_MODEL", "qwen3.5-27b"),
@@ -72,7 +80,7 @@ export const env = {
   EMBEDDING_SERVICE_URL: stringEnv("EMBEDDING_SERVICE_URL", "http://127.0.0.1:8001/embed"),
   RERANK_SERVICE_URL: stringEnv("RERANK_SERVICE_URL", "http://127.0.0.1:8001/rerank"),
   ML_SERVICE_URL: stringEnv("ML_SERVICE_URL", "http://127.0.0.1:8001"),
-  SESSION_TTL_HOURS: numberEnv("SESSION_TTL_HOURS", 72, { integer: true, min: 1 })
+  SESSION_TTL_HOURS: numberEnv("SESSION_TTL_HOURS", 72, { integer: true, min: 1 }),
 };
 
 export const uploadDirAbsolute = path.isAbsolute(env.UPLOAD_DIR)

@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Ticket, User } from "@prisma/client";
-import { CheckCircle2, CircleCheck, Clock3, FileText, Filter, Pin, Search, Ticket as TicketIcon } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleCheck,
+  Clock3,
+  FileText,
+  Filter,
+  Pin,
+  Search,
+  Ticket as TicketIcon,
+} from "lucide-react";
 import { useTransition } from "react";
 
 import { MetricCard } from "@/components/shared/metric-card";
@@ -59,7 +68,7 @@ export function TicketList(props: {
     { key: "processing", label: "处理中", count: result.summary.processing },
     { key: "escalated", label: "已升级", count: result.summary.escalated },
     { key: "resolved", label: "已解决", count: result.summary.resolved },
-    { key: "closed", label: "已关闭", count: result.summary.closed }
+    { key: "closed", label: "已关闭", count: result.summary.closed },
   ];
 
   return (
@@ -79,7 +88,14 @@ export function TicketList(props: {
               onClick={() => update({ statusGroup: tab.key })}
             >
               {tab.label}
-              <span className={cn("ml-2 text-xs", props.currentStatusGroup === tab.key ? "text-blue-100 dark:text-primary" : "text-slate-400 dark:text-muted")}>
+              <span
+                className={cn(
+                  "ml-2 text-xs",
+                  props.currentStatusGroup === tab.key
+                    ? "text-blue-100 dark:text-primary"
+                    : "text-slate-400 dark:text-muted"
+                )}
+              >
                 {tab.count}
               </span>
             </button>
@@ -91,7 +107,12 @@ export function TicketList(props: {
         >
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-muted" />
-            <Input name="q" defaultValue={props.q} placeholder="搜索工单编号、问题摘要、创建人" className="pl-9" />
+            <Input
+              name="q"
+              defaultValue={props.q}
+              placeholder="搜索工单编号、问题摘要、创建人"
+              className="pl-9"
+            />
           </div>
           <Button type="submit" variant="outline">
             <Filter className="size-4" />
@@ -101,14 +122,61 @@ export function TicketList(props: {
       </div>
 
       <div>
-        <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-foreground">今日工单概览</h2>
-        <div className={cn("grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-6", isPending && "opacity-60")}>
-          <MetricCard label="待认领" value={result.summary.pending} description="等待人工响应" icon={FileText} tone="blue" trend="12.5%" />
-          <MetricCard label="处理中" value={result.summary.processing} description="已有人工回复" icon={Clock3} tone="orange" trend="6.7%" />
-          <MetricCard label="已升级" value={result.summary.escalated} description="部门跟进" icon={Pin} tone="purple" trend="2.3%" />
-          <MetricCard label="已解决" value={result.summary.resolved} description="等待知识整理" icon={CircleCheck} tone="indigo" />
-          <MetricCard label="已关闭" value={result.summary.closed} description="闭环归档" icon={CheckCircle2} tone="green" trend="18.4%" />
-          <MetricCard label="今日总量" value={result.summary.all} description={props.title} icon={TicketIcon} tone="indigo" />
+        <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-foreground">
+          今日工单概览
+        </h2>
+        <div
+          className={cn(
+            "grid gap-4 transition-opacity duration-150 md:grid-cols-2 xl:grid-cols-6",
+            isPending && "opacity-60"
+          )}
+        >
+          <MetricCard
+            label="待认领"
+            value={result.summary.pending}
+            description="等待人工响应"
+            icon={FileText}
+            tone="blue"
+            trend="12.5%"
+          />
+          <MetricCard
+            label="处理中"
+            value={result.summary.processing}
+            description="已有人工回复"
+            icon={Clock3}
+            tone="orange"
+            trend="6.7%"
+          />
+          <MetricCard
+            label="已升级"
+            value={result.summary.escalated}
+            description="部门跟进"
+            icon={Pin}
+            tone="purple"
+            trend="2.3%"
+          />
+          <MetricCard
+            label="已解决"
+            value={result.summary.resolved}
+            description="等待知识整理"
+            icon={CircleCheck}
+            tone="indigo"
+          />
+          <MetricCard
+            label="已关闭"
+            value={result.summary.closed}
+            description="闭环归档"
+            icon={CheckCircle2}
+            tone="green"
+            trend="18.4%"
+          />
+          <MetricCard
+            label="今日总量"
+            value={result.summary.all}
+            description={props.title}
+            icon={TicketIcon}
+            tone="indigo"
+          />
         </div>
       </div>
 
@@ -134,21 +202,30 @@ export function TicketList(props: {
               ) : (
                 result.items.map((ticket) => (
                   <tr key={ticket.id}>
-                    <TD className="font-medium text-slate-900 dark:text-foreground">{ticket.ticketNo}</TD>
+                    <TD className="font-medium text-slate-900 dark:text-foreground">
+                      {ticket.ticketNo}
+                    </TD>
                     <TD>
                       <div className="max-w-[280px]">
-                        <div className="truncate font-medium text-slate-900 dark:text-foreground">{ticket.title}</div>
-                        <div className="mt-1 truncate text-xs text-muted">{ticket.latestUserQuestion}</div>
+                        <div className="truncate font-medium text-slate-900 dark:text-foreground">
+                          {ticket.title}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted">
+                          {ticket.latestUserQuestion}
+                        </div>
                       </div>
                     </TD>
                     <TD>
-                      <Badge className="border border-blue-100 bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">{ticket.category}</Badge>
+                      <Badge className="border border-blue-100 bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                        {ticket.category}
+                      </Badge>
                     </TD>
                     <TD>
                       <TicketStatusBadge status={ticket.status} />
                     </TD>
                     <TD>
-                      {ticket.claimedBy?.displayName || (ticket.status === "pending_claim" ? "待认领" : "-")}
+                      {ticket.claimedBy?.displayName ||
+                        (ticket.status === "pending_claim" ? "待认领" : "-")}
                     </TD>
                     <TD>
                       <PriorityBadge priority={ticket.priority} />
@@ -170,7 +247,9 @@ export function TicketList(props: {
               )}
             </TBody>
           </Table>
-          {!result.items.length ? <div className="px-4 py-12 text-center text-sm text-muted">暂无工单</div> : null}
+          {!result.items.length ? (
+            <div className="px-4 py-12 text-center text-sm text-muted">暂无工单</div>
+          ) : null}
         </div>
         <PaginationBar
           total={result.total}

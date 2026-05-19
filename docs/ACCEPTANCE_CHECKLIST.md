@@ -94,7 +94,7 @@ curl http://127.0.0.1:8001/health
 预期：
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 ### Web

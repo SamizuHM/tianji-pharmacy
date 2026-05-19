@@ -6,10 +6,7 @@ import { getRuntimeSettings } from "@/lib/services/settings";
 import { requireUser } from "@/lib/auth/session";
 
 export default async function AdminSettingsPage() {
-  const [settings, user] = await Promise.all([
-    getRuntimeSettings(),
-    requireUser()
-  ]);
+  const [settings, user] = await Promise.all([getRuntimeSettings(), requireUser()]);
 
   return (
     <Tabs defaultValue="params">
@@ -29,7 +26,9 @@ export default async function AdminSettingsPage() {
           <CardContent>
             <ThemeSettings
               currentTheme={user.sidebarTheme}
-              currentColorMode={(user as { colorMode?: "light" | "dark" | "system" }).colorMode ?? "system"}
+              currentColorMode={
+                (user as { colorMode?: "light" | "dark" | "system" }).colorMode ?? "system"
+              }
             />
           </CardContent>
         </Card>

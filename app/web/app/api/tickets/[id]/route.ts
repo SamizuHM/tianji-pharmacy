@@ -16,12 +16,14 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "工单不存在" }, { status: 404 });
   }
 
-  if (!canAccessTicket({
-    role: user.role,
-    userId: user.id,
-    userDepartmentName: user.department?.name ?? null,
-    ticket
-  })) {
+  if (
+    !canAccessTicket({
+      role: user.role,
+      userId: user.id,
+      userDepartmentName: user.department?.name ?? null,
+      ticket,
+    })
+  ) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

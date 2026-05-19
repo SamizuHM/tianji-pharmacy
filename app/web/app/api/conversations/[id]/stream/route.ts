@@ -24,18 +24,21 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const subscription = subscribeStream(messageId);
   if (!subscription) {
     // 流已经不存在（可能已完成或超时），返回空流
-    return new Response(new ReadableStream({
-      start(controller) {
-        const encoder = new TextEncoder();
-        controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
-        controller.close();
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+          controller.close();
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+        },
       }
-    }), {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform"
-      }
-    });
+    );
   }
 
   const encoder = new TextEncoder();
@@ -44,13 +47,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     start(controller) {
       // 先发送已有的 buffer 内容
       for (const delta of subscription.existingDeltas) {
-        controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: delta })}\n\n`));
+        controller.enqueue(
+          encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: delta })}\n\n`)
+        );
       }
 
       // 订阅后续 delta
       subscription.onDelta((delta) => {
         try {
-          controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: delta })}\n\n`));
+          controller.enqueue(
+            encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: delta })}\n\n`)
+          );
         } catch {
           // 客户端断开
         }
@@ -67,13 +74,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     },
     cancel() {
       subscription.unsubscribe();
-    }
+    },
   });
 
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform"
-    }
+      "Cache-Control": "no-cache, no-transform",
+    },
   });
 }

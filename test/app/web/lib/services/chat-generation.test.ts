@@ -140,7 +140,9 @@ describe("createAssistantGenerationStream", () => {
       queryText: "测试",
       retrievalDebug: [],
     });
-    (streamGeneralPharmacyAnswer as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("LLM 服务异常"));
+    (streamGeneralPharmacyAnswer as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("LLM 服务异常")
+    );
     // prisma.chatMessage.update 在错误处理中被调用，需要 mock
     prisma.chatMessage.update.mockResolvedValue({});
 

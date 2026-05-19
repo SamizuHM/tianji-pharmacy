@@ -10,12 +10,15 @@ export default async function AgentTicketDetailPage(props: { params: Promise<{ i
   const { id } = await props.params;
   const ticket = await getTicketDetail(id);
 
-  if (!ticket || !canAccessTicket({
-    role: user.role,
-    userId: user.id,
-    userDepartmentName: user.department?.name ?? null,
-    ticket
-  })) {
+  if (
+    !ticket ||
+    !canAccessTicket({
+      role: user.role,
+      userId: user.id,
+      userDepartmentName: user.department?.name ?? null,
+      ticket,
+    })
+  ) {
     notFound();
   }
 
@@ -25,10 +28,10 @@ export default async function AgentTicketDetailPage(props: { params: Promise<{ i
         include: {
           users: {
             select: { id: true, displayName: true },
-            orderBy: { displayName: "asc" }
-          }
+            orderBy: { displayName: "asc" },
+          },
         },
-        orderBy: { name: "asc" }
+        orderBy: { name: "asc" },
       })
     : undefined;
 

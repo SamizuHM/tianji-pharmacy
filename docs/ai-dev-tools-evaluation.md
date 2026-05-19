@@ -128,6 +128,7 @@ Agent 将整个开发拆分为多个阶段，每个阶段有明确的交付物�
 ```
 
 **配合 Git 进行版本控制**：Claude Code 和 Codex CLI 都能自主执行 Git 操作。每完成一个功能模块，Agent 会自动提交代码，形成清晰的提交历史。这意味着：
+
 - 每次修改都有记录，随时可以回退
 - 可以按功能模块查看变更历史
 - 出问题时 `git diff` 和 `git revert` 是安全网
@@ -135,12 +136,14 @@ Agent 将整个开发拆分为多个阶段，每个阶段有明确的交付物�
 **遇到外部知识盲区时的两种解决路径**：
 
 路径一：**人工切换到 ChatGPT**。当 Agent 遇到不熟悉的 API、最新文档中的变更、或需要对比多种方案时，开发者手动切换到 ChatGPT 网页端：
+
 - 查询 DashScope API 的最新调用方式
 - 对比不同 Embedding 模型的效果
 - 讨论 Qdrant 索引优化策略
 - 将 UI 截图发给 ChatGPT 讨论交互改进
 
 路径二：**让 Agent 自主通过 MCP/Skills 获取知识**。这是更高效的方式，Agent 无需人工介入即可获取最新信息：
+
 - 通过 **Context7 MCP Server** 实时查询 Next.js、Prisma、Qdrant 等库的最新文档和 API 变更
 - 通过 **shadcn/ui Skill** 获取组件的最新用法和最佳实践，避免使用过时的 API
 - 通过 **Playwright CLI MCP** 启动浏览器验证 UI 渲染效果，截取页面截图进行自检
@@ -149,6 +152,7 @@ Agent 将整个开发拆分为多个阶段，每个阶段有明确的交付物�
 在实际开发中，两种路径通常是混合使用的：MCP/Skills 解决已知的文档查询需求，ChatGPT 处理更开放的讨论和方案比较。
 
 **人工验证与测试**：AI 生成的代码并非总是正确的。每个功能模块完成后，需要人工验证：
+
 - 界面是否还原了视觉设计
 - 功能逻辑是否正确
 - 边界情况是否处理
@@ -189,12 +193,12 @@ Coding Agent 是指能够直接操作本地文件系统、理解项目上下文�
 - **特色功能**：MCP（Model Context Protocol）工具集成，支持连接外部数据源和服务；Plan 模式用于复杂任务的规划
 - **订阅方式**：
 
-| 计划 | 月费 | 说明 |
-|------|------|------|
-| Pro | $20 | Claude Code 访问权限（2026 年 4 月曾短暂移除后恢复），适合个人开发者 |
-| Max 5x | $100 | 5 倍使用量，适合重度使用 |
-| Max 20x | $200 | 20 倍使用量，适合专业开发 |
-| API | 按量计费 | Haiku 4.5 $1/$5，Sonnet 4.6 $3/$15，Opus 4.7 $5/$25（输入/输出每百万 token） |
+| 计划    | 月费     | 说明                                                                         |
+| ------- | -------- | ---------------------------------------------------------------------------- |
+| Pro     | $20      | Claude Code 访问权限（2026 年 4 月曾短暂移除后恢复），适合个人开发者         |
+| Max 5x  | $100     | 5 倍使用量，适合重度使用                                                     |
+| Max 20x | $200     | 20 倍使用量，适合专业开发                                                    |
+| API     | 按量计费 | Haiku 4.5 $1/$5，Sonnet 4.6 $3/$15，Opus 4.7 $5/$25（输入/输出每百万 token） |
 
 #### OpenAI Codex
 
@@ -205,10 +209,10 @@ Coding Agent 是指能够直接操作本地文件系统、理解项目上下文�
 - **特色功能**：Rust 构建的轻量运行时，沙箱执行环境，GitHub Actions 集成，Codex Web 网页端（沙箱环境中异步执行任务）
 - **订阅方式**：无独立订阅，包含在 ChatGPT Plus 以上订阅中
 
-| 包含 Codex 的 ChatGPT 计划 | 月费 | Codex 权限 |
-|------|------|------|
-| Plus | $20 | 标准 Codex 访问 |
-| Pro | $100 | 最大 Codex 访问权限，旗舰模型 |
+| 包含 Codex 的 ChatGPT 计划 | 月费 | Codex 权限                    |
+| -------------------------- | ---- | ----------------------------- |
+| Plus                       | $20  | 标准 Codex 访问               |
+| Pro                        | $100 | 最大 Codex 访问权限，旗舰模型 |
 
 也可通过 OpenAI API 按量计费（GPT-5.4 约 $2.50/$15 每百万输入/输出 token）
 
@@ -221,13 +225,13 @@ Coding Agent 是指能够直接操作本地文件系统、理解项目上下文�
 - **特色功能**：可视化 Diff、多模型切换、代码库索引、MCP/Skills/Hooks 支持
 - **订阅方式**：
 
-| 计划 | 月费 | 说明 |
-|------|------|------|
-| Free | $0 | 基础功能，有限 AI 请求 |
-| Pro | $20 | 高级模型访问，适合个人 |
-| Pro+ | $60 | 更多额度 |
-| Ultra | $200 | 无限制使用 |
-| Teams | $40/人 | 团队协作 |
+| 计划  | 月费   | 说明                   |
+| ----- | ------ | ---------------------- |
+| Free  | $0     | 基础功能，有限 AI 请求 |
+| Pro   | $20    | 高级模型访问，适合个人 |
+| Pro+  | $60    | 更多额度               |
+| Ultra | $200   | 无限制使用             |
+| Teams | $40/人 | 团队协作               |
 
 > **Claude Code vs Codex vs Cursor 的选择**：三者定位有重叠但各有侧重。Claude Code 和 Codex 最初是终端工具，后续也已发布桌面端面向更广泛的用户。Cursor 最初是 IDE，后来推出 CLI 进入终端领域。Cursor IDE 在可视化编辑体验上有优势（图形化 Diff、Tab 补全），而 Claude Code/Codex 在终端深度操作和长任务自动化方面更成熟。很多开发者会组合使用——Cursor IDE 日常编码 + Claude Code/Codex CLI 处理复杂任务。
 
@@ -239,39 +243,39 @@ Coding Agent 是指能够直接操作本地文件系统、理解项目上下文�
 - **特色功能**：与 GitHub 仓库/PR/Issues 深度联动，支持自定义 Copilot 扩展，企业版提供知识库索引
 - **订阅方式**：
 
-| 计划 | 月费 | 说明 |
-|------|------|------|
-| Free | $0 | 基础补全和聊天，有限额 |
-| Pro | $10 | 高级模型访问，Agent 模式 |
-| Pro+ | $39 | 旗舰模型（Opus、GPT-5.5），更高速率 |
-| Business | $19/人 | 团队管理，策略控制 |
-| Enterprise | $39/人 | 知识库索引，组织级定制 |
+| 计划       | 月费   | 说明                                |
+| ---------- | ------ | ----------------------------------- |
+| Free       | $0     | 基础补全和聊天，有限额              |
+| Pro        | $10    | 高级模型访问，Agent 模式            |
+| Pro+       | $39    | 旗舰模型（Opus、GPT-5.5），更高速率 |
+| Business   | $19/人 | 团队管理，策略控制                  |
+| Enterprise | $39/人 | 知识库索引，组织级定制              |
 
 #### 其他值得关注的产品
 
-| 工具 | 定位 | 月费 | 特点 |
-|------|------|------|------|
-| **Windsurf**（原 Codeium） | AI IDE | Free / Pro $15-20 | 被 Cognition 收购，免费层最慷慨，Cascade Agent |
-| **Lovable** | Prompt-to-App | 免费起步 | 自然语言生成完整应用 |
-| **Bolt**（StackBlitz） | Prompt-to-App | 免费起步 | 浏览器内全栈开发 |
-| **v0**（Vercel） | UI 生成 | 免费起步 | 专注前端组件生成，与 shadcn/ui 生态深度整合 |
-| **Gemini CLI** | 终端 Agent | 免费起步 | Google 推出，Gemini 模型驱动。Coding Agent 能力目前落后于 CC/Codex |
+| 工具                       | 定位          | 月费              | 特点                                                               |
+| -------------------------- | ------------- | ----------------- | ------------------------------------------------------------------ |
+| **Windsurf**（原 Codeium） | AI IDE        | Free / Pro $15-20 | 被 Cognition 收购，免费层最慷慨，Cascade Agent                     |
+| **Lovable**                | Prompt-to-App | 免费起步          | 自然语言生成完整应用                                               |
+| **Bolt**（StackBlitz）     | Prompt-to-App | 免费起步          | 浏览器内全栈开发                                                   |
+| **v0**（Vercel）           | UI 生成       | 免费起步          | 专注前端组件生成，与 shadcn/ui 生态深度整合                        |
+| **Gemini CLI**             | 终端 Agent    | 免费起步          | Google 推出，Gemini 模型驱动。Coding Agent 能力目前落后于 CC/Codex |
 
 ### 视觉设计工具
 
-| 工具 | 定位 | 费用 | 说明 |
-|------|------|------|------|
-| **GPT Image**（ChatGPT 内置） | 图片生成/视觉稿 | ChatGPT Plus $20 | gpt-image-2 模型，文字描述即可生成 UI 效果图 |
-| **Google Stitch** | UI 设计 | 免费 | 输入图片或文字，生成 UI 设计并可导出 HTML/Figma |
-| **v0**（Vercel） | 前端组件生成 | 免费起步 | 文字描述生成 React 组件代码 |
+| 工具                          | 定位            | 费用             | 说明                                            |
+| ----------------------------- | --------------- | ---------------- | ----------------------------------------------- |
+| **GPT Image**（ChatGPT 内置） | 图片生成/视觉稿 | ChatGPT Plus $20 | gpt-image-2 模型，文字描述即可生成 UI 效果图    |
+| **Google Stitch**             | UI 设计         | 免费             | 输入图片或文字，生成 UI 设计并可导出 HTML/Figma |
+| **v0**（Vercel）              | 前端组件生成    | 免费起步         | 文字描述生成 React 组件代码                     |
 
 ### 对话类工具（知识获取与设计讨论）
 
-| 工具 | 月费 | 核心用途 |
-|------|------|---------|
-| **ChatGPT** | Free $0 / Go $8 / Plus $20 / Pro $100 | 多模态对话、联网搜索、图片生成、需求讨论；Plus 及以上含 Codex 编码智能体 |
-| **Claude.ai** | Free $0 / Pro $20 / Max $100-$200 | 长文本分析、代码理解、深度推理 |
-| **Gemini** | Free $0 / AI Plus $7.99 / AI Pro $19.99 / AI Ultra $249.99 | 多模态理解、Google 生态集成；Pro 含 Gemini CLI、Jules 编码 Agent、Antigravity 开发平台 |
+| 工具          | 月费                                                       | 核心用途                                                                               |
+| ------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **ChatGPT**   | Free $0 / Go $8 / Plus $20 / Pro $100                      | 多模态对话、联网搜索、图片生成、需求讨论；Plus 及以上含 Codex 编码智能体               |
+| **Claude.ai** | Free $0 / Pro $20 / Max $100-$200                          | 长文本分析、代码理解、深度推理                                                         |
+| **Gemini**    | Free $0 / AI Plus $7.99 / AI Pro $19.99 / AI Ultra $249.99 | 多模态理解、Google 生态集成；Pro 含 Gemini CLI、Jules 编码 Agent、Antigravity 开发平台 |
 
 ### MCP 与 Skills：让 Agent 连接真实世界
 
@@ -303,13 +307,13 @@ AI Agent（Claude Code / Cursor / Copilot 等）
 
 **实际开发中常用的 MCP Server**：
 
-| MCP Server | 用途 | 说明 |
-|------------|------|------|
-| **Context7** | 库文档查询 | Agent 实时查询任何 npm/Python 包的最新文档和 API 用法，解决训练数据过时的问题 |
-| **Playwright CLI** | 浏览器自动化 | Agent 可以启动浏览器、导航页面、截图、点击元素，用于 UI 测试和网页数据提取 |
-| **Chrome DevTools** | 浏览器调试 | 连接 Chrome 开发者工具，读取 Console 日志、网络请求、DOM 结构等调试信息 |
-| **Postgres / Supabase** | 数据库操作 | 直接查询和操作数据库，无需手写 SQL 脚本 |
-| **GitHub** | 代码托管 | 操作 PR、Issues、代码审查等 GitHub 工作流 |
+| MCP Server              | 用途         | 说明                                                                          |
+| ----------------------- | ------------ | ----------------------------------------------------------------------------- |
+| **Context7**            | 库文档查询   | Agent 实时查询任何 npm/Python 包的最新文档和 API 用法，解决训练数据过时的问题 |
+| **Playwright CLI**      | 浏览器自动化 | Agent 可以启动浏览器、导航页面、截图、点击元素，用于 UI 测试和网页数据提取    |
+| **Chrome DevTools**     | 浏览器调试   | 连接 Chrome 开发者工具，读取 Console 日志、网络请求、DOM 结构等调试信息       |
+| **Postgres / Supabase** | 数据库操作   | 直接查询和操作数据库，无需手写 SQL 脚本                                       |
+| **GitHub**              | 代码托管     | 操作 PR、Issues、代码审查等 GitHub 工作流                                     |
 
 #### Skills（技能文档）
 
@@ -317,10 +321,10 @@ Skills 是 Claude Code 的另一种扩展机制。与 MCP 的实时连接不同�
 
 **与 MCP 的区别**：
 
-| | MCP | Skills |
-|---|---|---|
-| **形式** | 运行中的服务进程 | 静态 Markdown 文档 |
-| **连接方式** | 实时 JSON-RPC 通信 | 文本注入上下文 |
+|              | MCP                                  | Skills                 |
+| ------------ | ------------------------------------ | ---------------------- |
+| **形式**     | 运行中的服务进程                     | 静态 Markdown 文档     |
+| **连接方式** | 实时 JSON-RPC 通信                   | 文本注入上下文         |
 | **适用场景** | 需要动态交互（查询 API、操作浏览器） | 提供领域知识和最佳实践 |
 
 **实际开发中使用的 Skills 示例**：
@@ -344,13 +348,13 @@ OpenAI 早期定义的 `/v1/chat/completions` 等 API 接口格式已成为事�
 
 以下国内模型提供商均支持 OpenAI 兼容 API，可通过修改 `base_url` 直接接入各种 Coding Agent：
 
-| 提供商 | 代表模型 | API 价格（每百万 token，输入/输出） | 特点 |
-|--------|---------|-----------|------|
-| **DeepSeek** | V4-Pro, V4-Flash | V4-Flash: ¥0.02-1 / ¥2；V4-Pro: ¥0.1-3 / ¥6（限时 2.5 折） | 性价比极高，新用户送 500 万 token |
-| **智谱 GLM** | GLM-5.1, GLM-5, GLM-4.7 | GLM-5.1: ¥6-8 / ¥24-28；GLM-4.7: ¥2-4 / ¥8-16 | 国产头部模型，GLM-5.1 面向长程任务设计，支持 8 小时自主工作 |
-| **Kimi**（月之暗面） | K2.6 | ¥6.5 / ¥27（缓存命中 ¥1.1） | 262K 超长上下文，Agent 能力强 |
-| **MiniMax** | M2.7, M2.5 | M2.7: ¥2.1 / ¥8.4（缓存读取 ¥0.42） | M2.7 开源排名第一 |
-| **小米 MiMo** | MiMo-V2.5-Pro, MiMo-V2.5 | V2.5-Pro: ¥1.4-7.0 / ¥21（缓存命中 ¥1.4）；V2.5: ¥0.56-2.8 / ¥14 | 小米自研模型，支持全模态和语音合成，Artificial Analysis 排名靠前 |
+| 提供商               | 代表模型                 | API 价格（每百万 token，输入/输出）                              | 特点                                                             |
+| -------------------- | ------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **DeepSeek**         | V4-Pro, V4-Flash         | V4-Flash: ¥0.02-1 / ¥2；V4-Pro: ¥0.1-3 / ¥6（限时 2.5 折）       | 性价比极高，新用户送 500 万 token                                |
+| **智谱 GLM**         | GLM-5.1, GLM-5, GLM-4.7  | GLM-5.1: ¥6-8 / ¥24-28；GLM-4.7: ¥2-4 / ¥8-16                    | 国产头部模型，GLM-5.1 面向长程任务设计，支持 8 小时自主工作      |
+| **Kimi**（月之暗面） | K2.6                     | ¥6.5 / ¥27（缓存命中 ¥1.1）                                      | 262K 超长上下文，Agent 能力强                                    |
+| **MiniMax**          | M2.7, M2.5               | M2.7: ¥2.1 / ¥8.4（缓存读取 ¥0.42）                              | M2.7 开源排名第一                                                |
+| **小米 MiMo**        | MiMo-V2.5-Pro, MiMo-V2.5 | V2.5-Pro: ¥1.4-7.0 / ¥21（缓存命中 ¥1.4）；V2.5: ¥0.56-2.8 / ¥14 | 小米自研模型，支持全模态和语音合成，Artificial Analysis 排名靠前 |
 
 ### Coding Agent 订阅计划
 
@@ -358,31 +362,31 @@ OpenAI 早期定义的 `/v1/chat/completions` 等 API 接口格式已成为事�
 
 **国际厂商**：
 
-| 厂商 | Coding Agent | 订阅方式 | 说明 |
-|------|-------------|---------|------|
-| **Anthropic** | Claude Code | Pro $20 / Max $100 / Max $200 | 终端 + 桌面端编程 Agent，包含在 Claude 订阅中 |
-| **OpenAI** | Codex CLI | ChatGPT Plus $20 / Pro $100 | 包含在 ChatGPT 订阅中，Plus 含基础 Codex，Pro 含最大访问权限。无独立订阅 |
-| **Google** | Gemini CLI + Jules + Antigravity | AI Pro $19.99 / AI Ultra $249.99 | Pro 含 Gemini CLI 和 Jules 异步编码 Agent；Ultra 含最高限额。CLI 的 Coding Agent 能力目前落后于 CC/Codex，生态影响力较小 |
-| **Cursor** | Cursor IDE + CLI | Free / Pro $20 / Pro+ $60 / Ultra $200 | IDE 起家，2025 年 8 月推出 CLI 进入终端领域，订阅覆盖 IDE 和 CLI 两种形态 |
+| 厂商          | Coding Agent                     | 订阅方式                               | 说明                                                                                                                     |
+| ------------- | -------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Anthropic** | Claude Code                      | Pro $20 / Max $100 / Max $200          | 终端 + 桌面端编程 Agent，包含在 Claude 订阅中                                                                            |
+| **OpenAI**    | Codex CLI                        | ChatGPT Plus $20 / Pro $100            | 包含在 ChatGPT 订阅中，Plus 含基础 Codex，Pro 含最大访问权限。无独立订阅                                                 |
+| **Google**    | Gemini CLI + Jules + Antigravity | AI Pro $19.99 / AI Ultra $249.99       | Pro 含 Gemini CLI 和 Jules 异步编码 Agent；Ultra 含最高限额。CLI 的 Coding Agent 能力目前落后于 CC/Codex，生态影响力较小 |
+| **Cursor**    | Cursor IDE + CLI                 | Free / Pro $20 / Pro+ $60 / Ultra $200 | IDE 起家，2025 年 8 月推出 CLI 进入终端领域，订阅覆盖 IDE 和 CLI 两种形态                                                |
 
 **国内厂商**：
 
-| 厂商 | Coding Plan | 月费 | 说明 |
-|------|------------|------|------|
-| **智谱 GLM** | GLM Coding Lite | ¥49 | 3x Claude Pro 用量额度，适合小型 Repo 轻量级迭代 |
-| **智谱 GLM** | GLM Coding Pro | ¥149 | 5x Lite 用量额度，适合中型 Repo 日常开发 |
-| **智谱 GLM** | GLM Coding Max | ¥469 | 20x Lite 用量额度，适合中大型 Repo 深度开发 |
-| **Kimi**（月之暗面） | Kimi Code Andante | ¥49 | 日常使用，支持多个编程会话 |
-| **Kimi**（月之暗面） | Kimi Code Moderato | ¥99 | 效率升级，多设备登录共享额度 |
-| **Kimi**（月之暗面） | Kimi Code Allegretto | ¥199 | 专业优选，更高并发上限 |
-| **Kimi**（月之暗面） | Kimi Code Allegro | ¥699 | 全能尊享，高强度开发需求 |
-| **MiniMax** | Token Plan Starter | ¥29 | 600 次请求/5 小时 |
-| **MiniMax** | Token Plan Plus | ¥49 | 1,500 次请求/5 小时 |
-| **MiniMax** | Token Plan Max | ¥119 | 4,500 次请求/5 小时 |
-| **小米 MiMo** | Token Plan Lite | ¥39 | 6,000 万 Credits/月，首购 ¥34.32 |
-| **小米 MiMo** | Token Plan Standard | ¥99 | 2 亿 Credits/月，首购 ¥87.12 |
-| **小米 MiMo** | Token Plan Pro | ¥329 | 7 亿 Credits/月，首购 ¥289.52 |
-| **小米 MiMo** | Token Plan Max | ¥659 | 16 亿 Credits/月，首购 ¥579.92 |
+| 厂商                 | Coding Plan          | 月费 | 说明                                             |
+| -------------------- | -------------------- | ---- | ------------------------------------------------ |
+| **智谱 GLM**         | GLM Coding Lite      | ¥49  | 3x Claude Pro 用量额度，适合小型 Repo 轻量级迭代 |
+| **智谱 GLM**         | GLM Coding Pro       | ¥149 | 5x Lite 用量额度，适合中型 Repo 日常开发         |
+| **智谱 GLM**         | GLM Coding Max       | ¥469 | 20x Lite 用量额度，适合中大型 Repo 深度开发      |
+| **Kimi**（月之暗面） | Kimi Code Andante    | ¥49  | 日常使用，支持多个编程会话                       |
+| **Kimi**（月之暗面） | Kimi Code Moderato   | ¥99  | 效率升级，多设备登录共享额度                     |
+| **Kimi**（月之暗面） | Kimi Code Allegretto | ¥199 | 专业优选，更高并发上限                           |
+| **Kimi**（月之暗面） | Kimi Code Allegro    | ¥699 | 全能尊享，高强度开发需求                         |
+| **MiniMax**          | Token Plan Starter   | ¥29  | 600 次请求/5 小时                                |
+| **MiniMax**          | Token Plan Plus      | ¥49  | 1,500 次请求/5 小时                              |
+| **MiniMax**          | Token Plan Max       | ¥119 | 4,500 次请求/5 小时                              |
+| **小米 MiMo**        | Token Plan Lite      | ¥39  | 6,000 万 Credits/月，首购 ¥34.32                 |
+| **小米 MiMo**        | Token Plan Standard  | ¥99  | 2 亿 Credits/月，首购 ¥87.12                     |
+| **小米 MiMo**        | Token Plan Pro       | ¥329 | 7 亿 Credits/月，首购 ¥289.52                    |
+| **小米 MiMo**        | Token Plan Max       | ¥659 | 16 亿 Credits/月，首购 ¥579.92                   |
 
 > **选择建议**：如果你主要使用 Claude Code 或 Codex，直接订阅 Anthropic/OpenAI 官方计划即可。如果预算有限或需要使用国内模型，国产 Coding Plan 的性价比很高——GLM Coding Lite 仅 ¥49/月就提供相当于 3x Claude Pro 的额度。许多国内 Coding Plan 还支持接入 Claude Code、Cursor 等主流编程工具，通过兼容 API 即可使用。
 
@@ -406,21 +410,21 @@ API 中转站（也称 API 代理、API Relay）是位于开发者和 LLM 官方
 
 #### 主流中转服务
 
-| 类型 | 代表 | 说明 |
-|------|------|------|
-| 开源网关 | **LiteLLM**（45K+ Stars） | Python 网关，支持 100+ 模型，自建部署 |
-| 开源平台 | **One API**（29K+ Stars） | 国内开发者社区维护，支持十余种模型 |
-| 商业平台 | 302.ai、硅基流动、AIHubProxy 等 | 即开即用，按量计费 |
+| 类型     | 代表                            | 说明                                  |
+| -------- | ------------------------------- | ------------------------------------- |
+| 开源网关 | **LiteLLM**（45K+ Stars）       | Python 网关，支持 100+ 模型，自建部署 |
+| 开源平台 | **One API**（29K+ Stars）       | 国内开发者社区维护，支持十余种模型    |
+| 商业平台 | 302.ai、硅基流动、AIHubProxy 等 | 即开即用，按量计费                    |
 
 #### 风险与弊端（必须了解）
 
-| 风险类型 | 说明 |
-|----------|------|
-| **数据隐私** | 所有请求经过第三方，存在被截获、记录或分析的可能性 |
-| **服务稳定性** | 中转站依赖官方 API Key 池，官方风控可能导致批量封禁、服务中断 |
-| **合规灰色地带** | 转售 API 可能违反官方服务条款 |
-| **资金安全** | 小型中转站存在跑路风险，预充值的余额可能无法追回 |
-| **性能损耗** | 多一跳网络链路，可能增加延迟或超时 |
+| 风险类型         | 说明                                                          |
+| ---------------- | ------------------------------------------------------------- |
+| **数据隐私**     | 所有请求经过第三方，存在被截获、记录或分析的可能性            |
+| **服务稳定性**   | 中转站依赖官方 API Key 池，官方风控可能导致批量封禁、服务中断 |
+| **合规灰色地带** | 转售 API 可能违反官方服务条款                                 |
+| **资金安全**     | 小型中转站存在跑路风险，预充值的余额可能无法追回              |
+| **性能损耗**     | 多一跳网络链路，可能增加延迟或超时                            |
 
 > **建议**：涉及敏感业务数据或生产环境时，优先使用官方 API。中转站适合个人学习、原型验证等非敏感场景。
 
@@ -436,16 +440,16 @@ Intelligence Index 是 Artificial Analysis 的核心模型能力综合评分，�
 
 **当前排名（Top 10）**：
 
-| 排名 | 模型 | 指数得分 | 提供商 |
-|------|------|---------|--------|
-| 1 | **GPT-5.5** | 60 | OpenAI |
-| 2 | **Claude Opus 4.7** | 57 | Anthropic |
-| 2 | **Gemini 3.1 Pro** | 57 | Google |
-| 4 | **Kimi K2.6** | 54 | 月之暗面 |
-| 5 | **Mimo V2.5 Pro** | — | 小米 |
-| 6 | **Grok 4.3** | — | xAI |
-| 7 | **DeepSeek V4 Pro** | — | DeepSeek |
-| 8 | **GLM-5.1** | — | 智谱 |
+| 排名 | 模型                | 指数得分 | 提供商    |
+| ---- | ------------------- | -------- | --------- |
+| 1    | **GPT-5.5**         | 60       | OpenAI    |
+| 2    | **Claude Opus 4.7** | 57       | Anthropic |
+| 2    | **Gemini 3.1 Pro**  | 57       | Google    |
+| 4    | **Kimi K2.6**       | 54       | 月之暗面  |
+| 5    | **Mimo V2.5 Pro**   | —        | 小米      |
+| 6    | **Grok 4.3**        | —        | xAI       |
+| 7    | **DeepSeek V4 Pro** | —        | DeepSeek  |
+| 8    | **GLM-5.1**         | —        | 智谱      |
 
 > **观察**：前三名差距仅在 3 分以内，竞争极其激烈。值得注意的还有国内模型 Kimi K2.6 排名第四，表明国产模型正在快速追赶。
 
@@ -455,24 +459,24 @@ Coding Agent Index 是 Artificial Analysis 2026 年新推出的评测体系，�
 
 **评测方法**：综合三个基准测试的平均 pass@1 得分：
 
-| 基准测试 | 任务数 | 测试内容 |
-|----------|--------|---------|
-| SWE-Bench-Pro-Hard-AA | 150 | 真实代码库中的复杂编程任务（来自 Scale AI） |
-| Terminal-Bench v2 | 84 | 终端环境下的系统管理、加密、机器学习等多步骤任务 |
-| SWE-Atlas-QnA | 124 | 代码库技术问答，测试对代码行为的理解能力 |
+| 基准测试              | 任务数 | 测试内容                                         |
+| --------------------- | ------ | ------------------------------------------------ |
+| SWE-Bench-Pro-Hard-AA | 150    | 真实代码库中的复杂编程任务（来自 Scale AI）      |
+| Terminal-Bench v2     | 84     | 终端环境下的系统管理、加密、机器学习等多步骤任务 |
+| SWE-Atlas-QnA         | 124    | 代码库技术问答，测试对代码行为的理解能力         |
 
 **当前排名**：
 
-| 排名 | Agent + 模型组合 | 指数得分 | 每任务成本 | 每任务时间 |
-|------|-----------------|---------|-----------|-----------|
-| 1 | **Opus 4.7 in Cursor CLI** | 61 | — | — |
-| 2 | **GPT-5.5 in Codex** | 60 | $2.21 | — |
-| 2 | **Opus 4.7 in Claude Code** | 60 | — | ~6 分钟 |
-| 4 | **GPT-5.5 in Cursor CLI** | 58 | — | — |
-| 5 | **GLM-5.1 in Claude Code** | 53 | $2.26 | — |
-| 6 | **Kimi K2.6 in Claude Code** | 50 | $0.76 | ~40 分钟 |
-| 6 | **DeepSeek V4 Pro in Claude Code** | 50 | $0.35 | — |
-| 8 | **Gemini 3.1 Pro in Gemini CLI** | 43 | — | — |
+| 排名 | Agent + 模型组合                   | 指数得分 | 每任务成本 | 每任务时间 |
+| ---- | ---------------------------------- | -------- | ---------- | ---------- |
+| 1    | **Opus 4.7 in Cursor CLI**         | 61       | —          | —          |
+| 2    | **GPT-5.5 in Codex**               | 60       | $2.21      | —          |
+| 2    | **Opus 4.7 in Claude Code**        | 60       | —          | ~6 分钟    |
+| 4    | **GPT-5.5 in Cursor CLI**          | 58       | —          | —          |
+| 5    | **GLM-5.1 in Claude Code**         | 53       | $2.26      | —          |
+| 6    | **Kimi K2.6 in Claude Code**       | 50       | $0.76      | ~40 分钟   |
+| 6    | **DeepSeek V4 Pro in Claude Code** | 50       | $0.35      | —          |
+| 8    | **Gemini 3.1 Pro in Gemini CLI**   | 43       | —          | —          |
 
 **关键发现**：
 
@@ -517,15 +521,18 @@ Coding Agent Index 是 Artificial Analysis 2026 年新推出的评测体系，�
 ### 独立开发者推荐的技术栈
 
 **前端**：
+
 - **Next.js** — "一体化 + AI 友好"的全栈框架，首选推荐
 - **shadcn/ui** — 与 V0 协同效应强，可复制组件库
 - **Tailwind CSS** — AI 生成 Tailwind 代码的质量普遍较高
 
 **后端与数据库**：
+
 - **Supabase** / **Neon** — 独立开发者首选后端平台，免费额度充足
 - **Cloudflare Workers + D1** — 低成本、高性能的边缘部署方案
 
 **部署**：
+
 - **Vercel** — Next.js 最佳部署平台，免费层够用
 - **Cloudflare Tunnel** — 自托管服务的公网暴露方案
 - **Docker Compose** — 全栈应用的容器化部署
@@ -556,14 +563,14 @@ Analyze（分析软件功能）
 
 **已覆盖的软件生态**：项目已为 40+ 主流软件自动生成了 CLI，涵盖多个领域：
 
-| 领域 | 已 CLI 化的软件 |
-|------|----------------|
-| 图像/设计 | GIMP, Inkscape |
-| 3D/建模 | Blender, FreeCAD |
-| 办公套件 | LibreOffice |
-| 视频/直播 | OBS Studio |
-| 音频处理 | Audacity |
-| 开发工具 | Arduino IDE |
+| 领域      | 已 CLI 化的软件  |
+| --------- | ---------------- |
+| 图像/设计 | GIMP, Inkscape   |
+| 3D/建模   | Blender, FreeCAD |
+| 办公套件  | LibreOffice      |
+| 视频/直播 | OBS Studio       |
+| 音频处理  | Audacity         |
+| 开发工具  | Arduino IDE      |
 
 所有生成的 CLI 均通过了 2,280 项测试，通过率 100%。
 
@@ -575,13 +582,13 @@ Analyze（分析软件功能）
 
 ### 值得关注的内容
 
-| 资源 | 说明 |
-|------|------|
-| [Addy Osmani - My LLM Coding Workflow Going Into 2026](https://medium.com/@addyosmani/my-llm-coding-workflow-going-into-2026-52fe1681325e) | Google 工程师的 AI 编码工作流详解 |
-| [Guangzheng Li - 独立开发穷鬼套餐](https://guangzhengli.com/blog/zh/indie-hacker-poor-stack) | 中文独立开发者低成本技术栈推荐 |
-| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | 1000+ AI Agent 技能合集 |
-| [ShiftMag - 6 天用 AI 构建全栈应用](https://shiftmag.dev/how-i-built-a-full-stack-app-in-6-days-with-the-help-of-ai-7564/) | AI 辅助全栈开发实战 |
-| [CLI-Anything](https://github.com/HKUDS/CLI-Anything) | 让所有软件具备 CLI 接口，成为 Agent 可调用的原生工具 |
+| 资源                                                                                                                                       | 说明                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| [Addy Osmani - My LLM Coding Workflow Going Into 2026](https://medium.com/@addyosmani/my-llm-coding-workflow-going-into-2026-52fe1681325e) | Google 工程师的 AI 编码工作流详解                    |
+| [Guangzheng Li - 独立开发穷鬼套餐](https://guangzhengli.com/blog/zh/indie-hacker-poor-stack)                                               | 中文独立开发者低成本技术栈推荐                       |
+| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills)                                                        | 1000+ AI Agent 技能合集                              |
+| [ShiftMag - 6 天用 AI 构建全栈应用](https://shiftmag.dev/how-i-built-a-full-stack-app-in-6-days-with-the-help-of-ai-7564/)                 | AI 辅助全栈开发实战                                  |
+| [CLI-Anything](https://github.com/HKUDS/CLI-Anything)                                                                                      | 让所有软件具备 CLI 接口，成为 Agent 可调用的原生工具 |
 
 ---
 
@@ -601,4 +608,4 @@ AI 编程工具领域正处于爆发式增长阶段，几乎每个月都有新�
 
 ---
 
-*本文基于天济大药房门店问答助手 Demo（Tianji Pharmacy）的实际开发经验撰写。技术栈：Next.js + TypeScript + Prisma + Qdrant + FastAPI + DashScope，部署于 Docker Compose + Cloudflare Tunnel。文中工具信息基于 2026 年 5 月调研，可能已非最新。*
+_本文基于天济大药房门店问答助手 Demo（Tianji Pharmacy）的实际开发经验撰写。技术栈：Next.js + TypeScript + Prisma + Qdrant + FastAPI + DashScope，部署于 Docker Compose + Cloudflare Tunnel。文中工具信息基于 2026 年 5 月调研，可能已非最新。_

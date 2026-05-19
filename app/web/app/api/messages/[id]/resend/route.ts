@@ -17,7 +17,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const userMessage = await prisma.chatMessage.findUnique({
     where: { id },
-    include: { conversation: true }
+    include: { conversation: true },
   });
 
   if (!userMessage || userMessage.conversation.deletedAt || userMessage.role !== "user") {
@@ -41,8 +41,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     where: {
       conversationId: userMessage.conversationId,
       role: "assistant",
-      status: "streaming"
-    }
+      status: "streaming",
+    },
   });
   if (streamingCount > 0) {
     return NextResponse.json({ error: "当前有回复正在生成，请稍后再编辑" }, { status: 409 });
@@ -52,15 +52,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     prisma.chatMessage.update({
       where: { id: userMessage.id },
       data: {
-        contentText: contentText || "用户上传了图片"
-      }
+        contentText: contentText || "用户上传了图片",
+      },
     }),
     prisma.chatMessage.deleteMany({
       where: {
         conversationId: userMessage.conversationId,
-        createdAt: { gt: userMessage.createdAt }
-      }
-    })
+        createdAt: { gt: userMessage.createdAt },
+      },
+    }),
   ]);
 
   return createAssistantGenerationStream({
@@ -69,6 +69,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     text: contentText,
     attachments,
     userMessageId: userMessage.id,
-    userMessageCreatedAt: userMessage.createdAt
+    userMessageCreatedAt: userMessage.createdAt,
   });
 }

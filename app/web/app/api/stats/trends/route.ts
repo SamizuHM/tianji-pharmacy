@@ -11,4 +11,3 @@ export async function GET() {
 
   return NextResponse.json({ trends: await getTrendData() });
 }
-

@@ -46,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   // 拒绝在 streaming 期间发新消息
   const streamingCount = await prisma.chatMessage.count({
-    where: { conversationId: id, role: "assistant", status: "streaming" }
+    where: { conversationId: id, role: "assistant", status: "streaming" },
   });
   if (streamingCount > 0) {
     return NextResponse.json({ error: "当前有回复正在生成，请稍后再发送" }, { status: 409 });
@@ -56,6 +56,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     mode: "create",
     conversationId: id,
     text,
-    attachments
+    attachments,
   });
 }

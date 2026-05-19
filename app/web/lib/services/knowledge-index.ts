@@ -3,13 +3,18 @@ import {
   KnowledgeIndexTaskType,
   type KnowledgeChunk,
   type KnowledgeItem,
-  type Prisma
+  type Prisma,
 } from "@prisma/client";
 import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { embedMultimodal } from "@/lib/retrieval/ml-service";
-import { COLLECTION_NAME, ensureCollection, ensureQdrantWriteReady, qdrant } from "@/lib/retrieval/qdrant";
+import {
+  COLLECTION_NAME,
+  ensureCollection,
+  ensureQdrantWriteReady,
+  qdrant,
+} from "@/lib/retrieval/qdrant";
 
 const INDEX_RETRY_BASE_MS = 5_000;
 const INDEX_RETRY_MAX_MS = 5 * 60_000;
@@ -113,7 +118,7 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     categoryL1: chunk.knowledgeItem.categoryL1,
     categoryL2: chunk.knowledgeItem.categoryL2,
     imagePath: chunk.knowledgeItem.imagePath ?? null,
-    imagePaths: parseImagePaths(chunk.knowledgeItem)
+    imagePaths: parseImagePaths(chunk.knowledgeItem),
   };
 }
 
@@ -130,7 +135,7 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     categoryL1: source.knowledgeItem.categoryL1,
     categoryL2: source.knowledgeItem.categoryL2,
     imagePath: source.knowledgeItem.imagePath ?? null,
-    imagePaths: parseImagePathsFromSource(source)
+    imagePaths: parseImagePathsFromSource(source),
   };
 }
 
@@ -146,7 +151,7 @@ async function buildUpsertTaskInputs(
       return {
         text: chunk.chunkText,
         image_path: imagePaths[0] ?? undefined,
-        image_paths: imagePaths
+        image_paths: imagePaths,
       };
     });
     const embedResult = await embedMultimodal(embedInputs);
@@ -159,13 +164,13 @@ async function buildUpsertTaskInputs(
 
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildQdrantPayload(chunk)
+        payload: buildQdrantPayload(chunk),
       };
 
       results.push({
         chunk,
         pointId: buildStablePointId(chunk.id),
-        payloadJson: JSON.stringify(payload)
+        payloadJson: JSON.stringify(payload),
       });
     });
   }
@@ -175,8 +180,15 @@ async function buildUpsertTaskInputs(
 
 export async function prepareKnowledgeChunkUpsertTasks(
   chunks: KnowledgeChunkProjectionSource[]
-): Promise<Array<{ chunkId: string; knowledgeItemId: string; pointId: string; payloadJson: string }>> {
-  const results: Array<{ chunkId: string; knowledgeItemId: string; pointId: string; payloadJson: string }> = [];
+): Promise<
+  Array<{ chunkId: string; knowledgeItemId: string; pointId: string; payloadJson: string }>
+> {
+  const results: Array<{
+    chunkId: string;
+    knowledgeItemId: string;
+    pointId: string;
+    payloadJson: string;
+  }> = [];
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
@@ -185,7 +197,7 @@ export async function prepareKnowledgeChunkUpsertTasks(
       return {
         text: chunk.chunkText,
         image_path: imagePaths[0] ?? undefined,
-        image_paths: imagePaths
+        image_paths: imagePaths,
       };
     });
     const embedResult = await embedMultimodal(embedInputs);
@@ -198,14 +210,14 @@ export async function prepareKnowledgeChunkUpsertTasks(
 
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildQdrantPayloadFromSource(chunk)
+        payload: buildQdrantPayloadFromSource(chunk),
       };
 
       results.push({
         chunkId: chunk.chunkId,
         knowledgeItemId: chunk.knowledgeItemId,
         pointId: buildStablePointId(chunk.chunkId),
-        payloadJson: JSON.stringify(payload)
+        payloadJson: JSON.stringify(payload),
       });
     });
   }
@@ -224,7 +236,7 @@ async function processTask(task: {
   if (task.taskType === "delete") {
     await qdrant.delete(COLLECTION_NAME, {
       wait: true,
-      points: [task.pointId]
+      points: [task.pointId],
     });
     return;
   }
@@ -245,9 +257,9 @@ async function processTask(task: {
       {
         id: task.pointId,
         vector: payload.vector,
-        payload: payload.payload
-      }
-    ]
+        payload: payload.payload,
+      },
+    ],
   });
 }
 
@@ -256,11 +268,11 @@ async function claimPendingTask(taskId: string) {
     where: {
       id: taskId,
       status: KnowledgeIndexTaskStatus.pending,
-      availableAt: { lte: new Date() }
+      availableAt: { lte: new Date() },
     },
     data: {
-      status: KnowledgeIndexTaskStatus.processing
-    }
+      status: KnowledgeIndexTaskStatus.processing,
+    },
   });
 
   return result.count > 0;
@@ -271,10 +283,10 @@ export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
   const pendingTasks = await prisma.knowledgeIndexTask.findMany({
     where: {
       status: KnowledgeIndexTaskStatus.pending,
-      availableAt: { lte: new Date() }
+      availableAt: { lte: new Date() },
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: limit
+    take: limit,
   });
 
   let completed = 0;
@@ -293,8 +305,8 @@ export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
         data: {
           status: KnowledgeIndexTaskStatus.completed,
           processedAt: new Date(),
-          lastError: null
-        }
+          lastError: null,
+        },
       });
       completed += 1;
     } catch (error) {
@@ -305,8 +317,8 @@ export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
           status: KnowledgeIndexTaskStatus.pending,
           retryCount,
           lastError: error instanceof Error ? error.message : "未知错误",
-          availableAt: asDateAfterRetry(retryCount)
-        }
+          availableAt: asDateAfterRetry(retryCount),
+        },
       });
       failed += 1;
     }
@@ -315,7 +327,7 @@ export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
   return {
     scanned: pendingTasks.length,
     completed,
-    failed
+    failed,
   };
 }
 
@@ -327,7 +339,7 @@ export async function tryDrainKnowledgeIndexTasks(options?: { limit?: number }) 
     return {
       scanned: 0,
       completed: 0,
-      failed: 1
+      failed: 1,
     };
   }
 }
@@ -336,8 +348,8 @@ export async function normalizeKnowledgeChunkPointIds() {
   const rows = await prisma.knowledgeChunk.findMany({
     select: {
       id: true,
-      qdrantPointId: true
-    }
+      qdrantPointId: true,
+    },
   });
 
   let normalizedCount = 0;
@@ -351,8 +363,8 @@ export async function normalizeKnowledgeChunkPointIds() {
     await prisma.knowledgeChunk.update({
       where: { id: row.id },
       data: {
-        qdrantPointId: stablePointId
-      }
+        qdrantPointId: stablePointId,
+      },
     });
     normalizedCount += 1;
   }
@@ -375,8 +387,10 @@ export async function enqueueDeletePointTask(input: {
       knowledgeItemId: input.knowledgeItemId ?? null,
       chunkId: input.chunkId ?? null,
       pointId: input.pointId,
-      payloadJson: JSON.stringify({ reason: input.reason ?? "delete" } satisfies KnowledgeIndexTaskPayload)
-    }
+      payloadJson: JSON.stringify({
+        reason: input.reason ?? "delete",
+      } satisfies KnowledgeIndexTaskPayload),
+    },
   });
 }
 
@@ -391,7 +405,7 @@ export async function enqueueUpsertTasksForChunkIds(
   const chunks = await prisma.knowledgeChunk.findMany({
     where: { id: { in: chunkIds } },
     include: { knowledgeItem: true },
-    orderBy: { chunkIndex: "asc" }
+    orderBy: { chunkIndex: "asc" },
   });
 
   if (!chunks.length) {
@@ -408,8 +422,8 @@ export async function enqueueUpsertTasksForChunkIds(
       knowledgeItemId: chunk.knowledgeItemId,
       chunkId: chunk.id,
       pointId,
-      payloadJson
-    }))
+      payloadJson,
+    })),
   });
 
   return taskInputs.length;
@@ -422,22 +436,30 @@ async function scrollAllQdrantPoints() {
   while (true) {
     let response;
     try {
-      response = (await (qdrant as unknown as {
-        scroll: (
-          collectionName: string,
-          params: Record<string, unknown>
-        ) => Promise<{ points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>; next_page_offset?: unknown }>;
-      }).scroll(COLLECTION_NAME, {
+      response = (await (
+        qdrant as unknown as {
+          scroll: (
+            collectionName: string,
+            params: Record<string, unknown>
+          ) => Promise<{
+            points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
+            next_page_offset?: unknown;
+          }>;
+        }
+      ).scroll(COLLECTION_NAME, {
         with_payload: true,
         with_vector: false,
         limit: 256,
-        offset
+        offset,
       })) as {
         points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
         next_page_offset?: unknown;
       };
     } catch (error) {
-      if (error instanceof Error && error.message.includes("Collection `pharmacy_kb` doesn't exist")) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Collection `pharmacy_kb` doesn't exist")
+      ) {
         return points;
       }
       throw error;
@@ -447,7 +469,7 @@ async function scrollAllQdrantPoints() {
     points.push(
       ...pagePoints.map((point) => ({
         id: String(point.id),
-        payload: point.payload ?? null
+        payload: point.payload ?? null,
       }))
     );
 
@@ -468,14 +490,16 @@ export async function reconcileKnowledgeIndex() {
   const dbChunks = await prisma.knowledgeChunk.findMany({
     select: {
       id: true,
-      qdrantPointId: true
-    }
+      qdrantPointId: true,
+    },
   });
   const dbPointIds = new Set(dbChunks.map((chunk) => chunk.qdrantPointId));
   const qdrantPoints = await scrollAllQdrantPoints();
   const qdrantPointIds = new Set(qdrantPoints.map((point) => point.id));
 
-  const orphanPointIds = qdrantPoints.filter((point) => !dbPointIds.has(point.id)).map((point) => point.id);
+  const orphanPointIds = qdrantPoints
+    .filter((point) => !dbPointIds.has(point.id))
+    .map((point) => point.id);
   const missingPointIds = dbChunks
     .filter((chunk) => !qdrantPointIds.has(chunk.qdrantPointId))
     .map((chunk) => chunk.id);
@@ -483,14 +507,16 @@ export async function reconcileKnowledgeIndex() {
   for (const pointId of orphanPointIds) {
     await qdrant.delete(COLLECTION_NAME, {
       wait: true,
-      points: [pointId]
+      points: [pointId],
     });
   }
 
   if (missingPointIds.length) {
     await enqueueUpsertTasksForChunkIds(missingPointIds);
     while (true) {
-      const result = await drainKnowledgeIndexTasks({ limit: Math.max(20, missingPointIds.length) });
+      const result = await drainKnowledgeIndexTasks({
+        limit: Math.max(20, missingPointIds.length),
+      });
       if (result.scanned === 0) {
         break;
       }
@@ -505,7 +531,7 @@ export async function reconcileKnowledgeIndex() {
     dbChunkCount: dbChunks.length,
     qdrantPointCount: qdrantPoints.length,
     deletedOrphanPoints: orphanPointIds.length,
-    reprojectedMissingPoints: missingPointIds.length
+    reprojectedMissingPoints: missingPointIds.length,
   };
 }
 
@@ -515,7 +541,7 @@ export async function rebuildKnowledgeIndex() {
 
   const chunks = await prisma.knowledgeChunk.findMany({
     include: { knowledgeItem: true },
-    orderBy: [{ knowledgeItemId: "asc" }, { chunkIndex: "asc" }]
+    orderBy: [{ knowledgeItemId: "asc" }, { chunkIndex: "asc" }],
   });
 
   const qdrantAdmin = qdrant as unknown as {
@@ -531,14 +557,14 @@ export async function rebuildKnowledgeIndex() {
   await prisma.knowledgeIndexTask.deleteMany({
     where: {
       status: {
-        in: [KnowledgeIndexTaskStatus.pending, KnowledgeIndexTaskStatus.processing]
-      }
-    }
+        in: [KnowledgeIndexTaskStatus.pending, KnowledgeIndexTaskStatus.processing],
+      },
+    },
   });
 
   if (!chunks.length) {
     return {
-      rebuiltChunks: 0
+      rebuiltChunks: 0,
     };
   }
 
@@ -550,8 +576,8 @@ export async function rebuildKnowledgeIndex() {
       knowledgeItemId: chunk.knowledgeItemId,
       chunkId: chunk.id,
       pointId,
-      payloadJson
-    }))
+      payloadJson,
+    })),
   });
 
   while (true) {
@@ -566,6 +592,6 @@ export async function rebuildKnowledgeIndex() {
 
   return {
     normalizedChunks,
-    rebuiltChunks: chunks.length
+    rebuiltChunks: chunks.length,
   };
 }

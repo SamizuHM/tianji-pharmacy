@@ -27,8 +27,8 @@ export async function GET(request: Request) {
               ? [{ status: "escalated" as const, escalatedToDept: user.department.name }]
               : [{ status: "escalated" as const, escalatedToDept: null, escalatedToUserId: null }]),
             { status: "escalated" as const, escalatedToUserId: user.id },
-            { status: "closed" as const }
-          ]
+            { status: "closed" as const },
+          ],
         };
 
   const [tickets, knowledge, conversations, messages] = await Promise.all([
@@ -41,19 +41,19 @@ export async function GET(request: Request) {
               { ticketNo: { contains: q } },
               { title: { contains: q } },
               { latestUserQuestion: { contains: q } },
-              { category: { contains: q } }
-            ]
-          }
-        ]
+              { category: { contains: q } },
+            ],
+          },
+        ],
       },
       select: {
         id: true,
         ticketNo: true,
         title: true,
-        status: true
+        status: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 6
+      take: 6,
     }),
     prisma.knowledgeItem.findMany({
       where: {
@@ -63,33 +63,33 @@ export async function GET(request: Request) {
           { answer: { contains: q } },
           { categoryL1: { contains: q } },
           { categoryL2: { contains: q } },
-          { sourceFile: { contains: q } }
-        ]
+          { sourceFile: { contains: q } },
+        ],
       },
       select: {
         id: true,
         question: true,
         categoryL1: true,
         categoryL2: true,
-        hitCount: true
+        hitCount: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 6
+      take: 6,
     }),
     user.role === "staff"
       ? prisma.conversation.findMany({
           where: {
             userId: user.id,
             deletedAt: null,
-            title: { contains: q }
+            title: { contains: q },
           },
           select: {
             id: true,
             title: true,
-            updatedAt: true
+            updatedAt: true,
           },
           orderBy: { updatedAt: "desc" },
-          take: 6
+          take: 6,
         })
       : Promise.resolve([]),
     user.role === "staff"
@@ -97,9 +97,9 @@ export async function GET(request: Request) {
           where: {
             conversation: {
               userId: user.id,
-              deletedAt: null
+              deletedAt: null,
             },
-            contentText: { contains: q }
+            contentText: { contains: q },
           },
           select: {
             id: true,
@@ -107,12 +107,12 @@ export async function GET(request: Request) {
             role: true,
             sourceType: true,
             contentText: true,
-            createdAt: true
+            createdAt: true,
           },
           orderBy: { createdAt: "desc" },
-          take: 6
+          take: 6,
         })
-      : Promise.resolve([])
+      : Promise.resolve([]),
   ]);
 
   return NextResponse.json({ tickets, knowledge, conversations, messages });

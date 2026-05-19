@@ -34,9 +34,7 @@ describe("settings service", () => {
     });
 
     it("部分 DB 值存在时，其余使用 env 默认值", async () => {
-      prisma.appSetting.findMany.mockResolvedValue([
-        { key: "RETRIEVAL_TOP_K", value: "20" },
-      ]);
+      prisma.appSetting.findMany.mockResolvedValue([{ key: "RETRIEVAL_TOP_K", value: "20" }]);
 
       const result = await getRuntimeSettings();
       expect(result.retrievalTopK).toBe(20);
@@ -78,7 +76,9 @@ describe("settings service", () => {
       });
 
       const calls = prisma.appSetting.upsert.mock.calls;
-      const values = calls.map((c: unknown[]) => (c[0] as { update: { value: string } }).update.value);
+      const values = calls.map(
+        (c: unknown[]) => (c[0] as { update: { value: string } }).update.value
+      );
       expect(values).toContain("15");
       expect(values).toContain("6");
       expect(values).toContain("0.8");

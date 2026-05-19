@@ -12,12 +12,11 @@ export async function GET() {
   const tickets = await prisma.ticket.findMany({
     include: {
       createdBy: true,
-      closedBy: true
+      closedBy: true,
     },
     orderBy: { createdAt: "desc" },
-    take: 100
+    take: 100,
   });
 
   return NextResponse.json({ tickets });
 }
-

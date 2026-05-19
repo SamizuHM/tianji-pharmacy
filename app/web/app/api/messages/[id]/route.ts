@@ -13,7 +13,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
   const { id } = await context.params;
   const message = await prisma.chatMessage.findUnique({
     where: { id },
-    include: { conversation: true }
+    include: { conversation: true },
   });
 
   if (!message || message.conversation.deletedAt) {
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const message = await prisma.chatMessage.findUnique({
     where: { id },
-    include: { conversation: true }
+    include: { conversation: true },
   });
 
   if (!message || message.conversation.deletedAt) {
@@ -72,7 +72,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }>(message.retrievalDebugJson, {});
     retrievalDebugJson = JSON.stringify({
       ...debugPayload,
-      imagePaths: body.imagePaths.filter((item) => typeof item === "string")
+      imagePaths: body.imagePaths.filter((item) => typeof item === "string"),
     });
   }
 
@@ -80,8 +80,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     where: { id },
     data: {
       contentText: contentText || (message.role === "user" ? "用户上传了图片" : ""),
-      retrievalDebugJson
-    }
+      retrievalDebugJson,
+    },
   });
 
   return NextResponse.json({ message: updated });

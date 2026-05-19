@@ -7,7 +7,7 @@ import { useTransition } from "react";
 export function MiniPager({
   param,
   current,
-  pageCount
+  pageCount,
 }: {
   param: "messagePage" | "ticketPage";
   current: number;

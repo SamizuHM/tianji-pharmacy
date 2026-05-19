@@ -6,7 +6,7 @@ export const COLLECTION_NAME = "pharmacy_kb";
 
 export const qdrant = new QdrantClient({
   url: env.QDRANT_URL,
-  checkCompatibility: true
+  checkCompatibility: true,
 });
 
 let qdrantWriteReadyPromise: Promise<void> | null = null;
@@ -36,8 +36,8 @@ export async function ensureCollection(vectorSize: number) {
     await qdrant.createCollection(COLLECTION_NAME, {
       vectors: {
         size: vectorSize,
-        distance: "Cosine"
-      }
+        distance: "Cosine",
+      },
     });
   }
 }

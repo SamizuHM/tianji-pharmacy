@@ -9,7 +9,7 @@ export async function getRuntimeSettings() {
     retrievalTopK: Number(map.get("RETRIEVAL_TOP_K") ?? env.RETRIEVAL_TOP_K),
     rerankTopN: Number(map.get("RERANK_TOP_N") ?? env.RERANK_TOP_N),
     kbHitThreshold: Number(map.get("KB_HIT_THRESHOLD") ?? env.KB_HIT_THRESHOLD),
-    maxContextTurns: Number(map.get("MAX_CONTEXT_TURNS") ?? env.MAX_CONTEXT_TURNS)
+    maxContextTurns: Number(map.get("MAX_CONTEXT_TURNS") ?? env.MAX_CONTEXT_TURNS),
   };
 }
 
@@ -25,14 +25,14 @@ export async function updateRuntimeSettings(input: RuntimeSettingsInput) {
     RETRIEVAL_TOP_K: String(input.retrievalTopK),
     RERANK_TOP_N: String(input.rerankTopN),
     KB_HIT_THRESHOLD: String(input.kbHitThreshold),
-    MAX_CONTEXT_TURNS: String(input.maxContextTurns)
+    MAX_CONTEXT_TURNS: String(input.maxContextTurns),
   };
 
   for (const [key, value] of Object.entries(settings)) {
     await prisma.appSetting.upsert({
       where: { key },
       update: { value },
-      create: { key, value }
+      create: { key, value },
     });
   }
 

@@ -86,24 +86,28 @@ export async function getPendingTicketCounts(input?: {
           status: "escalated" as const,
           OR: [
             { escalatedToDept: input.userDepartmentName },
-            ...(input.userId ? [{ escalatedToUserId: input.userId }] : [])
-          ]
+            ...(input.userId ? [{ escalatedToUserId: input.userId }] : []),
+          ],
         }
       : { status: "escalated" as const };
 
   const [pendingClaim, escalated] = await Promise.all([
     prisma.ticket.count({
-      where: pendingClaimWhere
+      where: pendingClaimWhere,
     }),
     prisma.ticket.count({
-      where: escalatedWhere
-    })
+      where: escalatedWhere,
+    }),
   ]);
 
   return { pendingClaim, escalated };
 }
 
-export async function createNotificationStream(input: { userId: string; role: UserRole; userDepartmentName?: string | null }) {
+export async function createNotificationStream(input: {
+  userId: string;
+  role: UserRole;
+  userDepartmentName?: string | null;
+}) {
   const clientId = crypto.randomUUID();
   const clientStore = getClientStore();
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -115,7 +119,7 @@ export async function createNotificationStream(input: { userId: string; role: Us
         userId: input.userId,
         role: input.role,
         userDepartmentName: input.userDepartmentName,
-        controller
+        controller,
       };
       clientStore.set(clientId, client);
 
@@ -123,7 +127,7 @@ export async function createNotificationStream(input: { userId: string; role: Us
       pushEvent(client, "snapshot", {
         type: "snapshot",
         pendingCounts,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
 
       heartbeat = setInterval(() => {
@@ -136,7 +140,7 @@ export async function createNotificationStream(input: { userId: string; role: Us
         }
         pushEvent(activeClient, "ping", {
           type: "ping",
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         });
       }, 20000);
     },
@@ -145,13 +149,15 @@ export async function createNotificationStream(input: { userId: string; role: Us
       if (heartbeat) {
         clearInterval(heartbeat);
       }
-    }
+    },
   });
 
   return stream;
 }
 
-export async function broadcastTicketNotification(event: Omit<TicketNotificationEvent, "pendingCounts" | "createdAt">) {
+export async function broadcastTicketNotification(
+  event: Omit<TicketNotificationEvent, "pendingCounts" | "createdAt">
+) {
   const clientStore = getClientStore();
   if (!clientStore.size) {
     return;
@@ -163,18 +169,22 @@ export async function broadcastTicketNotification(event: Omit<TicketNotification
         continue;
       }
     }
-    if (!event.targetUserIds?.length && event.targetRoles?.length && !event.targetRoles.includes(client.role)) {
+    if (
+      !event.targetUserIds?.length &&
+      event.targetRoles?.length &&
+      !event.targetRoles.includes(client.role)
+    ) {
       continue;
     }
     const pendingCounts = await getPendingTicketCounts({
       role: client.role,
       userId: client.userId,
-      userDepartmentName: client.userDepartmentName
+      userDepartmentName: client.userDepartmentName,
     });
     const payload: TicketNotificationEvent = {
       ...event,
       pendingCounts,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     pushEvent(client, "ticket", payload);
   }

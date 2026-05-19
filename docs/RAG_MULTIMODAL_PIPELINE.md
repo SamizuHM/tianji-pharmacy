@@ -102,9 +102,9 @@ embedMultimodal([
   {
     text: queryText,
     image_path: input.imagePaths[0],
-    image_paths: input.imagePaths
-  }
-])
+    image_paths: input.imagePaths,
+  },
+]);
 ```
 
 ML Service 侧使用：

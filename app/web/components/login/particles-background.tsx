@@ -14,7 +14,7 @@ export function ParticlesBackground() {
 
     let animationId: number;
     let particles: Particle[] = [];
-    let mouse = { x: -1000, y: -1000 };
+    const mouse = { x: -1000, y: -1000 };
 
     const PARTICLE_COUNT = 90;
     const CONNECT_DISTANCE = 160;
@@ -59,7 +59,10 @@ export function ParticlesBackground() {
 
     function init() {
       if (!canvas) return;
-      particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle(canvas.width, canvas.height));
+      particles = Array.from(
+        { length: PARTICLE_COUNT },
+        () => new Particle(canvas.width, canvas.height)
+      );
     }
 
     function animate() {
@@ -113,7 +116,10 @@ export function ParticlesBackground() {
     init();
     animate();
 
-    window.addEventListener("resize", () => { resize(); init(); });
+    window.addEventListener("resize", () => {
+      resize();
+      init();
+    });
     window.addEventListener("mousemove", onMouseMove);
 
     return () => {
@@ -128,13 +134,11 @@ export function ParticlesBackground() {
       <div
         className="pointer-events-none fixed inset-0"
         style={{
-          background: "radial-gradient(ellipse at 30% 20%, rgba(147,180,255,0.18) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(167,139,250,0.12) 0%, transparent 50%)"
+          background:
+            "radial-gradient(ellipse at 30% 20%, rgba(147,180,255,0.18) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(167,139,250,0.12) 0%, transparent 50%)",
         }}
       />
-      <canvas
-        ref={canvasRef}
-        className="pointer-events-none fixed inset-0"
-      />
+      <canvas ref={canvasRef} className="pointer-events-none fixed inset-0" />
     </>
   );
 }

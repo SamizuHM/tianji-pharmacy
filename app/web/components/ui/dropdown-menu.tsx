@@ -40,7 +40,10 @@ const DropdownMenuItem = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
-    className={cn("relative flex cursor-default select-none items-center gap-2 rounded px-2 py-2 outline-none transition-colors duration-100 hover:bg-slate-100 focus:bg-slate-100 active:bg-slate-200 dark:hover:bg-secondary dark:focus:bg-secondary dark:active:bg-secondary/80", className)}
+    className={cn(
+      "relative flex cursor-default select-none items-center gap-2 rounded px-2 py-2 outline-none transition-colors duration-100 hover:bg-slate-100 focus:bg-slate-100 active:bg-slate-200 dark:hover:bg-secondary dark:focus:bg-secondary dark:active:bg-secondary/80",
+      className
+    )}
     {...props}
   />
 ));
@@ -50,7 +53,11 @@ const DropdownMenuLabel = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label>
 >(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Label ref={ref} className={cn("px-2 py-1.5 text-xs font-medium text-muted", className)} {...props} />
+  <DropdownMenuPrimitive.Label
+    ref={ref}
+    className={cn("px-2 py-1.5 text-xs font-medium text-muted", className)}
+    {...props}
+  />
 ));
 DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
 
@@ -58,7 +65,11 @@ const DropdownMenuSeparator = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Separator ref={ref} className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />
+  <DropdownMenuPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 my-1 h-px bg-border", className)}
+    {...props}
+  />
 ));
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
 
@@ -72,5 +83,5 @@ export {
   DropdownMenuRadioGroup,
   DropdownMenuSeparator,
   DropdownMenuSub,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 };

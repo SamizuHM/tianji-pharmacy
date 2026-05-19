@@ -66,7 +66,12 @@ describe("PUT /api/settings", () => {
 
     const request = new Request("http://localhost/api/settings", {
       method: "PUT",
-      body: JSON.stringify({ retrievalTopK: -1, rerankTopN: 3, kbHitThreshold: 0.5, maxContextTurns: 4 }),
+      body: JSON.stringify({
+        retrievalTopK: -1,
+        rerankTopN: 3,
+        kbHitThreshold: 0.5,
+        maxContextTurns: 4,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -79,7 +84,12 @@ describe("PUT /api/settings", () => {
 
     const request = new Request("http://localhost/api/settings", {
       method: "PUT",
-      body: JSON.stringify({ retrievalTopK: 5, rerankTopN: 10, kbHitThreshold: 0.5, maxContextTurns: 4 }),
+      body: JSON.stringify({
+        retrievalTopK: 5,
+        rerankTopN: 10,
+        kbHitThreshold: 0.5,
+        maxContextTurns: 4,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -100,7 +110,12 @@ describe("PUT /api/settings", () => {
 
     const request = new Request("http://localhost/api/settings", {
       method: "PUT",
-      body: JSON.stringify({ retrievalTopK: 10, rerankTopN: 5, kbHitThreshold: 0.8, maxContextTurns: 6 }),
+      body: JSON.stringify({
+        retrievalTopK: 10,
+        rerankTopN: 5,
+        kbHitThreshold: 0.8,
+        maxContextTurns: 6,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 

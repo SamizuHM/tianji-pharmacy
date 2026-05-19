@@ -14,10 +14,14 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
   const { id } = await context.params;
   const assistantMessage = await prisma.chatMessage.findUnique({
     where: { id },
-    include: { conversation: true }
+    include: { conversation: true },
   });
 
-  if (!assistantMessage || assistantMessage.conversation.deletedAt || assistantMessage.role !== "assistant") {
+  if (
+    !assistantMessage ||
+    assistantMessage.conversation.deletedAt ||
+    assistantMessage.role !== "assistant"
+  ) {
     return NextResponse.json({ error: "助手消息不存在" }, { status: 404 });
   }
 
@@ -33,8 +37,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     where: {
       conversationId: assistantMessage.conversationId,
       role: "assistant",
-      status: "streaming"
-    }
+      status: "streaming",
+    },
   });
   if (streamingCount > 0) {
     return NextResponse.json({ error: "当前有回复正在生成，请稍后再重新生成" }, { status: 409 });
@@ -44,9 +48,9 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     where: {
       conversationId: assistantMessage.conversationId,
       role: "user",
-      createdAt: { lte: assistantMessage.createdAt }
+      createdAt: { lte: assistantMessage.createdAt },
     },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
 
   if (!userMessage) {
@@ -60,6 +64,6 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     attachments: getAttachmentItems(userMessage.attachmentsJson),
     userMessageId: userMessage.id,
     userMessageCreatedAt: userMessage.createdAt,
-    assistantMessageId: assistantMessage.id
+    assistantMessageId: assistantMessage.id,
   });
 }

@@ -101,9 +101,9 @@ enum UserRole {
 
 含义：
 
-| 角色 | 说明 |
-|---|---|
-| `staff` | 门店员工，主要使用问答和查看自己工单 |
+| 角色    | 说明                                                                               |
+| ------- | ---------------------------------------------------------------------------------- |
+| `staff` | 门店员工，主要使用问答和查看自己工单                                               |
 | `agent` | 人工处理人员，处理待认领或升级工单，也可访问管理能力，具体权限由页面和服务逻辑控制 |
 
 历史说明：
@@ -208,29 +208,29 @@ status
 
 `status`：
 
-| 值 | 含义 |
-|---|---|
+| 值          | 含义                                         |
+| ----------- | -------------------------------------------- |
 | `streaming` | 助手回复正在流式生成，内容会被增量写入数据库 |
-| `completed` | 消息已完成，可进入后续上下文 |
-| `failed` | 生成失败或超时中断 |
+| `completed` | 消息已完成，可进入后续上下文                 |
+| `failed`    | 生成失败或超时中断                           |
 
 `role`：
 
-| 值 | 含义 |
-|---|---|
-| `user` | 员工问题 |
+| 值          | 含义     |
+| ----------- | -------- |
+| `user`      | 员工问题 |
 | `assistant` | 系统回答 |
-| `agent` | 人工回复 |
-| `system` | 系统消息 |
+| `agent`     | 人工回复 |
+| `system`    | 系统消息 |
 
 `sourceType`：
 
-| 值 | 含义 |
-|---|---|
-| `kb` | 知识库回答 |
-| `llm` | 大模型兜底回答 |
-| `manual` | 人工回答 |
-| `system` | 系统消息 |
+| 值       | 含义           |
+| -------- | -------------- |
+| `kb`     | 知识库回答     |
+| `llm`    | 大模型兜底回答 |
+| `manual` | 人工回答       |
+| `system` | 系统消息       |
 
 `retrievalDebugJson` 用来记录检索调试信息，例如：
 
@@ -343,20 +343,20 @@ closedAt
 
 `status`：
 
-| 状态 | 含义 |
-|---|---|
+| 状态            | 含义   |
+| --------------- | ------ |
 | `pending_claim` | 待认领 |
-| `processing` | 处理中 |
-| `escalated` | 已升级 |
-| `closed` | 已关闭 |
+| `processing`    | 处理中 |
+| `escalated`     | 已升级 |
+| `closed`        | 已关闭 |
 
 `knowledgeStatus`：
 
-| 状态 | 含义 |
-|---|---|
-| `not_ready` | 暂不适合沉淀 |
+| 状态                | 含义         |
+| ------------------- | ------------ |
+| `not_ready`         | 暂不适合沉淀 |
 | `pending_writeback` | 待写回知识库 |
-| `written` | 已写入知识库 |
+| `written`           | 已写入知识库 |
 
 ### TicketMessage
 
@@ -522,20 +522,20 @@ lastHitAt
 
 `status`：
 
-| 值 | 含义 |
-|---|---|
-| `draft` | 草稿 |
-| `published` | 已发布，可被检索命中 |
-| `archived` | 归档，不应作为有效知识命中 |
+| 值          | 含义                       |
+| ----------- | -------------------------- |
+| `draft`     | 草稿                       |
+| `published` | 已发布，可被检索命中       |
+| `archived`  | 归档，不应作为有效知识命中 |
 
 `sourceType`：
 
-| 值 | 含义 |
-|---|---|
-| `seed_doc` | 种子文档导入 |
-| `image_doc` | 图片/图文文档 |
+| 值              | 含义             |
+| --------------- | ---------------- |
+| `seed_doc`      | 种子文档导入     |
+| `image_doc`     | 图片/图文文档    |
 | `manual_ticket` | 工单人工经验沉淀 |
-| `manual` | 后台手动维护 |
+| `manual`        | 后台手动维护     |
 
 ### KnowledgeChunk
 
@@ -593,18 +593,18 @@ processedAt
 
 `taskType`：
 
-| 值 | 含义 |
-|---|---|
+| 值       | 含义                    |
+| -------- | ----------------------- |
 | `upsert` | 写入或更新 Qdrant point |
-| `delete` | 删除 Qdrant point |
+| `delete` | 删除 Qdrant point       |
 
 `status`：
 
-| 值 | 含义 |
-|---|---|
-| `pending` | 待处理 |
+| 值           | 含义   |
+| ------------ | ------ |
+| `pending`    | 待处理 |
 | `processing` | 处理中 |
-| `completed` | 已完成 |
+| `completed`  | 已完成 |
 
 为什么需要任务表：
 
@@ -804,12 +804,12 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 
 ### import / rebuild / reconcile 的区别
 
-| 操作 | 作用 |
-|---|---|
-| `import` | 从种子文档或上传文档导入知识主数据 |
-| `rebuild` | 用 PostgreSQL 现有 chunks 重建 Qdrant |
-| `reconcile` | 检查 PostgreSQL 与 Qdrant 是否一致 |
-| `drain` | 处理 pending 的 KnowledgeIndexTask |
+| 操作        | 作用                                  |
+| ----------- | ------------------------------------- |
+| `import`    | 从种子文档或上传文档导入知识主数据    |
+| `rebuild`   | 用 PostgreSQL 现有 chunks 重建 Qdrant |
+| `reconcile` | 检查 PostgreSQL 与 Qdrant 是否一致    |
+| `drain`     | 处理 pending 的 KnowledgeIndexTask    |
 
 ---
 

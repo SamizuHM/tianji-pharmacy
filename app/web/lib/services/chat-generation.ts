@@ -1,7 +1,12 @@
 import type { AttachmentItem } from "@pharmacy/shared";
 import { stripFixedAssistantSuffix } from "@pharmacy/shared";
 
-import { emitDelta as emitDeltaToStream, completeStream, failStream, registerStream } from "@/lib/active-streams";
+import {
+  emitDelta as emitDeltaToStream,
+  completeStream,
+  failStream,
+  registerStream,
+} from "@/lib/active-streams";
 import { PROGRESS_STEP_LABELS, PROGRESS_STEP_ORDER } from "@/lib/chat-progress";
 import { prisma } from "@/lib/db";
 import {
@@ -9,13 +14,13 @@ import {
   buildKbStyledPrompt,
   streamGeneralPharmacyAnswer,
   streamKbStyledAnswer,
-  type ModelChatMessage
+  type ModelChatMessage,
 } from "@/lib/openai";
 import { streamMultimodalChat } from "@/lib/retrieval/ml-service";
 import {
   appendConversationMessage,
   getConversationMessages,
-  refreshConversationTitle
+  refreshConversationTitle,
 } from "@/lib/services/conversations";
 import { retrieveAnswer } from "@/lib/services/retrieval";
 import { getRuntimeSettings } from "@/lib/services/settings";
@@ -47,7 +52,7 @@ function toModelHistoryMessages(
         return {
           role: "user",
           content,
-          imagePaths
+          imagePaths,
         };
       }
 
@@ -59,7 +64,7 @@ function toModelHistoryMessages(
 
         return {
           role: "assistant",
-          content: assistantContent
+          content: assistantContent,
         };
       }
 
@@ -101,7 +106,7 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         status: "started",
         startedAtMs,
         elapsedTotalMs: startedAtMs,
-        detail
+        detail,
       });
     },
     completeStep(stepKey: keyof typeof PROGRESS_STEP_LABELS, detail?: string) {
@@ -114,7 +119,7 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         startedAtMs,
         endedAtMs,
         durationMs,
-        detail
+        detail,
       });
       onProgress({
         stepKey,
@@ -124,7 +129,7 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         endedAtMs,
         durationMs,
         elapsedTotalMs: endedAtMs,
-        detail
+        detail,
       });
     },
     markFirstResponse() {
@@ -144,7 +149,9 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
       return firstTokenLatencyMs;
     },
     getDonePayload() {
-      const stepsSummaryList = PROGRESS_STEP_ORDER.map((stepKey) => stepsSummary.get(stepKey)).filter(Boolean);
+      const stepsSummaryList = PROGRESS_STEP_ORDER.map((stepKey) =>
+        stepsSummary.get(stepKey)
+      ).filter(Boolean);
       const waitFirstTokenMs = stepsSummary.get("await_first_token")?.durationMs;
       const reasoningAnswerMs = stepsSummary.get("reasoning_answer")?.durationMs;
       const streamAnswerMs = stepsSummary.get("stream_answer")?.durationMs;
@@ -156,9 +163,9 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         firstTokenLatencyMs,
         reasoningAnswerMs,
         waitFirstTokenMs,
-        streamAnswerMs
+        streamAnswerMs,
       };
-    }
+    },
   };
 }
 
@@ -234,7 +241,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           if (!assistantMessageId) return;
           await prisma.chatMessage.update({
             where: { id: assistantMessageId },
-            data: { contentText: assistantText }
+            data: { contentText: assistantText },
           });
           lastDbUpdate = Date.now();
           deltaCount = 0;
@@ -286,11 +293,13 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                   role: "user",
                   sourceType: "system",
                   contentText: input.text || "用户上传了图片",
-                  attachmentsJson: input.attachments.length ? JSON.stringify(input.attachments) : null
+                  attachmentsJson: input.attachments.length
+                    ? JSON.stringify(input.attachments)
+                    : null,
                 })
               : {
                   id: input.userMessageId,
-                  createdAt: input.userMessageCreatedAt
+                  createdAt: input.userMessageCreatedAt,
                 };
 
           if (input.mode === "create") {
@@ -302,8 +311,8 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                 contentText: "",
                 status: "streaming",
                 sourceType: "system",
-                retrievalDebugJson: null
-              }
+                retrievalDebugJson: null,
+              },
             });
           }
           progress.completeStep("save_input");
@@ -311,9 +320,11 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           progress.startStep("summarize_context");
           const settings = await getRuntimeSettings();
           const allMessages = await getConversationMessages(input.conversationId);
-          const historyMessages = toModelHistoryMessages(allMessages, userMessage.id, userMessage.createdAt).slice(
-            -settings.maxContextTurns * 2
-          );
+          const historyMessages = toModelHistoryMessages(
+            allMessages,
+            userMessage.id,
+            userMessage.createdAt
+          ).slice(-settings.maxContextTurns * 2);
           while (historyMessages[0]?.role === "assistant") {
             historyMessages.shift();
           }
@@ -325,27 +336,27 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           const retrieval = await retrieveAnswer(
             {
               question: input.text,
-              imagePaths: attachmentImagePaths
+              imagePaths: attachmentImagePaths,
             },
             {
               startStep: (stepKey, detail) => progress.startStep(stepKey, detail),
-              completeStep: (stepKey, detail) => progress.completeStep(stepKey, detail)
+              completeStep: (stepKey, detail) => progress.completeStep(stepKey, detail),
             }
           );
 
           const retrievalDebugJson = JSON.stringify({
             debug: retrieval.retrievalDebug,
-            imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
+            imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : [],
           });
 
           enqueueChunk("meta", {
             conversationId: input.conversationId,
             sourceType: retrieval.sourceType,
-            sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型"
+            sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型",
           });
           enqueueChunk("debug", {
             retrievalDebug: retrieval.retrievalDebug,
-            imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : []
+            imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : [],
           });
 
           if (input.mode === "create" || input.mode === "continue") {
@@ -355,7 +366,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               sourceType: retrieval.sourceType,
               contentText: "",
               status: "streaming",
-              retrievalDebugJson
+              retrievalDebugJson,
             });
             assistantMessageId = assistantMessage.id;
           } else {
@@ -364,8 +375,8 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               where: { id: assistantMessageId },
               data: {
                 sourceType: retrieval.sourceType,
-                retrievalDebugJson
-              }
+                retrievalDebugJson,
+              },
             });
           }
           registerStream(assistantMessageId);
@@ -373,7 +384,8 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           progress.startStep("await_first_token");
 
           const hasGenerationImages =
-            attachmentImagePaths.length > 0 || historyMessages.some((message) => Boolean(message.imagePaths?.length));
+            attachmentImagePaths.length > 0 ||
+            historyMessages.some((message) => Boolean(message.imagePaths?.length));
 
           if (hasGenerationImages) {
             const prompt =
@@ -382,23 +394,23 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                     question: input.text,
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
-                    referenceSnippets: retrieval.referenceSnippets
+                    referenceSnippets: retrieval.referenceSnippets,
                   })
                 : buildGeneralPharmacyPrompt({
-                    question: input.text
+                    question: input.text,
                   });
             const messages: ModelChatMessage[] = [
               ...historyMessages,
               {
                 role: "user",
                 content: prompt.userText,
-                imagePaths: attachmentImagePaths
-              }
+                imagePaths: attachmentImagePaths,
+              },
             ];
 
             const multimodalResponse = await streamMultimodalChat({
               systemPrompt: prompt.system,
-              messages
+              messages,
             });
             const reader = multimodalResponse.body!.getReader();
             const decoder = new TextDecoder();
@@ -422,17 +434,19 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets,
-                    historyMessages
+                    historyMessages,
                   })
                 : await streamGeneralPharmacyAnswer({
                     question: input.text,
-                    historyMessages
+                    historyMessages,
                   });
 
             for await (const chunk of llmStream) {
               const choiceDelta = chunk.choices[0]?.delta;
               const reasoningDelta =
-                typeof choiceDelta?.reasoning_content === "string" ? choiceDelta.reasoning_content : "";
+                typeof choiceDelta?.reasoning_content === "string"
+                  ? choiceDelta.reasoning_content
+                  : "";
               if (reasoningDelta) {
                 markFirstResponse("模型已开始推理，等待正文输出");
               }
@@ -455,7 +469,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
 
           await prisma.chatMessage.update({
             where: { id: assistantMessageId! },
-            data: { contentText: assistantText, status: "completed" }
+            data: { contentText: assistantText, status: "completed" },
           });
           completeStream(assistantMessageId!);
 
@@ -474,19 +488,21 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
             reasoningAnswerMs: donePayload.reasoningAnswerMs,
             waitFirstTokenMs: donePayload.waitFirstTokenMs,
-            streamAnswerMs: donePayload.streamAnswerMs
+            streamAnswerMs: donePayload.streamAnswerMs,
           });
           closeStream();
         } catch (error) {
           if (assistantMessageId) {
-            await prisma.chatMessage.update({
-              where: { id: assistantMessageId },
-              data: { contentText: assistantText, status: "failed" }
-            }).catch(() => undefined);
+            await prisma.chatMessage
+              .update({
+                where: { id: assistantMessageId },
+                data: { contentText: assistantText, status: "failed" },
+              })
+              .catch(() => undefined);
             failStream(assistantMessageId);
           }
           enqueueChunk("error", {
-            error: error instanceof Error ? error.message : "生成回答失败"
+            error: error instanceof Error ? error.message : "生成回答失败",
           });
           closeStream();
         }
@@ -494,14 +510,14 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
     },
     cancel() {
       // 客户端断开时，后端仍继续生成并写库。
-    }
+    },
   });
 
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive"
-    }
+      Connection: "keep-alive",
+    },
   });
 }

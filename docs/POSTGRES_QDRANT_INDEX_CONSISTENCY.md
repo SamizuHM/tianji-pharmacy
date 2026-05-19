@@ -58,7 +58,7 @@ Qdrant = 可删除、可重建的派生向量索引
 当前 Qdrant point id 由 `knowledgeChunk.id` 稳定派生：
 
 ```ts
-buildStablePointId(chunkId)
+buildStablePointId(chunkId);
 ```
 
 同一个 chunk 无论重建多少次，都应该写入同一个 point id。

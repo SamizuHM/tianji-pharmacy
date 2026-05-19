@@ -127,7 +127,7 @@ Qdrant point id = 490c15e1-96f5-545e-bd85-882fbf4b71e5
 但旧的 legacy cleanup 判断仍然使用：
 
 ```ts
-chunk.qdrantPointId !== chunk.id
+chunk.qdrantPointId !== chunk.id;
 ```
 
 在稳定 UUID 策略下，这个条件对所有正常 chunk 都成立。
@@ -444,15 +444,14 @@ ERP服务器故障出现小人头提示怎么办
 
 ## 行动项
 
-| 优先级 | 行动 | 状态 |
-|---|---|---|
-| P0 | 修复 legacy cleanup 错误判断 | 已完成，`c81fb63` |
-| P0 | 部署修复后重建 Qdrant 索引 | 待执行 |
-| P0 | 重建后执行对账并确认 84/84 | 待执行 |
-| P0 | 增加 delete 前 SQLite 保护 | 待实现 |
-| P0 | 增加索引一致性检查脚本/健康检查 | 待实现 |
-| P1 | 增加 outbox 投影回归测试 | 待实现 |
-| P1 | 增加固定问题 smoke test | 待实现 |
-| P1 | 增强 delete task 审计字段 | 待实现 |
-| P2 | 将 outbox drain 独立为后台 worker | 待设计 |
-
+| 优先级 | 行动                              | 状态              |
+| ------ | --------------------------------- | ----------------- |
+| P0     | 修复 legacy cleanup 错误判断      | 已完成，`c81fb63` |
+| P0     | 部署修复后重建 Qdrant 索引        | 待执行            |
+| P0     | 重建后执行对账并确认 84/84        | 待执行            |
+| P0     | 增加 delete 前 SQLite 保护        | 待实现            |
+| P0     | 增加索引一致性检查脚本/健康检查   | 待实现            |
+| P1     | 增加 outbox 投影回归测试          | 待实现            |
+| P1     | 增加固定问题 smoke test           | 待实现            |
+| P1     | 增强 delete task 审计字段         | 待实现            |
+| P2     | 将 outbox drain 独立为后台 worker | 待设计            |

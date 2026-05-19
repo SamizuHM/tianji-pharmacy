@@ -7,7 +7,7 @@ const config: Config = {
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
-    "../../packages/shared/src/**/*.{ts,tsx}"
+    "../../packages/shared/src/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
@@ -25,7 +25,7 @@ const config: Config = {
         success: "hsl(var(--success) / <alpha-value>)",
         warning: "hsl(var(--warning) / <alpha-value>)",
         info: "hsl(var(--info) / <alpha-value>)",
-        sidebar: "hsl(var(--sidebar) / <alpha-value>)"
+        sidebar: "hsl(var(--sidebar) / <alpha-value>)",
       },
       borderRadius: {
         sm: "0.125rem",
@@ -33,20 +33,20 @@ const config: Config = {
         md: "0.375rem",
         lg: "0.5rem",
         xl: "0.75rem",
-        "2xl": "1rem"
+        "2xl": "1rem",
       },
       boxShadow: {
         soft: "0 4px 20px rgba(15, 23, 42, 0.06)",
-        panel: "0 1px 3px rgba(15, 23, 42, 0.08)"
+        panel: "0 1px 3px rgba(15, 23, 42, 0.08)",
       },
       fontFamily: {
         sans: ["Inter", "'Noto Sans SC'", "system-ui", "sans-serif"],
         display: ["Inter", "'Noto Sans SC'", "system-ui", "sans-serif"],
-        label: ["'Work Sans'", "Inter", "'Noto Sans SC'", "system-ui", "sans-serif"]
-      }
-    }
+        label: ["'Work Sans'", "Inter", "'Noto Sans SC'", "system-ui", "sans-serif"],
+      },
+    },
   },
-  plugins: [tailwindcssAnimate]
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;

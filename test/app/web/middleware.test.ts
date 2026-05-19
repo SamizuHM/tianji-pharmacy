@@ -32,7 +32,11 @@ vi.mock("next/server", () => {
 
   class MockNextRequest {
     url: string;
-    cookies: { get: (name: string) => { value: string } | undefined; set: (name: string, value: string) => void; has: (name: string) => boolean };
+    cookies: {
+      get: (name: string) => { value: string } | undefined;
+      set: (name: string, value: string) => void;
+      has: (name: string) => boolean;
+    };
     nextUrl: { pathname: string };
 
     constructor(input: URL | string) {
@@ -57,7 +61,11 @@ vi.mock("next/server", () => {
 import { middleware } from "@/middleware";
 
 function createRequest(url: string, sessionToken?: string) {
-  const { NextRequest } = require("next/server") as { NextRequest: new (url: URL | string) => { cookies: { set: (name: string, value: string) => void } } };
+  const { NextRequest } = require("next/server") as {
+    NextRequest: new (url: URL | string) => {
+      cookies: { set: (name: string, value: string) => void };
+    };
+  };
   const req = new NextRequest(url);
   if (sessionToken) {
     req.cookies.set("pharmacy_demo_session", sessionToken);

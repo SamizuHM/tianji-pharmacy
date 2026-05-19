@@ -59,15 +59,15 @@ test/
 
 ### Mock 策略
 
-| 依赖 | Mock 方式 | 位置 |
-|------|----------|------|
-| Prisma Client | `vi.mock("@/lib/db")` 全局 mock | `test/setup.ts` |
-| 环境变量 | `vi.mock("@/lib/env")` 全局 mock | `test/setup.ts` |
-| Next.js cookies/redirect | `vi.mock("next/headers")`, `vi.mock("next/navigation")` | `test/setup.ts` |
-| OpenAI SDK | `vi.mock("@/lib/openai")` 按需 mock | 各服务测试文件 |
-| ML 服务 | `vi.mock("@/lib/retrieval/ml-service")` 按需 mock | retrieval/knowledge 测试 |
-| Qdrant | `vi.mock("@/lib/retrieval/qdrant")` 按需 mock | retrieval/knowledge-index 测试 |
-| 通知服务 | `vi.mock("@/lib/notifications/server")` 按需 mock | tickets 测试 |
+| 依赖                     | Mock 方式                                               | 位置                           |
+| ------------------------ | ------------------------------------------------------- | ------------------------------ |
+| Prisma Client            | `vi.mock("@/lib/db")` 全局 mock                         | `test/setup.ts`                |
+| 环境变量                 | `vi.mock("@/lib/env")` 全局 mock                        | `test/setup.ts`                |
+| Next.js cookies/redirect | `vi.mock("next/headers")`, `vi.mock("next/navigation")` | `test/setup.ts`                |
+| OpenAI SDK               | `vi.mock("@/lib/openai")` 按需 mock                     | 各服务测试文件                 |
+| ML 服务                  | `vi.mock("@/lib/retrieval/ml-service")` 按需 mock       | retrieval/knowledge 测试       |
+| Qdrant                   | `vi.mock("@/lib/retrieval/qdrant")` 按需 mock           | retrieval/knowledge-index 测试 |
+| 通知服务                 | `vi.mock("@/lib/notifications/server")` 按需 mock       | tickets 测试                   |
 
 **关键设计**：`test/setup.ts` 中的全局 mock 确保测试永不连接真实数据库或读取真实文件系统。每个测试文件只需在 `beforeEach` 中调用 `vi.clearAllMocks()` 重置状态，然后用 `prisma.xxx.mockResolvedValue()` 设置特定返回值。
 
@@ -184,12 +184,12 @@ prisma.newModel = createMockModel();
 
 ## 覆盖率目标
 
-| 层级 | 语句覆盖率目标 |
-|------|--------------|
-| 纯工具函数（lib/utils, presentation 等） | 90%+ |
-| 服务层（services/*） | 80%+ |
-| API 路由（app/api/*） | 70%+ |
-| 整体项目 | 70%+ |
+| 层级                                     | 语句覆盖率目标 |
+| ---------------------------------------- | -------------- |
+| 纯工具函数（lib/utils, presentation 等） | 90%+           |
+| 服务层（services/\*）                    | 80%+           |
+| API 路由（app/api/\*）                   | 70%+           |
+| 整体项目                                 | 70%+           |
 
 ---
 
@@ -258,14 +258,15 @@ const [items, total, summary, categories] = await Promise.all([
 
 以下类型的代码在 Vitest 单元测试中强行 mock 成本极高、收益很低：
 
-| 代码类型 | 为什么难测 | 推荐方式 |
-|---------|----------|---------|
-| Next.js `cookies()` / `redirect()` | 依赖 async storage，mock 不生效 | 通过 API 路由测试间接覆盖 |
-| SSE 流式响应（ReadableStream） | 需要消费整个流才能触发内部逻辑 | 测内部辅助函数 + 端到端测试 |
-| 外部 API 调用（OpenAI、Qdrant） | mock 和真实行为可能有偏差 | 单元测试验证分支逻辑 + 手动脚本验证真实 API |
-| React 组件 | 需要 jsdom 环境和渲染器 | Playwright E2E 测试 |
+| 代码类型                           | 为什么难测                      | 推荐方式                                    |
+| ---------------------------------- | ------------------------------- | ------------------------------------------- |
+| Next.js `cookies()` / `redirect()` | 依赖 async storage，mock 不生效 | 通过 API 路由测试间接覆盖                   |
+| SSE 流式响应（ReadableStream）     | 需要消费整个流才能触发内部逻辑  | 测内部辅助函数 + 端到端测试                 |
+| 外部 API 调用（OpenAI、Qdrant）    | mock 和真实行为可能有偏差       | 单元测试验证分支逻辑 + 手动脚本验证真实 API |
+| React 组件                         | 需要 jsdom 环境和渲染器         | Playwright E2E 测试                         |
 
 **核心判断标准**：如果一个函数的依赖需要 mock 3 层以上（A 依赖 B 依赖 C 依赖 D），说明这个函数的单元测试成本已经超过收益。改为：
+
 - 测它的纯函数子部分
 - 或用集成/E2E 测试覆盖完整路径
 
@@ -293,10 +294,10 @@ API 路由新增/修改                 改完立刻补测试
 
 ### 常见报错和排查思路
 
-| 报错 | 常见原因 | 排查方向 |
-|------|---------|---------|
-| `TypeError: Cannot read properties of undefined` | mock 方法返回了 `undefined` | 检查 `mockResolvedValue` 是否覆盖了所有被调用的方法 |
-| `expected X to be Y`（数值不对） | `Promise.all` 中 mock 调用顺序错 | 检查并发调用了几次同一个 mock 方法 |
-| 测试超时 5000ms | 异步流卡住（mock 链断裂） | 检查 ReadableStream/Promise 链上是否有 `undefined.catch()` |
-| `vi.mock` 不生效 | pnpm 模块解析路径和 mock 标识符不匹配 | 在测试文件顶部用 `vi.mock` 覆盖 setup.ts 的全局 mock |
-| `Cannot find module '../../helpers/factories'` | 相对路径层级算错 | 从测试文件位置往上数到 `test/` 根目录的层级 |
+| 报错                                             | 常见原因                              | 排查方向                                                   |
+| ------------------------------------------------ | ------------------------------------- | ---------------------------------------------------------- |
+| `TypeError: Cannot read properties of undefined` | mock 方法返回了 `undefined`           | 检查 `mockResolvedValue` 是否覆盖了所有被调用的方法        |
+| `expected X to be Y`（数值不对）                 | `Promise.all` 中 mock 调用顺序错      | 检查并发调用了几次同一个 mock 方法                         |
+| 测试超时 5000ms                                  | 异步流卡住（mock 链断裂）             | 检查 ReadableStream/Promise 链上是否有 `undefined.catch()` |
+| `vi.mock` 不生效                                 | pnpm 模块解析路径和 mock 标识符不匹配 | 在测试文件顶部用 `vi.mock` 覆盖 setup.ts 的全局 mock       |
+| `Cannot find module '../../helpers/factories'`   | 相对路径层级算错                      | 从测试文件位置往上数到 `test/` 根目录的层级                |

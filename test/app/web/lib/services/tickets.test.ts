@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
-import { buildTicket, buildUser, buildAgentUser, buildChatMessage } from "../../../../helpers/factories";
+import {
+  buildTicket,
+  buildUser,
+  buildAgentUser,
+  buildChatMessage,
+} from "../../../../helpers/factories";
 
 // Mock 外部依赖
 vi.mock("@/lib/notifications/server", () => ({
@@ -135,7 +140,12 @@ describe("tickets service", () => {
           role: "agent",
           userId: "agent-3",
           userDepartmentName: "采购部",
-          ticket: { status: "escalated", createdByUserId: "user-1", escalatedToDept: "营运部", escalatedToUserId: "agent-2" },
+          ticket: {
+            status: "escalated",
+            createdByUserId: "user-1",
+            escalatedToDept: "营运部",
+            escalatedToUserId: "agent-2",
+          },
         })
       ).toBe(false);
     });
@@ -146,7 +156,12 @@ describe("tickets service", () => {
           role: "agent",
           userId: "agent-1",
           userDepartmentName: null,
-          ticket: { status: "escalated", createdByUserId: "user-1", escalatedToDept: null, escalatedToUserId: null },
+          ticket: {
+            status: "escalated",
+            createdByUserId: "user-1",
+            escalatedToDept: null,
+            escalatedToUserId: null,
+          },
         })
       ).toBe(true);
     });
@@ -156,9 +171,7 @@ describe("tickets service", () => {
 
   describe("createTicketFromConversation", () => {
     it("无用户消息时抛错", async () => {
-      prisma.chatMessage.findMany.mockResolvedValue([
-        buildChatMessage({ role: "assistant" }),
-      ]);
+      prisma.chatMessage.findMany.mockResolvedValue([buildChatMessage({ role: "assistant" })]);
 
       await expect(
         createTicketFromConversation({ createdByUserId: "user-1", conversationId: "conv-1" })
@@ -250,9 +263,7 @@ describe("tickets service", () => {
     });
 
     it("二级专家不能认领 pending_claim", async () => {
-      prisma.ticket.findUnique.mockResolvedValue(
-        buildTicket({ status: "pending_claim" })
-      );
+      prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "pending_claim" }));
 
       await expect(
         claimTicket({
@@ -266,7 +277,11 @@ describe("tickets service", () => {
 
     it("升级工单非目标用户不能认领", async () => {
       prisma.ticket.findUnique.mockResolvedValue(
-        buildTicket({ status: "escalated", escalatedToDept: "营运部", escalatedToUserId: "agent-1" })
+        buildTicket({
+          status: "escalated",
+          escalatedToDept: "营运部",
+          escalatedToUserId: "agent-1",
+        })
       );
 
       await expect(
@@ -281,7 +296,9 @@ describe("tickets service", () => {
 
     it("正确认领 pending_claim 工单", async () => {
       prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "pending_claim" }));
-      prisma.ticket.update.mockResolvedValue(buildTicket({ status: "processing", claimedByUserId: "agent-1" }));
+      prisma.ticket.update.mockResolvedValue(
+        buildTicket({ status: "processing", claimedByUserId: "agent-1" })
+      );
       prisma.ticketMessage.create.mockResolvedValue({});
 
       const result = await claimTicket({
@@ -301,9 +318,7 @@ describe("tickets service", () => {
 
   describe("escalateTicket", () => {
     it("不是认领人时抛错", async () => {
-      prisma.ticket.findUnique.mockResolvedValue(
-        buildTicket({ claimedByUserId: "agent-1" })
-      );
+      prisma.ticket.findUnique.mockResolvedValue(buildTicket({ claimedByUserId: "agent-1" }));
 
       await expect(
         escalateTicket({
@@ -349,7 +364,12 @@ describe("tickets service", () => {
       prisma.ticket.findUnique.mockResolvedValue(null);
 
       await expect(
-        replyTicket({ ticketId: "t-1", senderRole: "agent", senderUserId: "agent-1", content: "回复" })
+        replyTicket({
+          ticketId: "t-1",
+          senderRole: "agent",
+          senderUserId: "agent-1",
+          content: "回复",
+        })
       ).rejects.toThrow("工单不存在");
     });
 
@@ -357,7 +377,12 @@ describe("tickets service", () => {
       prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "closed" }));
 
       await expect(
-        replyTicket({ ticketId: "t-1", senderRole: "agent", senderUserId: "agent-1", content: "回复" })
+        replyTicket({
+          ticketId: "t-1",
+          senderRole: "agent",
+          senderUserId: "agent-1",
+          content: "回复",
+        })
       ).rejects.toThrow("工单已关闭，不能继续追加回复");
     });
 
@@ -429,9 +454,9 @@ describe("tickets service", () => {
         buildTicket({ createdByUserId: "user-1", claimedByUserId: "agent-1" })
       );
 
-      await expect(
-        resolveTicket({ ticketId: "t-1", resolvedByUserId: "user-2" })
-      ).rejects.toThrow("只有提交工单的药店工作人员可以确认问题已解决");
+      await expect(resolveTicket({ ticketId: "t-1", resolvedByUserId: "user-2" })).rejects.toThrow(
+        "只有提交工单的药店工作人员可以确认问题已解决"
+      );
     });
 
     it("未提交方案时抛错", async () => {
@@ -443,9 +468,9 @@ describe("tickets service", () => {
         })
       );
 
-      await expect(
-        resolveTicket({ ticketId: "t-1", resolvedByUserId: "user-1" })
-      ).rejects.toThrow("确认解决前需要人工客服先提交处理方案");
+      await expect(resolveTicket({ ticketId: "t-1", resolvedByUserId: "user-1" })).rejects.toThrow(
+        "确认解决前需要人工客服先提交处理方案"
+      );
     });
 
     it("正确标记为 resolved", async () => {
@@ -480,9 +505,7 @@ describe("tickets service", () => {
     });
 
     it("未解决时抛错", async () => {
-      prisma.ticket.findUnique.mockResolvedValue(
-        buildTicket({ status: "processing" })
-      );
+      prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "processing" }));
 
       await expect(
         closeTicketWithKnowledgeWriteback({ ticketId: "t-1", closedByUserId: "user-1" })
@@ -568,14 +591,14 @@ describe("tickets service", () => {
       const setupListMocks = () => {
         prisma.ticket.findMany.mockResolvedValue(mockItems);
         prisma.ticket.count
-          .mockResolvedValueOnce(1)   // total (where)
-          .mockResolvedValueOnce(10)  // all (roleWhere)
-          .mockResolvedValueOnce(3)   // pending
-          .mockResolvedValueOnce(2)   // processing
-          .mockResolvedValueOnce(1)   // escalated
-          .mockResolvedValueOnce(3)   // resolved
-          .mockResolvedValueOnce(1)   // closed
-          .mockResolvedValueOnce(2);  // myTickets
+          .mockResolvedValueOnce(1) // total (where)
+          .mockResolvedValueOnce(10) // all (roleWhere)
+          .mockResolvedValueOnce(3) // pending
+          .mockResolvedValueOnce(2) // processing
+          .mockResolvedValueOnce(1) // escalated
+          .mockResolvedValueOnce(3) // resolved
+          .mockResolvedValueOnce(1) // closed
+          .mockResolvedValueOnce(2); // myTickets
       };
       setupListMocks();
 

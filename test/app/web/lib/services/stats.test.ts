@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
-import { getStatsSummary, getTrendData, listHistoryMessages, listHistoryTickets } from "@/lib/services/stats";
+import {
+  getStatsSummary,
+  getTrendData,
+  listHistoryMessages,
+  listHistoryTickets,
+} from "@/lib/services/stats";
 
 describe("stats service", () => {
   beforeEach(() => {
@@ -11,14 +16,14 @@ describe("stats service", () => {
     it("返回聚合统计", async () => {
       // getStatsSummary 使用 Promise.all，需要 mock 7 个 count
       prisma.chatMessage.count
-        .mockResolvedValueOnce(100)  // totalQuestions
-        .mockResolvedValueOnce(60)   // kbHits
-        .mockResolvedValueOnce(40);  // llmAnswers
+        .mockResolvedValueOnce(100) // totalQuestions
+        .mockResolvedValueOnce(60) // kbHits
+        .mockResolvedValueOnce(40); // llmAnswers
       prisma.ticket.count
-        .mockResolvedValueOnce(30)   // totalTickets
-        .mockResolvedValueOnce(20)   // closedTickets
-        .mockResolvedValueOnce(15)   // agentClosed
-        .mockResolvedValueOnce(30);  // transferCount
+        .mockResolvedValueOnce(30) // totalTickets
+        .mockResolvedValueOnce(20) // closedTickets
+        .mockResolvedValueOnce(15) // agentClosed
+        .mockResolvedValueOnce(30); // transferCount
 
       const result = await getStatsSummary();
 

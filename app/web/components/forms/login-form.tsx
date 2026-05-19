@@ -27,9 +27,9 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await response.json();
@@ -96,7 +96,9 @@ export function LoginForm() {
           }}
         />
 
-        {error ? <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert> : null}
+        {error ? (
+          <Alert className="border-destructive bg-red-50 text-destructive">{error}</Alert>
+        ) : null}
         <Button className="w-full" disabled={pending}>
           {pending ? "登录中..." : "登录"}
         </Button>
@@ -139,7 +141,9 @@ export function LoginForm() {
                 >
                   <span className="font-medium text-slate-900">{user.username}</span>
                   <span className="text-slate-600">{roleLabel(user.role)}</span>
-                  <span className="text-muted">{user.role === "staff" ? "门店日常问答使用账号" : "人工工单处理账号"}</span>
+                  <span className="text-muted">
+                    {user.role === "staff" ? "门店日常问答使用账号" : "人工工单处理账号"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -209,14 +213,14 @@ function RoleScrollHint(props: { onSelect: (username: string, password: string) 
           className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 transition-opacity duration-200"
           style={{
             background: "linear-gradient(to right, rgb(248 250 252), transparent)",
-            opacity: showLeft ? 1 : 0
+            opacity: showLeft ? 1 : 0,
           }}
         />
         <div
           className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 transition-opacity duration-200"
           style={{
             background: "linear-gradient(to left, rgb(248 250 252), transparent)",
-            opacity: showRight ? 1 : 0
+            opacity: showRight ? 1 : 0,
           }}
         />
         <div ref={scrollRef} className="overflow-x-auto px-1">
@@ -233,7 +237,9 @@ function RoleScrollHint(props: { onSelect: (username: string, password: string) 
                 <span className="flex size-8 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-primary">
                   {user.displayName.slice(0, 1)}
                 </span>
-                <span className="mt-2 truncate text-xs font-medium text-slate-700">{roleLabel(user.role)}</span>
+                <span className="mt-2 truncate text-xs font-medium text-slate-700">
+                  {roleLabel(user.role)}
+                </span>
                 <span className="mt-1 text-[10px] text-muted">
                   {user.role === "staff" ? "门店日常问答" : "人工工单处理"}
                 </span>

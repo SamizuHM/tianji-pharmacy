@@ -22,9 +22,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "请选择 Word 文档" }, { status: 400 });
   }
 
-  const unsupported = files.filter((file) => !SUPPORTED_WORD_EXTENSIONS.has(path.extname(file.name).toLowerCase()));
+  const unsupported = files.filter(
+    (file) => !SUPPORTED_WORD_EXTENSIONS.has(path.extname(file.name).toLowerCase())
+  );
   if (unsupported.length) {
-    return NextResponse.json({ error: `仅支持 .doc/.docx：${unsupported.map((file) => file.name).join("、")}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `仅支持 .doc/.docx：${unsupported.map((file) => file.name).join("、")}` },
+      { status: 400 }
+    );
   }
 
   const filePaths: string[] = [];

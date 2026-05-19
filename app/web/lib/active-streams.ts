@@ -74,9 +74,12 @@ export function getStaleStreamIds(timeoutMs: number): string[] {
  * 订阅一个活跃的流。返回已有的 buffer 内容 + 后续实时推送。
  * 返回 { existingDeltas, onDelta, onDone, unsubscribe }
  */
-export function subscribeStream(
-  messageId: string
-): { existingDeltas: string[]; onDelta: (cb: (delta: string) => void) => void; onDone: (cb: () => void) => void; unsubscribe: () => void } | null {
+export function subscribeStream(messageId: string): {
+  existingDeltas: string[];
+  onDelta: (cb: (delta: string) => void) => void;
+  onDone: (cb: () => void) => void;
+  unsubscribe: () => void;
+} | null {
   const stream = streams.get(messageId);
   if (!stream) return null;
 
@@ -89,14 +92,16 @@ export function subscribeStream(
     },
     close: () => {
       if (doneCallback) doneCallback();
-    }
+    },
   };
 
   stream.subscribers.push(subscriber);
 
   return {
     existingDeltas: [...stream.buffer],
-    onDelta: (cb) => { deltaCallback = cb; },
+    onDelta: (cb) => {
+      deltaCallback = cb;
+    },
     onDone: (cb) => {
       doneCallback = cb;
       // 注册 onDone 时如果已完成，立即触发
@@ -105,6 +110,6 @@ export function subscribeStream(
     unsubscribe: () => {
       const idx = stream.subscribers.indexOf(subscriber);
       if (idx >= 0) stream.subscribers.splice(idx, 1);
-    }
+    },
   };
 }

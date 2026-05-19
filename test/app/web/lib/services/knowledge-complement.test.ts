@@ -36,20 +36,21 @@ describe("knowledge 补全测试", () => {
       // getKnowledgeSummary 内部又有 8 个并行查询
       // 所有 count 和 aggregate 调用都需要 mock
       prisma.knowledgeItem.findMany
-        .mockResolvedValueOnce(items)       // items 查询
-        .mockResolvedValueOnce([             // categories 查询
+        .mockResolvedValueOnce(items) // items 查询
+        .mockResolvedValueOnce([
+          // categories 查询
           { categoryL1: "用药咨询", categoryL2: "感冒" },
           { categoryL1: "医保政策", categoryL2: null },
         ]);
       // count 会被多次调用：list的 count + getKnowledgeSummary 的 6 个 count
       prisma.knowledgeItem.count
-        .mockResolvedValueOnce(1)    // list 的 total count
-        .mockResolvedValueOnce(10)   // summary: total
-        .mockResolvedValueOnce(2)    // summary: imageCount
-        .mockResolvedValueOnce(1)    // summary: todayCreated
-        .mockResolvedValueOnce(6)    // summary: published
-        .mockResolvedValueOnce(3)    // summary: draft
-        .mockResolvedValueOnce(1);   // summary: archived
+        .mockResolvedValueOnce(1) // list 的 total count
+        .mockResolvedValueOnce(10) // summary: total
+        .mockResolvedValueOnce(2) // summary: imageCount
+        .mockResolvedValueOnce(1) // summary: todayCreated
+        .mockResolvedValueOnce(6) // summary: published
+        .mockResolvedValueOnce(3) // summary: draft
+        .mockResolvedValueOnce(1); // summary: archived
       prisma.knowledgeItem.aggregate
         .mockResolvedValueOnce({ _sum: { hitCount: 100 } })
         .mockResolvedValueOnce({ _sum: { hitCount: 10 } });
@@ -64,18 +65,17 @@ describe("knowledge 补全测试", () => {
 
     it("按状态过滤", async () => {
       prisma.knowledgeItem.findMany
-        .mockResolvedValueOnce([])             // items
-        .mockResolvedValueOnce([]);            // categories
+        .mockResolvedValueOnce([]) // items
+        .mockResolvedValueOnce([]); // categories
       prisma.knowledgeItem.count
-        .mockResolvedValueOnce(0)    // list total
-        .mockResolvedValueOnce(0)    // summary: total
-        .mockResolvedValueOnce(0)    // summary: imageCount
-        .mockResolvedValueOnce(0)    // summary: todayCreated
-        .mockResolvedValueOnce(0)    // summary: published
-        .mockResolvedValueOnce(0)    // summary: draft
-        .mockResolvedValueOnce(0);   // summary: archived
-      prisma.knowledgeItem.aggregate
-        .mockResolvedValue({ _sum: { hitCount: 0 } });
+        .mockResolvedValueOnce(0) // list total
+        .mockResolvedValueOnce(0) // summary: total
+        .mockResolvedValueOnce(0) // summary: imageCount
+        .mockResolvedValueOnce(0) // summary: todayCreated
+        .mockResolvedValueOnce(0) // summary: published
+        .mockResolvedValueOnce(0) // summary: draft
+        .mockResolvedValueOnce(0); // summary: archived
+      prisma.knowledgeItem.aggregate.mockResolvedValue({ _sum: { hitCount: 0 } });
 
       await listKnowledgeItems({ status: "published" });
 
@@ -85,9 +85,7 @@ describe("knowledge 补全测试", () => {
     });
 
     it("搜索查询过滤", async () => {
-      prisma.knowledgeItem.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      prisma.knowledgeItem.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       prisma.knowledgeItem.count
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
@@ -96,8 +94,7 @@ describe("knowledge 补全测试", () => {
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0);
-      prisma.knowledgeItem.aggregate
-        .mockResolvedValue({ _sum: { hitCount: 0 } });
+      prisma.knowledgeItem.aggregate.mockResolvedValue({ _sum: { hitCount: 0 } });
 
       await listKnowledgeItems({ q: "头痛" });
 

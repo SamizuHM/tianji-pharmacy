@@ -78,13 +78,13 @@ web 容器 Next.js :3000
 
 当前 `docker-compose.yml` 有 5 个服务：
 
-| 服务 | 作用 | 端口策略 |
-|---|---|---|
-| `postgres` | PostgreSQL，存用户、会话、消息、工单、知识库元数据 | `ports: 5432:5432`，宿主机可访问 |
-| `qdrant` | 向量数据库，存知识库 chunk 向量 | `expose: 6333/6334`，仅 Compose 内部访问 |
-| `ml-service` | Python FastAPI，负责 embedding、rerank、文档解析、多模态能力 | `expose`/容器内部端口，未映射宿主机 |
-| `web` | Next.js 主应用，业务入口 | `expose: 3000`，未映射宿主机 |
-| `cloudflared` | Cloudflare Tunnel，把外网流量转发到 `web:3000` | 通过 tunnel 对外 |
+| 服务          | 作用                                                         | 端口策略                                 |
+| ------------- | ------------------------------------------------------------ | ---------------------------------------- |
+| `postgres`    | PostgreSQL，存用户、会话、消息、工单、知识库元数据           | `ports: 5432:5432`，宿主机可访问         |
+| `qdrant`      | 向量数据库，存知识库 chunk 向量                              | `expose: 6333/6334`，仅 Compose 内部访问 |
+| `ml-service`  | Python FastAPI，负责 embedding、rerank、文档解析、多模态能力 | `expose`/容器内部端口，未映射宿主机      |
+| `web`         | Next.js 主应用，业务入口                                     | `expose: 3000`，未映射宿主机             |
+| `cloudflared` | Cloudflare Tunnel，把外网流量转发到 `web:3000`               | 通过 tunnel 对外                         |
 
 注意：
 
@@ -552,18 +552,18 @@ docker-entrypoint.sh
 
 这些文件的用途：
 
-| 文件/目录 | 用途 |
-|---|---|
-| `.next/standalone` | Next.js 生产运行代码 |
-| `.next/static` | 前端静态资源 |
-| `prisma/` | schema、migrations、seed、Prisma 迁移所需文件 |
-| Prisma Client 运行文件 | 运行时访问数据库 |
-| `packages/shared` | seed/import 脚本和应用运行可能依赖的共享类型/逻辑 |
-| `bcryptjs`、`dotenv` | seed/import 脚本运行依赖 |
-| `scripts/import-seed-knowledge.ts` | 导入种子知识 |
-| `scripts/should-import-knowledge.ts` | 判断是否需要首次导入 |
-| `seed_knowledge/`、docx、`信息部常见问题详解/` | 初始知识库来源 |
-| `docker-entrypoint.sh` | Web 容器启动入口 |
+| 文件/目录                                      | 用途                                              |
+| ---------------------------------------------- | ------------------------------------------------- |
+| `.next/standalone`                             | Next.js 生产运行代码                              |
+| `.next/static`                                 | 前端静态资源                                      |
+| `prisma/`                                      | schema、migrations、seed、Prisma 迁移所需文件     |
+| Prisma Client 运行文件                         | 运行时访问数据库                                  |
+| `packages/shared`                              | seed/import 脚本和应用运行可能依赖的共享类型/逻辑 |
+| `bcryptjs`、`dotenv`                           | seed/import 脚本运行依赖                          |
+| `scripts/import-seed-knowledge.ts`             | 导入种子知识                                      |
+| `scripts/should-import-knowledge.ts`           | 判断是否需要首次导入                              |
+| `seed_knowledge/`、docx、`信息部常见问题详解/` | 初始知识库来源                                    |
+| `docker-entrypoint.sh`                         | Web 容器启动入口                                  |
 
 注意：
 
@@ -586,12 +586,12 @@ volumes:
 
 用途：
 
-| volume | 挂载位置 | 用途 |
-|---|---|---|
-| `postgres_data` | `/var/lib/postgresql/data` | PostgreSQL 数据 |
-| `qdrant_storage` | `/qdrant/storage` | Qdrant 向量数据 |
-| `app_state` | `/app/data` | Web 应用状态数据，目前主要是预留/运行状态 |
-| `uploads_data` | `/app/uploads` | 上传文件 |
+| volume           | 挂载位置                   | 用途                                      |
+| ---------------- | -------------------------- | ----------------------------------------- |
+| `postgres_data`  | `/var/lib/postgresql/data` | PostgreSQL 数据                           |
+| `qdrant_storage` | `/qdrant/storage`          | Qdrant 向量数据                           |
+| `app_state`      | `/app/data`                | Web 应用状态数据，目前主要是预留/运行状态 |
+| `uploads_data`   | `/app/uploads`             | 上传文件                                  |
 
 `uploads_data` 同时挂给了 `web` 和 `ml-service`。
 
@@ -636,16 +636,16 @@ ML_SERVICE_URL=http://ml-service:8001
 
 ## 本地开发与容器部署的区别
 
-| 对比项 | `pnpm dev` 本地开发 | `docker compose up -d --build` 容器部署 |
-|---|---|---|
-| Web 进程 | 宿主机 Next.js dev server | `web` 容器 Next.js standalone |
-| ML 进程 | 宿主机 Python venv | `ml-service` 容器 |
-| PostgreSQL | 容器或本机，通常通过 `127.0.0.1:5432` | `postgres` 容器 |
-| Qdrant | 通常用容器，宿主机访问 `127.0.0.1:6333` | `qdrant` 容器 |
-| 服务地址 | localhost/127.0.0.1 | service name |
-| 数据库迁移 | `pnpm dev` 前置 `pnpm db:migrate` | `web` entrypoint 执行 `prisma migrate deploy` |
-| 构建 | 热更新开发模式 | Docker build 生产产物 |
-| 对外入口 | 直接访问本地端口 | cloudflared tunnel |
+| 对比项     | `pnpm dev` 本地开发                     | `docker compose up -d --build` 容器部署       |
+| ---------- | --------------------------------------- | --------------------------------------------- |
+| Web 进程   | 宿主机 Next.js dev server               | `web` 容器 Next.js standalone                 |
+| ML 进程    | 宿主机 Python venv                      | `ml-service` 容器                             |
+| PostgreSQL | 容器或本机，通常通过 `127.0.0.1:5432`   | `postgres` 容器                               |
+| Qdrant     | 通常用容器，宿主机访问 `127.0.0.1:6333` | `qdrant` 容器                                 |
+| 服务地址   | localhost/127.0.0.1                     | service name                                  |
+| 数据库迁移 | `pnpm dev` 前置 `pnpm db:migrate`       | `web` entrypoint 执行 `prisma migrate deploy` |
+| 构建       | 热更新开发模式                          | Docker build 生产产物                         |
+| 对外入口   | 直接访问本地端口                        | cloudflared tunnel                            |
 
 如果使用 `docker-compose.public-web.yml`，对外入口不是 cloudflared，而是宿主机 `WEB_PUBLIC_PORT -> web:3000`。
 

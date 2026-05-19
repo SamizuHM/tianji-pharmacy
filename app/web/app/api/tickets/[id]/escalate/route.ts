@@ -22,10 +22,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       senderUserId: user.id,
       senderDisplayName: user.displayName,
       targetDept: body.targetDept.trim(),
-      targetUserId: body.targetUserId?.trim() || undefined
+      targetUserId: body.targetUserId?.trim() || undefined,
     });
     return NextResponse.json({ ticket });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "升级失败" }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "升级失败" },
+      { status: 400 }
+    );
   }
 }

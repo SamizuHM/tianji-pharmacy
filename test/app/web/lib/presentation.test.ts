@@ -50,7 +50,11 @@ describe("statusLabel", () => {
 describe("statusTone", () => {
   it("所有状态返回非空字符串", () => {
     const statuses: Array<Parameters<typeof statusTone>[0]> = [
-      "pending_claim", "processing", "escalated", "resolved", "closed",
+      "pending_claim",
+      "processing",
+      "escalated",
+      "resolved",
+      "closed",
     ];
     for (const s of statuses) {
       expect(statusTone(s).length).toBeGreaterThan(0);
@@ -97,7 +101,11 @@ describe("knowledgeStatusLabel", () => {
 
 describe("knowledgeStatusTone", () => {
   it("所有状态返回非空字符串", () => {
-    const statuses: Array<Parameters<typeof knowledgeStatusTone>[0]> = ["draft", "published", "archived"];
+    const statuses: Array<Parameters<typeof knowledgeStatusTone>[0]> = [
+      "draft",
+      "published",
+      "archived",
+    ];
     for (const s of statuses) {
       expect(knowledgeStatusTone(s).length).toBeGreaterThan(0);
     }

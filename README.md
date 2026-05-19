@@ -129,14 +129,14 @@ bash scripts/init.sh
 
 ### 两种方式区别
 
-| 对比项 | `pnpm dev` 本地开发 | `docker compose up -d --build` 容器部署 |
-|---|---|---|
-| 进程位置 | Web/ML 在宿主机进程运行 | Web/ML/PostgreSQL/Qdrant/cloudflared 全在容器内 |
-| 配置来源 | 根目录 `.env` 由脚本/框架加载 | `docker-compose.yml` 注入容器环境变量 |
-| 服务互联地址 | `127.0.0.1` | 服务名（`postgres`、`qdrant`、`ml-service`、`web`） |
-| 端口暴露 | 本地直接监听 `3000/8001` | 仅容器内 `expose`，通过 `cloudflared` 对外 |
-| 数据落盘 | 本地 PostgreSQL + 本地 `uploads/` | `postgres_data` / `uploads_data` / `qdrant_storage` volume |
-| 适用场景 | 开发调试、看日志、改代码热更新 | 稳定运行、隔离部署、对外发布 |
+| 对比项       | `pnpm dev` 本地开发               | `docker compose up -d --build` 容器部署                    |
+| ------------ | --------------------------------- | ---------------------------------------------------------- |
+| 进程位置     | Web/ML 在宿主机进程运行           | Web/ML/PostgreSQL/Qdrant/cloudflared 全在容器内            |
+| 配置来源     | 根目录 `.env` 由脚本/框架加载     | `docker-compose.yml` 注入容器环境变量                      |
+| 服务互联地址 | `127.0.0.1`                       | 服务名（`postgres`、`qdrant`、`ml-service`、`web`）        |
+| 端口暴露     | 本地直接监听 `3000/8001`          | 仅容器内 `expose`，通过 `cloudflared` 对外                 |
+| 数据落盘     | 本地 PostgreSQL + 本地 `uploads/` | `postgres_data` / `uploads_data` / `qdrant_storage` volume |
+| 适用场景     | 开发调试、看日志、改代码热更新    | 稳定运行、隔离部署、对外发布                               |
 
 ### 方式一：`pnpm dev`（推荐开发时使用）
 
@@ -294,7 +294,7 @@ pnpm kb:rebuild
 1. 检索阶段  
    会把“当前文本 + 最近上下文 + 图片”一起送入多模态检索链路，完成 query rewrite、embedding、Qdrant 检索和 rerank。
 
-2. 回答阶段  
+2. 回答阶段
    - 无图片：直接走文本流式回答
    - 有图片：走 Python ML Service 的 `MultiModalConversation` 流式接口，让最终回答也真正参考图片内容
 

@@ -1,15 +1,31 @@
-import { MessageRole, MessageSourceType, Prisma, TicketPriority, TicketStatus, UserRole } from "@prisma/client";
+import {
+  MessageRole,
+  MessageSourceType,
+  Prisma,
+  TicketPriority,
+  TicketStatus,
+  UserRole,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { broadcastTicketNotification, getPendingTicketCounts } from "@/lib/notifications/server";
-import { generateTicketKnowledgeDraftWithModel, type TicketKnowledgeMaterialForModel } from "@/lib/openai";
+import {
+  generateTicketKnowledgeDraftWithModel,
+  type TicketKnowledgeMaterialForModel,
+} from "@/lib/openai";
 import { appendConversationMessage } from "@/lib/services/conversations";
 import { upsertKnowledgeItem } from "@/lib/services/knowledge";
 import type { AttachmentItem } from "@pharmacy/shared";
 import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
 
-export type TicketStatusGroup = "all" | "pending" | "processing" | "escalated" | "resolved" | "closed";
+export type TicketStatusGroup =
+  | "all"
+  | "pending"
+  | "processing"
+  | "escalated"
+  | "resolved"
+  | "closed";
 
 export type TicketListParams = {
   role: UserRole;
@@ -42,7 +58,7 @@ const statusGroups: Record<Exclude<TicketStatusGroup, "all">, TicketStatus[]> = 
   processing: ["processing"],
   escalated: ["escalated"],
   resolved: ["resolved"],
-  closed: ["closed"]
+  closed: ["closed"],
 };
 
 function clampPage(value: number | undefined) {
@@ -55,7 +71,14 @@ function clampPageSize(value: number | undefined) {
 }
 
 function deriveTags(text: string) {
-  return Array.from(new Set(text.split(/[，。；、,\s（）()]+/).map((item) => item.trim()).filter(Boolean))).slice(0, 5);
+  return Array.from(
+    new Set(
+      text
+        .split(/[，。；、,\s（）()]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 5);
 }
 
 function deriveTicketCategory(text: string) {
@@ -160,10 +183,14 @@ export function canAccessTicket(input: {
     return true;
   }
 
-  return !input.userDepartmentName && !input.ticket.escalatedToDept && !input.ticket.escalatedToUserId;
+  return (
+    !input.userDepartmentName && !input.ticket.escalatedToDept && !input.ticket.escalatedToUserId
+  );
 }
 
-function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName">): Prisma.TicketWhereInput {
+function baseTicketWhere(
+  params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName">
+): Prisma.TicketWhereInput {
   if (params.role === "staff") {
     return { createdByUserId: params.userId };
   }
@@ -171,7 +198,7 @@ function baseTicketWhere(params: Pick<TicketListParams, "role" | "userId" | "use
   // 一级客服（无部门）看待认领工单；二级专家只看升级到自己部门/自己的工单。
   const conditions: Prisma.TicketWhereInput[] = [
     { claimedByUserId: params.userId },
-    { status: "closed" }
+    { status: "closed" },
   ];
 
   if (!params.userDepartmentName) {
@@ -206,8 +233,8 @@ function buildTicketWhere(params: TicketListParams): Prisma.TicketWhereInput {
         { title: { contains: q } },
         { latestUserQuestion: { contains: q } },
         { category: { contains: q } },
-        { createdBy: { displayName: { contains: q } } }
-      ]
+        { createdBy: { displayName: { contains: q } } },
+      ],
     });
   }
 
@@ -220,7 +247,7 @@ export async function createTicketFromConversation(input: {
 }) {
   const messages = await prisma.chatMessage.findMany({
     where: { conversationId: input.conversationId },
-    orderBy: { createdAt: "asc" }
+    orderBy: { createdAt: "asc" },
   });
 
   const latestUser = [...messages].reverse().find((item) => item.role === "user");
@@ -242,7 +269,7 @@ export async function createTicketFromConversation(input: {
       contentText: item.contentText,
       attachmentsJson: item.attachmentsJson,
       retrievalDebugJson: item.retrievalDebugJson,
-      createdAt: item.createdAt.toISOString()
+      createdAt: item.createdAt.toISOString(),
     }))
   );
 
@@ -257,10 +284,14 @@ export async function createTicketFromConversation(input: {
       category,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
       latestUserQuestion: latestUser.contentText,
-      inputMode: latestUserAttachments.length ? (latestUser.contentText ? "mixed" : "image") : "text",
+      inputMode: latestUserAttachments.length
+        ? latestUser.contentText
+          ? "mixed"
+          : "image"
+        : "text",
       aiAnswerSnapshot: latestAssistant?.contentText ?? "",
-      conversationSnapshot
-    }
+      conversationSnapshot,
+    },
   });
 
   await prisma.ticketMessage.createMany({
@@ -269,7 +300,7 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "system",
         messageType: "system",
-        content: "系统已创建工单，等待人工客服认领。"
+        content: "系统已创建工单，等待人工客服认领。",
       },
       ...messages.map((message) => {
         const attachments = getAttachmentItems(message.attachmentsJson);
@@ -281,7 +312,7 @@ export async function createTicketFromConversation(input: {
               name: path.split("/").pop() ?? path,
               path,
               mimeType: "image/png",
-              size: 0
+              size: 0,
             }));
             allAttachments = [...attachments, ...kbImages];
           }
@@ -290,12 +321,12 @@ export async function createTicketFromConversation(input: {
           ticketId: ticket.id,
           senderRole: message.role,
           senderUserId: message.role === "user" ? input.createdByUserId : undefined,
-          messageType: allAttachments.length ? "image" as const : "text" as const,
+          messageType: allAttachments.length ? ("image" as const) : ("text" as const),
           content: message.contentText,
-          attachments: allAttachments.length ? JSON.stringify(allAttachments) : undefined
+          attachments: allAttachments.length ? JSON.stringify(allAttachments) : undefined,
         };
-      })
-    ]
+      }),
+    ],
   });
 
   await broadcastTicketNotification({
@@ -304,7 +335,7 @@ export async function createTicketFromConversation(input: {
     message: `工单 ${ticket.ticketNo} 待认领：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["agent"]
+    targetRoles: ["agent"],
   });
 
   return ticket;
@@ -317,7 +348,7 @@ export async function claimTicket(input: {
   userDepartmentName?: string | null;
 }) {
   const existing = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!existing) {
@@ -330,7 +361,9 @@ export async function claimTicket(input: {
 
   if (existing.status === "escalated") {
     const matchedUser = existing.escalatedToUserId === input.userId;
-    const matchedDept = Boolean(input.userDepartmentName && existing.escalatedToDept === input.userDepartmentName);
+    const matchedDept = Boolean(
+      input.userDepartmentName && existing.escalatedToDept === input.userDepartmentName
+    );
     const untargeted = !existing.escalatedToUserId && !existing.escalatedToDept;
     if (!matchedUser && !matchedDept && !untargeted) {
       throw new Error("当前工单未升级到你的部门或账号，不能认领");
@@ -341,12 +374,12 @@ export async function claimTicket(input: {
   const ticket = await prisma.ticket.update({
     where: {
       id: input.ticketId,
-      status: { in: ["pending_claim", "escalated"] }
+      status: { in: ["pending_claim", "escalated"] },
     },
     data: {
       status: "processing",
-      claimedByUserId: input.userId
-    }
+      claimedByUserId: input.userId,
+    },
   });
 
   await prisma.ticketMessage.create({
@@ -354,8 +387,8 @@ export async function claimTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: `${input.userDisplayName} 已认领工单。`
-    }
+      content: `${input.userDisplayName} 已认领工单。`,
+    },
   });
 
   await broadcastTicketNotification({
@@ -364,7 +397,7 @@ export async function claimTicket(input: {
     message: `工单 ${ticket.ticketNo} 已被 ${input.userDisplayName} 认领`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetUserIds: [ticket.createdByUserId]
+    targetUserIds: [ticket.createdByUserId],
   });
 
   return ticket;
@@ -376,27 +409,30 @@ export async function listTickets(params: TicketListParams) {
   const where = buildTicketWhere(params);
   const roleWhere = baseTicketWhere(params);
 
-  const [items, total, all, pending, processing, escalated, resolved, closed, myTickets] = await Promise.all([
-    prisma.ticket.findMany({
-      where,
-      include: {
-        createdBy: true,
-        closedBy: true,
-        claimedBy: true
-      },
-      orderBy: { updatedAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    }),
-    prisma.ticket.count({ where }),
-    prisma.ticket.count({ where: roleWhere }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: "pending_claim" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: "processing" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: "escalated" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: "resolved" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { status: "closed" }] } }),
-    prisma.ticket.count({ where: { AND: [roleWhere, { claimedByUserId: params.userId, status: { not: "closed" } }] } })
-  ]);
+  const [items, total, all, pending, processing, escalated, resolved, closed, myTickets] =
+    await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: {
+          createdBy: true,
+          closedBy: true,
+          claimedBy: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.ticket.count({ where }),
+      prisma.ticket.count({ where: roleWhere }),
+      prisma.ticket.count({ where: { AND: [roleWhere, { status: "pending_claim" }] } }),
+      prisma.ticket.count({ where: { AND: [roleWhere, { status: "processing" }] } }),
+      prisma.ticket.count({ where: { AND: [roleWhere, { status: "escalated" }] } }),
+      prisma.ticket.count({ where: { AND: [roleWhere, { status: "resolved" }] } }),
+      prisma.ticket.count({ where: { AND: [roleWhere, { status: "closed" }] } }),
+      prisma.ticket.count({
+        where: { AND: [roleWhere, { claimedByUserId: params.userId, status: { not: "closed" } }] },
+      }),
+    ]);
 
   return {
     items,
@@ -411,8 +447,8 @@ export async function listTickets(params: TicketListParams) {
       escalated,
       resolved,
       closed,
-      myTickets
-    }
+      myTickets,
+    },
   };
 }
 
@@ -428,17 +464,17 @@ export async function getTicketDetail(ticketId: string) {
       messages: {
         orderBy: { createdAt: "asc" },
         include: {
-          senderUser: true
-        }
+          senderUser: true,
+        },
       },
       knowledgeDrafts: {
         orderBy: { createdAt: "desc" },
         take: 1,
         include: {
-          generatedBy: true
-        }
-      }
-    }
+          generatedBy: true,
+        },
+      },
+    },
   });
 }
 
@@ -450,7 +486,7 @@ export async function replyTicket(input: {
   attachments?: string;
 }) {
   const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!ticket) {
@@ -468,27 +504,29 @@ export async function replyTicket(input: {
       senderUserId: input.senderUserId,
       messageType: input.attachments ? "image" : "text",
       content: input.content,
-      attachments: input.attachments
-    }
+      attachments: input.attachments,
+    },
   });
 
   // Transition pending_claim/escalated to processing when a human replies
-  if (input.senderRole === "agent" &&
-      (ticket.status === "pending_claim" || ticket.status === "escalated")) {
+  if (
+    input.senderRole === "agent" &&
+    (ticket.status === "pending_claim" || ticket.status === "escalated")
+  ) {
     await prisma.ticket.update({
       where: { id: input.ticketId },
       data: {
         status: "processing",
         claimedByUserId: ticket.claimedByUserId ?? input.senderUserId,
-        firstRespondedAt: ticket.firstRespondedAt ?? new Date()
-      }
+        firstRespondedAt: ticket.firstRespondedAt ?? new Date(),
+      },
     });
   } else if (input.senderRole === "agent") {
     await prisma.ticket.update({
       where: { id: input.ticketId },
       data: {
-        firstRespondedAt: ticket.firstRespondedAt ?? new Date()
-      }
+        firstRespondedAt: ticket.firstRespondedAt ?? new Date(),
+      },
     });
   }
 
@@ -498,7 +536,7 @@ export async function replyTicket(input: {
       role: input.senderRole,
       sourceType: "manual",
       contentText: input.content,
-      attachmentsJson: input.attachments ?? null
+      attachmentsJson: input.attachments ?? null,
     });
   }
 
@@ -511,9 +549,12 @@ export async function replyTicket(input: {
         : `工单 ${ticket.ticketNo} 有新的人工处理回复`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetUserIds: input.senderRole === "user"
-      ? (ticket.claimedByUserId ? [ticket.claimedByUserId] : [])
-      : [ticket.createdByUserId]
+    targetUserIds:
+      input.senderRole === "user"
+        ? ticket.claimedByUserId
+          ? [ticket.claimedByUserId]
+          : []
+        : [ticket.createdByUserId],
   });
 
   return message;
@@ -527,7 +568,7 @@ export async function escalateTicket(input: {
   targetUserId?: string;
 }) {
   const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!ticket) {
@@ -538,9 +579,7 @@ export async function escalateTicket(input: {
     throw new Error("只有工单认领人才能升级工单");
   }
 
-  const targetLabel = input.targetUserId
-    ? `${input.targetDept} 的指定人员`
-    : input.targetDept;
+  const targetLabel = input.targetUserId ? `${input.targetDept} 的指定人员` : input.targetDept;
 
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
@@ -550,8 +589,8 @@ export async function escalateTicket(input: {
       escalatedToDept: input.targetDept,
       escalatedToUserId: input.targetUserId ?? null,
       // Clear claim so target can re-claim
-      claimedByUserId: null
-    }
+      claimedByUserId: null,
+    },
   });
 
   await prisma.ticketMessage.create({
@@ -559,8 +598,8 @@ export async function escalateTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: `${input.senderDisplayName} 已将工单升级至${targetLabel}。`
-    }
+      content: `${input.senderDisplayName} 已将工单升级至${targetLabel}。`,
+    },
   });
 
   await broadcastTicketNotification({
@@ -569,7 +608,7 @@ export async function escalateTicket(input: {
     message: `工单 ${ticket.ticketNo} 已升级至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["agent"]
+    targetRoles: ["agent"],
   });
 
   return updated;
@@ -581,7 +620,7 @@ export async function submitResolution(input: {
   resolutionText: string;
 }) {
   const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!ticket) {
@@ -601,8 +640,8 @@ export async function submitResolution(input: {
     data: {
       resolutionText: input.resolutionText,
       resolutionSubmittedAt: new Date(),
-      resolutionSubmittedByUserId: input.userId
-    }
+      resolutionSubmittedByUserId: input.userId,
+    },
   });
 
   await prisma.ticketMessage.create({
@@ -610,8 +649,8 @@ export async function submitResolution(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: "处理方案已提交，等待药店工作人员确认关闭。"
-    }
+      content: "处理方案已提交，等待药店工作人员确认关闭。",
+    },
   });
 
   await broadcastTicketNotification({
@@ -620,18 +659,15 @@ export async function submitResolution(input: {
     message: `工单 ${ticket.ticketNo} 的处理方案已提交，等待确认关闭`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetUserIds: [ticket.createdByUserId]
+    targetUserIds: [ticket.createdByUserId],
   });
 
   return updated;
 }
 
-export async function resolveTicket(input: {
-  ticketId: string;
-  resolvedByUserId: string;
-}) {
+export async function resolveTicket(input: { ticketId: string; resolvedByUserId: string }) {
   const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!ticket) {
@@ -657,8 +693,8 @@ export async function resolveTicket(input: {
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
-      status: "resolved"
-    }
+      status: "resolved",
+    },
   });
 
   await prisma.ticketMessage.create({
@@ -666,8 +702,8 @@ export async function resolveTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: "药店工作人员已确认问题解决，客服可以整理待入库知识。"
-    }
+      content: "药店工作人员已确认问题解决，客服可以整理待入库知识。",
+    },
   });
 
   if (ticket.claimedByUserId) {
@@ -677,7 +713,7 @@ export async function resolveTicket(input: {
       message: `工单 ${ticket.ticketNo} 已确认解决，请整理待入库知识`,
       ticketId: ticket.id,
       ticketNo: ticket.ticketNo,
-      targetUserIds: [ticket.claimedByUserId]
+      targetUserIds: [ticket.claimedByUserId],
     });
   }
 
@@ -690,9 +726,9 @@ export async function getTicketKnowledgeMaterials(ticketId: string) {
     include: {
       messages: {
         orderBy: { createdAt: "asc" },
-        include: { senderUser: true }
-      }
-    }
+        include: { senderUser: true },
+      },
+    },
   });
 
   if (!ticket) {
@@ -710,23 +746,36 @@ export async function getTicketKnowledgeMaterials(ticketId: string) {
         role: message.senderRole,
         sourceType: "ticket" as const,
         roleLabel: message.senderUser?.displayName || roleLabel(message.senderRole),
-        sourceLabel: sourceLabel(message.senderRole === "assistant" ? "llm" : message.senderRole === "agent" ? "manual" : "ticket"),
+        sourceLabel: sourceLabel(
+          message.senderRole === "assistant"
+            ? "llm"
+            : message.senderRole === "agent"
+              ? "manual"
+              : "ticket"
+        ),
         contentText: message.content,
         attachments,
-        createdAt: message.createdAt
+        createdAt: message.createdAt,
       } satisfies TicketKnowledgeMaterial;
     });
 }
 
-function selectTicketMaterials(materials: TicketKnowledgeMaterial[], selectedMaterialIds: string[]) {
+function selectTicketMaterials(
+  materials: TicketKnowledgeMaterial[],
+  selectedMaterialIds: string[]
+) {
   const ids = normalizeMaterialIds(selectedMaterialIds);
   const selected = materials.filter((material) => ids.includes(material.id));
   if (!selected.length) {
     throw new Error("请选择用于入库的有效对话内容");
   }
 
-  const hasQuestion = selected.some((material) => material.role === "user" && material.contentText.trim());
-  const hasAnswer = selected.some((material) => material.role !== "user" && material.contentText.trim());
+  const hasQuestion = selected.some(
+    (material) => material.role === "user" && material.contentText.trim()
+  );
+  const hasAnswer = selected.some(
+    (material) => material.role !== "user" && material.contentText.trim()
+  );
   if (!hasQuestion || !hasAnswer) {
     throw new Error("请至少选择一条用户问题和一条有效回答");
   }
@@ -740,7 +789,7 @@ export async function generateTicketKnowledgeDraft(input: {
   selectedMaterialIds: string[];
 }) {
   const ticket = await prisma.ticket.findUnique({
-    where: { id: input.ticketId }
+    where: { id: input.ticketId },
   });
 
   if (!ticket) {
@@ -757,19 +806,21 @@ export async function generateTicketKnowledgeDraft(input: {
 
   const materials = await getTicketKnowledgeMaterials(input.ticketId);
   const selected = selectTicketMaterials(materials, input.selectedMaterialIds);
-  const imagePaths = Array.from(new Set(selected.flatMap((material) => material.attachments.map((item) => item.path))));
+  const imagePaths = Array.from(
+    new Set(selected.flatMap((material) => material.attachments.map((item) => item.path)))
+  );
   const modelMaterials: TicketKnowledgeMaterialForModel[] = selected.map((material) => ({
     id: material.id,
     roleLabel: material.roleLabel,
     sourceLabel: material.sourceLabel,
     contentText: material.contentText,
     createdAt: material.createdAt.toISOString(),
-    imagePaths: material.attachments.map((item) => item.path)
+    imagePaths: material.attachments.map((item) => item.path),
   }));
   const generated = await generateTicketKnowledgeDraftWithModel({
     ticketNo: ticket.ticketNo,
     title: ticket.title,
-    materials: modelMaterials
+    materials: modelMaterials,
   });
   const tags = tagsFromDraft(generated.question, generated.tags);
 
@@ -785,14 +836,14 @@ export async function generateTicketKnowledgeDraft(input: {
         tagsJson: tags.length ? JSON.stringify(tags) : null,
         imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
         generatedByUserId: input.generatedByUserId,
-        confirmedAt: new Date()
+        confirmedAt: new Date(),
       },
-      include: { generatedBy: true }
+      include: { generatedBy: true },
     });
 
     await tx.ticket.update({
       where: { id: ticket.id },
-      data: { knowledgeStatus: "pending_writeback" }
+      data: { knowledgeStatus: "pending_writeback" },
     });
 
     return created;
@@ -810,9 +861,9 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     include: {
       knowledgeDrafts: {
         orderBy: { createdAt: "desc" },
-        take: 1
-      }
-    }
+        take: 1,
+      },
+    },
   });
 
   if (!existingTicket) {
@@ -859,13 +910,13 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     imagePaths,
     originalText: `${draft.question}\n${draft.answer}`,
     normalizedText: `${draft.question}\n${draft.answer}`,
-    chunkTexts: [`问题：${draft.question}\n答案：${draft.answer}`]
+    chunkTexts: [`问题：${draft.question}\n答案：${draft.answer}`],
   });
 
   const ticket = await prisma.$transaction(async (tx) => {
     await tx.ticketKnowledgeDraft.update({
       where: { id: draft.id },
-      data: { writtenKnowledgeItemId: item.id }
+      data: { writtenKnowledgeItemId: item.id },
     });
 
     const updated = await tx.ticket.update({
@@ -874,8 +925,8 @@ export async function closeTicketWithKnowledgeWriteback(input: {
         status: "closed",
         knowledgeStatus: "written",
         closedByUserId: input.closedByUserId,
-        closedAt: new Date()
-      }
+        closedAt: new Date(),
+      },
     });
 
     await tx.ticketMessage.create({
@@ -883,8 +934,8 @@ export async function closeTicketWithKnowledgeWriteback(input: {
         ticketId: input.ticketId,
         senderRole: "system",
         messageType: "system",
-        content: "工单已关闭，客服生成的优质答案已写回知识库。"
-      }
+        content: "工单已关闭，客服生成的优质答案已写回知识库。",
+      },
     });
 
     return updated;
@@ -895,7 +946,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
       conversationId: ticket.conversationId,
       role: "system",
       sourceType: "system",
-      contentText: "工单已关闭，优质答案已写回知识库。"
+      contentText: "工单已关闭，优质答案已写回知识库。",
     });
   }
 
@@ -906,7 +957,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
     targetRoles: ["agent"],
-    targetUserIds: [ticket.createdByUserId, ticket.claimedByUserId].filter(Boolean) as string[]
+    targetUserIds: [ticket.createdByUserId, ticket.claimedByUserId].filter(Boolean) as string[],
   });
 
   return ticket;

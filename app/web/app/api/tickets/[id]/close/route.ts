@@ -14,10 +14,13 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
   try {
     const ticket = await closeTicketWithKnowledgeWriteback({
       ticketId: id,
-      closedByUserId: user.id
+      closedByUserId: user.id,
     });
     return NextResponse.json({ ticket });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "关闭失败" }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "关闭失败" },
+      { status: 400 }
+    );
   }
 }

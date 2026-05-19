@@ -16,7 +16,7 @@ import {
   Search,
   Settings,
   Tickets,
-  X
+  X,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -29,23 +29,38 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { sidebarThemes } from "@/lib/themes";
 import type { ColorModeName, SidebarThemeName } from "@/lib/themes";
 import { roleLabel, statusLabel } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
-function getNavItems(role: UserRole, userDepartmentName?: string | null): Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }> {
+function getNavItems(
+  role: UserRole,
+  userDepartmentName?: string | null
+): Array<{
+  href: string;
+  label: string;
+  icon: typeof MessageCircle;
+  countKey?: "pendingClaim" | "escalated";
+}> {
   if (role === "staff") {
     return [
       { href: "/staff/chat", label: "问答工作台", icon: MessageCircle },
       { href: "/staff/tickets", label: "人工工单", icon: Tickets },
       { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
       { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
-      { href: "/admin/settings", label: "系统设置", icon: Settings }
+      { href: "/admin/settings", label: "系统设置", icon: Settings },
     ];
   }
   const countKey: "pendingClaim" | "escalated" = userDepartmentName ? "escalated" : "pendingClaim";
@@ -53,7 +68,7 @@ function getNavItems(role: UserRole, userDepartmentName?: string | null): Array<
     { href: "/agent/tickets", label: "人工工单", icon: Tickets, countKey },
     { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
     { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
-    { href: "/admin/settings", label: "系统设置", icon: Settings }
+    { href: "/admin/settings", label: "系统设置", icon: Settings },
   ];
 }
 
@@ -71,7 +86,13 @@ type NotificationItem = {
 
 type SearchResult = {
   tickets: Array<{ id: string; ticketNo: string; title: string; status: string }>;
-  knowledge: Array<{ id: string; question: string; categoryL1: string; categoryL2: string; hitCount: number }>;
+  knowledge: Array<{
+    id: string;
+    question: string;
+    categoryL1: string;
+    categoryL2: string;
+    hitCount: number;
+  }>;
   conversations: Array<{ id: string; title: string }>;
   messages: Array<{ id: string; conversationId: string; contentText: string; sourceType: string }>;
 };
@@ -93,14 +114,18 @@ export function AppShell(props: {
     props.initialPendingCounts ?? { pendingClaim: 0, escalated: 0 }
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const navItems = useMemo(() => getNavItems(props.role, props.userDepartmentName), [props.role, props.userDepartmentName]);
+  const navItems = useMemo(
+    () => getNavItems(props.role, props.userDepartmentName),
+    [props.role, props.userDepartmentName]
+  );
 
   useEffect(() => {
     const root = document.documentElement;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
 
     const applyColorMode = () => {
-      const shouldUseDark = props.colorMode === "dark" || (props.colorMode === "system" && media.matches);
+      const shouldUseDark =
+        props.colorMode === "dark" || (props.colorMode === "system" && media.matches);
       root.classList.toggle("dark", shouldUseDark);
       root.dataset.colorMode = props.colorMode;
       root.style.colorScheme = shouldUseDark ? "dark" : "light";
@@ -116,7 +141,11 @@ export function AppShell(props: {
   }, [props.colorMode]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
       Notification.requestPermission().catch(() => undefined);
     }
   }, []);
@@ -140,7 +169,12 @@ export function AppShell(props: {
         setPendingCounts(payload.pendingCounts);
       }
 
-      if (payload.type === "snapshot" || payload.type === "ping" || !payload.title || !payload.message) {
+      if (
+        payload.type === "snapshot" ||
+        payload.type === "ping" ||
+        !payload.title ||
+        !payload.message
+      ) {
         return;
       }
 
@@ -148,11 +182,15 @@ export function AppShell(props: {
         id: crypto.randomUUID(),
         title: payload.title,
         message: payload.message,
-        createdAt: payload.createdAt || new Date().toISOString()
+        createdAt: payload.createdAt || new Date().toISOString(),
       };
       setNotifications((current) => [item, ...current].slice(0, 4));
 
-      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
         new Notification(payload.title, { body: payload.message });
       }
 
@@ -177,7 +215,12 @@ export function AppShell(props: {
 
   return (
     <div className="h-dvh min-h-0 overflow-hidden bg-background text-slate-900 dark:text-foreground">
-      <DesktopSidebar navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
+      <DesktopSidebar
+        navItems={navItems}
+        pathname={pathname}
+        pendingCounts={pendingCounts}
+        theme={props.sidebarTheme}
+      />
       <div className={config.contentArea.wrapper}>
         <header className={config.contentArea.header}>
           <div className="flex min-w-0 items-center gap-3">
@@ -187,23 +230,38 @@ export function AppShell(props: {
                   <Menu className="size-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="max-w-72 border-0 bg-transparent p-0 shadow-none">
+              <SheetContent
+                side="left"
+                className="max-w-72 border-0 bg-transparent p-0 shadow-none"
+              >
                 <SheetHeader className="sr-only">
                   <SheetTitle>导航菜单</SheetTitle>
                 </SheetHeader>
                 <SheetBody className="h-full p-0">
-                  <SidebarContent navItems={navItems} pathname={pathname} pendingCounts={pendingCounts} theme={props.sidebarTheme} />
+                  <SidebarContent
+                    navItems={navItems}
+                    pathname={pathname}
+                    pendingCounts={pendingCounts}
+                    theme={props.sidebarTheme}
+                  />
                 </SheetBody>
               </SheetContent>
             </Sheet>
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-slate-950 dark:text-foreground">{props.title}</h1>
-              {props.description ? <p className="hidden truncate text-xs text-muted md:block">{props.description}</p> : null}
+              <h1 className="truncate text-lg font-semibold text-slate-950 dark:text-foreground">
+                {props.title}
+              </h1>
+              {props.description ? (
+                <p className="hidden truncate text-xs text-muted md:block">{props.description}</p>
+              ) : null}
             </div>
           </div>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
             <GlobalSearch role={props.role} />
-            <button type="button" className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground">
+            <button
+              type="button"
+              className="relative rounded p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground"
+            >
               <Bell className="size-5" />
               {pendingCounts.pendingClaim + pendingCounts.escalated > 0 ? (
                 <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
@@ -216,7 +274,9 @@ export function AppShell(props: {
                     <AvatarFallback>{props.displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <span className="hidden min-w-0 flex-col text-left md:flex">
-                    <span className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{props.displayName}</span>
+                    <span className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
+                      {props.displayName}
+                    </span>
                     <span className="truncate text-[11px] text-muted">{roleLabel(props.role)}</span>
                   </span>
                   <ChevronDown className="hidden size-4 text-muted md:block" />
@@ -245,13 +305,20 @@ export function AppShell(props: {
       {notifications.length ? (
         <div className="fixed right-4 top-20 z-50 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3">
           {notifications.map((item) => (
-            <div key={item.id} className="animate-slide-in-from-top rounded-lg border border-border bg-white p-4 shadow-xl dark:bg-card">
+            <div
+              key={item.id}
+              className="animate-slide-in-from-top rounded-lg border border-border bg-white p-4 shadow-xl dark:bg-card"
+            >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-900 dark:text-foreground">{item.title}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-foreground">
+                  {item.title}
+                </div>
                 <button
                   type="button"
                   className="rounded p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600 dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground"
-                  onClick={() => setNotifications((current) => current.filter((entry) => entry.id !== item.id))}
+                  onClick={() =>
+                    setNotifications((current) => current.filter((entry) => entry.id !== item.id))
+                  }
                 >
                   <X className="size-4" />
                 </button>
@@ -266,7 +333,12 @@ export function AppShell(props: {
 }
 
 function DesktopSidebar(props: {
-  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
+  navItems: Array<{
+    href: string;
+    label: string;
+    icon: typeof MessageCircle;
+    countKey?: "pendingClaim" | "escalated";
+  }>;
   pathname: string;
   pendingCounts: PendingCounts;
   theme: SidebarThemeName;
@@ -274,13 +346,23 @@ function DesktopSidebar(props: {
   const config = sidebarThemes[props.theme];
   return (
     <aside className={config.aside}>
-      <SidebarContent navItems={props.navItems} pathname={props.pathname} pendingCounts={props.pendingCounts} theme={props.theme} />
+      <SidebarContent
+        navItems={props.navItems}
+        pathname={props.pathname}
+        pendingCounts={props.pendingCounts}
+        theme={props.theme}
+      />
     </aside>
   );
 }
 
 function SidebarContent(props: {
-  navItems: Array<{ href: string; label: string; icon: typeof MessageCircle; countKey?: "pendingClaim" | "escalated" }>;
+  navItems: Array<{
+    href: string;
+    label: string;
+    icon: typeof MessageCircle;
+    countKey?: "pendingClaim" | "escalated";
+  }>;
   pathname: string;
   pendingCounts: PendingCounts;
   theme: SidebarThemeName;
@@ -331,7 +413,9 @@ function SidebarContent(props: {
                 <span className="truncate">{item.label}</span>
               </span>
               {item.countKey ? (
-                <Badge className={cn(active ? config.nav.badgeActive : config.nav.badgeInactive)}>{count}</Badge>
+                <Badge className={cn(active ? config.nav.badgeActive : config.nav.badgeInactive)}>
+                  {count}
+                </Badge>
               ) : null}
             </Link>
           );
@@ -382,7 +466,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`, {
-        signal: controller.signal
+        signal: controller.signal,
       }).catch(() => null);
       if (response?.ok) {
         setResults((await response.json()) as SearchResult);
@@ -415,36 +499,71 @@ function GlobalSearch({ role }: { role: UserRole }) {
         <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-border bg-white shadow-xl dark:bg-card">
           <SearchSection title="工单">
             {results.tickets.map((item) => (
-              <Link key={item.id} href={`${ticketBase}/${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
-                <div className="text-sm font-medium text-slate-900 dark:text-foreground">{item.ticketNo}</div>
-                <div className="truncate text-xs text-muted">{item.title} · {statusLabel(item.status as never)}</div>
+              <Link
+                key={item.id}
+                href={`${ticketBase}/${item.id}`}
+                className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary"
+                onClick={() => setOpen(false)}
+              >
+                <div className="text-sm font-medium text-slate-900 dark:text-foreground">
+                  {item.ticketNo}
+                </div>
+                <div className="truncate text-xs text-muted">
+                  {item.title} · {statusLabel(item.status as never)}
+                </div>
               </Link>
             ))}
           </SearchSection>
           <SearchSection title="知识库">
             {results.knowledge.map((item) => (
-              <Link key={item.id} href={`/admin/knowledge?selected=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
-                <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.question}</div>
-                <div className="text-xs text-muted">{item.categoryL1} / {item.categoryL2} · 命中 {item.hitCount}</div>
+              <Link
+                key={item.id}
+                href={`/admin/knowledge?selected=${item.id}`}
+                className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary"
+                onClick={() => setOpen(false)}
+              >
+                <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
+                  {item.question}
+                </div>
+                <div className="text-xs text-muted">
+                  {item.categoryL1} / {item.categoryL2} · 命中 {item.hitCount}
+                </div>
               </Link>
             ))}
           </SearchSection>
           {role === "staff" ? (
             <SearchSection title="会话">
               {results.conversations.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.id}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
-                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.title}</div>
+                <Link
+                  key={item.id}
+                  href={`/staff/chat?conversationId=${item.id}`}
+                  className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary"
+                  onClick={() => setOpen(false)}
+                >
+                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
+                    {item.title}
+                  </div>
                 </Link>
               ))}
               {results.messages.map((item) => (
-                <Link key={item.id} href={`/staff/chat?conversationId=${item.conversationId}`} className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary" onClick={() => setOpen(false)}>
-                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">{item.contentText}</div>
+                <Link
+                  key={item.id}
+                  href={`/staff/chat?conversationId=${item.conversationId}`}
+                  className="block rounded px-3 py-2 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-secondary"
+                  onClick={() => setOpen(false)}
+                >
+                  <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
+                    {item.contentText}
+                  </div>
                   <div className="text-xs text-muted">{item.sourceType}</div>
                 </Link>
               ))}
             </SearchSection>
           ) : null}
-          {!results.tickets.length && !results.knowledge.length && !results.conversations.length && !results.messages.length ? (
+          {!results.tickets.length &&
+          !results.knowledge.length &&
+          !results.conversations.length &&
+          !results.messages.length ? (
             <div className="px-3 py-6 text-center text-sm text-muted">没有找到匹配结果</div>
           ) : null}
         </div>
@@ -454,7 +573,9 @@ function GlobalSearch({ role }: { role: UserRole }) {
 }
 
 function SearchSection(props: { title: string; children: React.ReactNode }) {
-  const hasChildren = Array.isArray(props.children) ? props.children.length > 0 : Boolean(props.children);
+  const hasChildren = Array.isArray(props.children)
+    ? props.children.length > 0
+    : Boolean(props.children);
   if (!hasChildren) {
     return null;
   }

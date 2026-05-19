@@ -8,7 +8,7 @@ const required = [
   "QDRANT_URL",
   "EMBEDDING_SERVICE_URL",
   "RERANK_SERVICE_URL",
-  "ML_SERVICE_URL"
+  "ML_SERVICE_URL",
 ];
 
 const missing = required.filter((key) => !process.env[key]);
@@ -19,4 +19,3 @@ if (missing.length) {
 }
 
 console.log("环境变量检查通过。");
-

@@ -56,15 +56,15 @@ describe("knowledge service", () => {
     it("返回统计数据", async () => {
       // getKnowledgeSummary 有 8 个并行查询
       prisma.knowledgeItem.count
-        .mockResolvedValueOnce(100)  // total
-        .mockResolvedValueOnce(5)    // imageCount
-        .mockResolvedValueOnce(3)    // todayCreated
-        .mockResolvedValueOnce(60)   // published
-        .mockResolvedValueOnce(30)   // draft
-        .mockResolvedValueOnce(10);  // archived
+        .mockResolvedValueOnce(100) // total
+        .mockResolvedValueOnce(5) // imageCount
+        .mockResolvedValueOnce(3) // todayCreated
+        .mockResolvedValueOnce(60) // published
+        .mockResolvedValueOnce(30) // draft
+        .mockResolvedValueOnce(10); // archived
       prisma.knowledgeItem.aggregate
-        .mockResolvedValueOnce({ _sum: { hitCount: 500 } })   // hitSum
-        .mockResolvedValueOnce({ _sum: { hitCount: 50 } });   // recentHits
+        .mockResolvedValueOnce({ _sum: { hitCount: 500 } }) // hitSum
+        .mockResolvedValueOnce({ _sum: { hitCount: 50 } }); // recentHits
 
       const result = await getKnowledgeSummary();
 

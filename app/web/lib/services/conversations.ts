@@ -7,8 +7,8 @@ export async function createConversation(userId: string, initialQuestion?: strin
   return prisma.conversation.create({
     data: {
       userId,
-      title: truncateText(initialQuestion || "新会话", 30)
-    }
+      title: truncateText(initialQuestion || "新会话", 30),
+    },
   });
 }
 
@@ -16,22 +16,22 @@ export async function getConversationList(userId: string) {
   return prisma.conversation.findMany({
     where: {
       userId,
-      deletedAt: null
+      deletedAt: null,
     },
-    orderBy: { updatedAt: "desc" }
+    orderBy: { updatedAt: "desc" },
   });
 }
 
 export async function getConversationDetail(conversationId: string) {
   return prisma.conversation.findUnique({
-    where: { id: conversationId }
+    where: { id: conversationId },
   });
 }
 
 export async function getConversationMessages(conversationId: string) {
   return prisma.chatMessage.findMany({
     where: { conversationId },
-    orderBy: { createdAt: "asc" }
+    orderBy: { createdAt: "asc" },
   });
 }
 
@@ -52,8 +52,8 @@ export async function appendConversationMessage(input: {
       contentText: input.contentText,
       status: input.status ?? "completed",
       attachmentsJson: input.attachmentsJson ?? null,
-      retrievalDebugJson: input.retrievalDebugJson ?? null
-    }
+      retrievalDebugJson: input.retrievalDebugJson ?? null,
+    },
   });
 }
 
@@ -61,8 +61,8 @@ export async function refreshConversationTitle(conversationId: string, inputText
   await prisma.conversation.update({
     where: { id: conversationId },
     data: {
-      title: truncateText(inputText || "图片问题", 30)
-    }
+      title: truncateText(inputText || "图片问题", 30),
+    },
   });
 }
 
@@ -71,8 +71,8 @@ export async function softDeleteConversation(input: { conversationId: string; us
     where: {
       id: input.conversationId,
       userId: input.userId,
-      deletedAt: null
-    }
+      deletedAt: null,
+    },
   });
 
   if (!conversation) {
@@ -82,7 +82,7 @@ export async function softDeleteConversation(input: { conversationId: string; us
   return prisma.conversation.update({
     where: { id: input.conversationId },
     data: {
-      deletedAt: new Date()
-    }
+      deletedAt: new Date(),
+    },
   });
 }

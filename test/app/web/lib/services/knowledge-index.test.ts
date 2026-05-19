@@ -20,10 +20,7 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
   ensureCollection: vi.fn(),
 }));
 
-import {
-  buildStablePointId,
-  drainKnowledgeIndexTasks,
-} from "@/lib/services/knowledge-index";
+import { buildStablePointId, drainKnowledgeIndexTasks } from "@/lib/services/knowledge-index";
 
 describe("knowledge-index service", () => {
   beforeEach(() => {
@@ -33,9 +30,7 @@ describe("knowledge-index service", () => {
   describe("buildStablePointId", () => {
     it("返回有效 UUID 格式", () => {
       const id = buildStablePointId("test-input");
-      expect(id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
 
     it("确定性：相同输入相同输出", () => {

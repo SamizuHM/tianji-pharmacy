@@ -7,7 +7,7 @@ export default async function AgentLayout({ children }: { children: React.ReactN
   const pendingCounts = await getPendingTicketCounts({
     role: user.role,
     userId: user.id,
-    userDepartmentName: user.department?.name ?? null
+    userDepartmentName: user.department?.name ?? null,
   });
   const title = user.department ? `${user.department.name}工单台` : "前台客服工单台";
   const description = user.department

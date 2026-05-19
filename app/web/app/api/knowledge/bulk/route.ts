@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   const result = await bulkUpdateKnowledgeItems({
     ids: Array.isArray(body.ids) ? body.ids : [],
-    action: body.action
+    action: body.action,
   });
 
   return NextResponse.json(result);

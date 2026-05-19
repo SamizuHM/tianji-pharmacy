@@ -21,7 +21,6 @@ export async function saveUploadedFile(file: File) {
     name: file.name,
     path: filename,
     mimeType: file.type || "application/octet-stream",
-    size: file.size
+    size: file.size,
   };
 }
-

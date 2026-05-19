@@ -76,7 +76,7 @@ export function KnowledgeDocumentUpload() {
       setError("");
       const response = await fetch("/api/knowledge/import-documents", {
         method: "POST",
-        body: formData
+        body: formData,
       });
       const data = await response.json();
       if (!response.ok) {
@@ -85,7 +85,9 @@ export function KnowledgeDocumentUpload() {
       }
 
       setFiles([]);
-      setMessage(`导入完成：成功文件 ${data.importedFiles}，切片 ${data.importedChunks}，跳过 ${data.skippedFiles}`);
+      setMessage(
+        `导入完成：成功文件 ${data.importedFiles}，切片 ${data.importedChunks}，跳过 ${data.skippedFiles}`
+      );
       router.refresh();
     });
   }
@@ -101,7 +103,9 @@ export function KnowledgeDocumentUpload() {
         }}
       >
         <UploadCloud className="size-9 text-primary" />
-        <span className="mt-3 text-sm font-medium text-slate-900 dark:text-foreground">上传 Word 文档并解析入库</span>
+        <span className="mt-3 text-sm font-medium text-slate-900 dark:text-foreground">
+          上传 Word 文档并解析入库
+        </span>
         <span className="mt-1 text-xs text-muted">支持 .doc/.docx，可拖拽或点击选择多个文件</span>
         <input
           type="file"
@@ -113,15 +117,25 @@ export function KnowledgeDocumentUpload() {
       </label>
 
       <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800 dark:border-border dark:bg-secondary/60 dark:text-muted">
-        <div className="font-medium text-amber-900 dark:text-foreground">导入文档需符合固定模板</div>
-        <div className="mt-1">推荐格式：每条知识包含“一级分类、二级分类、具体问题、简要标准答案、标签”。</div>
-        <div>也支持三列表格：序号 / 具体问题 / 简要标准答案。复杂排版、扫描图片、无明确问题答案结构的文档只会兜底切片，效果不可控。</div>
+        <div className="font-medium text-amber-900 dark:text-foreground">
+          导入文档需符合固定模板
+        </div>
+        <div className="mt-1">
+          推荐格式：每条知识包含“一级分类、二级分类、具体问题、简要标准答案、标签”。
+        </div>
+        <div>
+          也支持三列表格：序号 / 具体问题 /
+          简要标准答案。复杂排版、扫描图片、无明确问题答案结构的文档只会兜底切片，效果不可控。
+        </div>
       </div>
 
       {files.length ? (
         <div className="space-y-2">
           {files.map((file) => (
-            <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded border border-border bg-white px-3 py-2 text-sm dark:bg-card">
+            <div
+              key={`${file.name}-${file.size}`}
+              className="flex items-center justify-between gap-3 rounded border border-border bg-white px-3 py-2 text-sm dark:bg-card"
+            >
               <span className="flex min-w-0 items-center gap-2">
                 <FileText className="size-4 shrink-0 text-blue-600 dark:text-muted" />
                 <span className="truncate">{file.name}</span>
@@ -132,8 +146,16 @@ export function KnowledgeDocumentUpload() {
         </div>
       ) : null}
 
-      {error ? <Alert className="border-red-100 bg-red-50 text-red-600 dark:border-destructive/30 dark:bg-destructive/10 dark:text-destructive">{error}</Alert> : null}
-      {message ? <Alert className="border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-primary/30 dark:bg-primary/10 dark:text-foreground">{message}</Alert> : null}
+      {error ? (
+        <Alert className="border-red-100 bg-red-50 text-red-600 dark:border-destructive/30 dark:bg-destructive/10 dark:text-destructive">
+          {error}
+        </Alert>
+      ) : null}
+      {message ? (
+        <Alert className="border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-primary/30 dark:bg-primary/10 dark:text-foreground">
+          {message}
+        </Alert>
+      ) : null}
 
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted">解析成功后会自动写入知识库并创建检索索引。</span>
@@ -158,7 +180,9 @@ export function KnowledgeCreateForm() {
   const [categoryL1, setCategoryL1] = useState(initialCategoryL1);
   const [categoryL2, setCategoryL2] = useState(initialCategoryL2);
   const [question, setQuestion] = useState(initialQuestion);
-  const [answerHtml, setAnswerHtml] = useState(initialAnswer ? buildEditorHtml(initialAnswer, []) : "");
+  const [answerHtml, setAnswerHtml] = useState(
+    initialAnswer ? buildEditorHtml(initialAnswer, []) : ""
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -175,9 +199,7 @@ export function KnowledgeCreateForm() {
     }
 
     const imageSrcs = extractImageSrcs(answerHtml);
-    const imagePaths = imageSrcs
-      .map((src) => src.replace(/^\/api\/files\//, ""))
-      .filter(Boolean);
+    const imagePaths = imageSrcs.map((src) => src.replace(/^\/api\/files\//, "")).filter(Boolean);
 
     startTransition(async () => {
       const response = await fetch("/api/knowledge", {
@@ -188,8 +210,8 @@ export function KnowledgeCreateForm() {
           categoryL2: categoryL2.trim() || "手动新增",
           question: question.trim(),
           answer: answerText,
-          imagePaths
-        })
+          imagePaths,
+        }),
       });
 
       const data = await response.json();
@@ -210,7 +232,7 @@ export function KnowledgeCreateForm() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">一级分类</label>
+          <label className="mb-1 block text-sm font-medium">一级分类</label>
           <Input
             value={categoryL1}
             onChange={(e) => setCategoryL1(e.target.value)}
@@ -218,7 +240,7 @@ export function KnowledgeCreateForm() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">二级分类</label>
+          <label className="mb-1 block text-sm font-medium">二级分类</label>
           <Input
             value={categoryL2}
             onChange={(e) => setCategoryL2(e.target.value)}
@@ -227,7 +249,7 @@ export function KnowledgeCreateForm() {
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">问题</label>
+        <label className="mb-1 block text-sm font-medium">问题</label>
         <Input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -235,7 +257,7 @@ export function KnowledgeCreateForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">答案</label>
+        <label className="mb-1 block text-sm font-medium">答案</label>
         <RichEditor content={answerHtml} onChange={setAnswerHtml} />
       </div>
       {error && <Alert>{error}</Alert>}
@@ -252,7 +274,7 @@ export function KnowledgeCreateForm() {
 
 export function KnowledgeEditForm({
   item,
-  onCancel
+  onCancel,
 }: {
   item: {
     id: string;
@@ -289,9 +311,7 @@ export function KnowledgeEditForm({
     }
 
     const srcs = extractImageSrcs(answerHtml);
-    const newImagePaths = srcs
-      .map((s) => s.replace(/^\/api\/files\//, ""))
-      .filter(Boolean);
+    const newImagePaths = srcs.map((s) => s.replace(/^\/api\/files\//, "")).filter(Boolean);
 
     startTransition(async () => {
       const response = await fetch(`/api/knowledge/${item.id}`, {
@@ -302,8 +322,8 @@ export function KnowledgeEditForm({
           categoryL2: categoryL2.trim() || "手动新增",
           question: question.trim(),
           answer: answerText,
-          imagePaths: newImagePaths
-        })
+          imagePaths: newImagePaths,
+        }),
       });
 
       const data = await response.json();
@@ -321,20 +341,20 @@ export function KnowledgeEditForm({
       <div className="text-sm font-medium text-primary">编辑知识条目</div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">一级分类</label>
+          <label className="mb-1 block text-sm font-medium">一级分类</label>
           <Input value={categoryL1} onChange={(e) => setCategoryL1(e.target.value)} />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">二级分类</label>
+          <label className="mb-1 block text-sm font-medium">二级分类</label>
           <Input value={categoryL2} onChange={(e) => setCategoryL2(e.target.value)} />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">问题</label>
+        <label className="mb-1 block text-sm font-medium">问题</label>
         <Input value={question} onChange={(e) => setQuestion(e.target.value)} />
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">答案</label>
+        <label className="mb-1 block text-sm font-medium">答案</label>
         <RichEditor content={answerHtml} onChange={setAnswerHtml} />
       </div>
       {error && <Alert>{error}</Alert>}
@@ -352,13 +372,7 @@ export function KnowledgeEditForm({
 
 /* ---------- 知识条目操作 ---------- */
 
-export function KnowledgeItemActions({
-  id,
-  onEdit
-}: {
-  id: string;
-  onEdit: () => void;
-}) {
+export function KnowledgeItemActions({ id, onEdit }: { id: string; onEdit: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -385,7 +399,7 @@ export function KnowledgeItemActions({
 /* ---------- 知识条目详情展示 ---------- */
 
 export function KnowledgeItemDetail({
-  item
+  item,
 }: {
   item: {
     id: string;

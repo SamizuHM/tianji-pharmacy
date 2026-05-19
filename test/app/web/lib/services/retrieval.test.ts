@@ -123,7 +123,14 @@ describe("retrieval service", () => {
       id: "point-3",
       qdrantPointId: "point-3",
       knowledgeItemId: "ki-3",
-      knowledgeItem: { id: "ki-3", status: "draft", question: "Q", answer: "A", imagePathsJson: null, imagePath: null },
+      knowledgeItem: {
+        id: "ki-3",
+        status: "draft",
+        question: "Q",
+        answer: "A",
+        imagePathsJson: null,
+        imagePath: null,
+      },
     });
 
     const result = await retrieveAnswer({ question: "问题", imagePaths: [] });

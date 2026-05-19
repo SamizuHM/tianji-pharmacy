@@ -41,7 +41,12 @@ export function createMockPrisma() {
 
 export function resetMockPrisma(prisma: MockPrismaClient) {
   for (const model of Object.values(prisma)) {
-    if (typeof model === "object" && model !== null && "$transaction" in prisma && model !== prisma) {
+    if (
+      typeof model === "object" &&
+      model !== null &&
+      "$transaction" in prisma &&
+      model !== prisma
+    ) {
       for (const method of Object.values(model)) {
         if (typeof method === "function" && "mockClear" in method) {
           method.mockClear();

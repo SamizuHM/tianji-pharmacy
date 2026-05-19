@@ -18,7 +18,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
   const message = await prisma.chatMessage.findUnique({
     where: { id },
-    include: { conversation: true }
+    include: { conversation: true },
   });
 
   if (!message || message.role !== "assistant") {
@@ -32,8 +32,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const updated = await prisma.chatMessage.update({
     where: { id },
     data: {
-      feedback: body.feedback ?? null
-    }
+      feedback: body.feedback ?? null,
+    },
   });
 
   return NextResponse.json({ message: updated });

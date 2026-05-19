@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import removeMarkdown from "remove-markdown";
 
-import { FIXED_ASSISTANT_SUFFIX, stripFixedAssistantSuffix, type AttachmentItem } from "@pharmacy/shared";
+import {
+  FIXED_ASSISTANT_SUFFIX,
+  stripFixedAssistantSuffix,
+  type AttachmentItem,
+} from "@pharmacy/shared";
 import {
   ArrowDown,
   Bot,
@@ -26,7 +30,7 @@ import {
   Square,
   Sparkles,
   Trash2,
-  X
+  X,
 } from "lucide-react";
 
 import { MarkdownMessage } from "@/components/chat/markdown-message";
@@ -42,7 +46,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -50,10 +54,17 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -63,7 +74,7 @@ import {
   type ProgressDonePayload,
   type ProgressEventPayload,
   type ProgressStepKey,
-  type ProgressSummaryItem
+  type ProgressSummaryItem,
 } from "@/lib/chat-progress";
 import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
 
@@ -117,9 +128,15 @@ export function ChatClient(props: {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [messages, setMessages] = useState<Message[]>(props.messages);
   const [conversations, setConversations] = useState<Conversation[]>(props.conversations);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(props.conversationId);
-  const [progressByMessageId, setProgressByMessageId] = useState<Record<string, MessageProgressState>>({});
-  const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<Record<string, MessageProgressState>>({});
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    props.conversationId
+  );
+  const [progressByMessageId, setProgressByMessageId] = useState<
+    Record<string, MessageProgressState>
+  >({});
+  const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<
+    Record<string, MessageProgressState>
+  >({});
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
@@ -167,7 +184,9 @@ export function ChatClient(props: {
     });
   }, [editText, editingMessage]);
   useEffect(() => {
-    const hasRunningProgress = Object.values(progressByMessageId).some((item) => item.status === "running");
+    const hasRunningProgress = Object.values(progressByMessageId).some(
+      (item) => item.status === "running"
+    );
     if (!hasRunningProgress) {
       return;
     }
@@ -205,7 +224,7 @@ export function ChatClient(props: {
       try {
         const res = await fetch(`/api/conversations/${props.conversationId}/resume`);
         if (!res.ok || disposed) return;
-        const data = await res.json() as {
+        const data = (await res.json()) as {
           streamingMessageId?: string;
           contentText?: string;
           sourceType?: Message["sourceType"];
@@ -219,7 +238,13 @@ export function ChatClient(props: {
         // 更新消息内容为已生成部分
         setMessages((current) =>
           current.map((item) =>
-            item.id === mid ? { ...item, contentText: data.contentText ?? "", sourceType: data.sourceType ?? item.sourceType } : item
+            item.id === mid
+              ? {
+                  ...item,
+                  contentText: data.contentText ?? "",
+                  sourceType: data.sourceType ?? item.sourceType,
+                }
+              : item
           )
         );
 
@@ -228,10 +253,12 @@ export function ChatClient(props: {
           setSending(true);
           setProgressByMessageId((current) => ({
             ...current,
-            [mid]: { status: "running", steps: {}, currentElapsedMs: 0 }
+            [mid]: { status: "running", steps: {}, currentElapsedMs: 0 },
           }));
 
-          const eventSource = new EventSource(`/api/conversations/${props.conversationId}/stream?messageId=${mid}`);
+          const eventSource = new EventSource(
+            `/api/conversations/${props.conversationId}/stream?messageId=${mid}`
+          );
           resumeEventSourceRef.current = eventSource;
           eventSource.addEventListener("delta", (event) => {
             if (disposed) return;
@@ -239,7 +266,9 @@ export function ChatClient(props: {
             if (payload.text) {
               setMessages((current) =>
                 current.map((item) =>
-                  item.id === mid ? { ...item, contentText: item.contentText + payload.text! } : item
+                  item.id === mid
+                    ? { ...item, contentText: item.contentText + payload.text! }
+                    : item
                 )
               );
             }
@@ -269,7 +298,9 @@ export function ChatClient(props: {
       }
     })();
 
-    return () => { disposed = true; };
+    return () => {
+      disposed = true;
+    };
   }, [props.conversationId]);
 
   function handleScroll() {
@@ -316,7 +347,7 @@ export function ChatClient(props: {
     const response = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: input.title })
+      body: JSON.stringify({ title: input.title }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -324,7 +355,10 @@ export function ChatClient(props: {
       return null;
     }
     const conversation = data.conversation as Conversation;
-    setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
+    setConversations((current) => [
+      conversation,
+      ...current.filter((item) => item.id !== conversation.id),
+    ]);
     setCurrentConversationId(conversation.id);
     window.history.replaceState(null, "", `/staff/chat?conversationId=${conversation.id}`);
     return conversation.id;
@@ -332,7 +366,7 @@ export function ChatClient(props: {
 
   async function deleteConversation(conversationId: string) {
     const response = await fetch(`/api/conversations/${conversationId}`, {
-      method: "DELETE"
+      method: "DELETE",
     });
     const data = await response.json();
     if (!response.ok) {
@@ -382,7 +416,7 @@ export function ChatClient(props: {
         retrievalDebugJson: null,
         feedback: null,
         status: "completed",
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       },
       {
         id: optimisticAssistantId,
@@ -393,8 +427,8 @@ export function ChatClient(props: {
         retrievalDebugJson: null,
         feedback: null,
         status: "streaming",
-        createdAt: new Date().toISOString()
-      }
+        createdAt: new Date().toISOString(),
+      },
     ]);
 
     setText("");
@@ -404,7 +438,7 @@ export function ChatClient(props: {
       const conversationId =
         currentConversationId ??
         (await createConversationForFirstMessage({
-          title: requestText || "图片问题"
+          title: requestText || "图片问题",
         }));
 
       if (!conversationId) {
@@ -414,13 +448,13 @@ export function ChatClient(props: {
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           text: requestText,
-          attachments: requestAttachments
+          attachments: requestAttachments,
         }),
-        signal: abortRef.current.signal
+        signal: abortRef.current.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -468,7 +502,9 @@ export function ChatClient(props: {
           if (event === "meta" && payload.sourceType) {
             setMessages((current) =>
               current.map((item) =>
-                item.id === optimisticAssistantId ? { ...item, sourceType: payload.sourceType! } : item
+                item.id === optimisticAssistantId
+                  ? { ...item, sourceType: payload.sourceType! }
+                  : item
               )
             );
           }
@@ -476,7 +512,7 @@ export function ChatClient(props: {
           if (event === "debug") {
             finalDebug = {
               retrievalDebug: payload.retrievalDebug,
-              imagePaths: payload.imagePaths
+              imagePaths: payload.imagePaths,
             };
           }
 
@@ -486,7 +522,7 @@ export function ChatClient(props: {
               const existing = current[optimisticAssistantId] ?? {
                 status: "running" as const,
                 steps: {},
-                currentElapsedMs: 0
+                currentElapsedMs: 0,
               };
 
               if (progressPayload.status === "started") {
@@ -497,8 +533,8 @@ export function ChatClient(props: {
                     status: "running",
                     currentStepKey: progressPayload.stepKey,
                     currentStepStartedClientAt: Date.now(),
-                    currentElapsedMs: progressPayload.elapsedTotalMs
-                  }
+                    currentElapsedMs: progressPayload.elapsedTotalMs,
+                  },
                 };
               }
 
@@ -515,15 +551,19 @@ export function ChatClient(props: {
                       startedAtMs: progressPayload.startedAtMs,
                       endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
                       durationMs: progressPayload.durationMs ?? 0,
-                      detail: progressPayload.detail
-                    }
+                      detail: progressPayload.detail,
+                    },
                   },
                   currentStepKey:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepKey,
                   currentStepStartedClientAt:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
-                  currentElapsedMs: progressPayload.elapsedTotalMs
-                }
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs,
+                },
               };
             });
           }
@@ -531,7 +571,9 @@ export function ChatClient(props: {
           if (event === "delta" && payload.text) {
             setMessages((current) =>
               current.map((item) =>
-                item.id === optimisticAssistantId ? { ...item, contentText: item.contentText + payload.text! } : item
+                item.id === optimisticAssistantId
+                  ? { ...item, contentText: item.contentText + payload.text! }
+                  : item
               )
             );
           }
@@ -540,23 +582,25 @@ export function ChatClient(props: {
             const donePayload = payload as ProgressDonePayload;
             const completedState: MessageProgressState = {
               status: "completed",
-              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              steps: Object.fromEntries(
+                donePayload.stepsSummary.map((item) => [item.stepKey, item])
+              ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
               firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
               reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
-              streamAnswerMs: donePayload.streamAnswerMs
+              streamAnswerMs: donePayload.streamAnswerMs,
             };
             finalProgressState = completedState;
             setProgressByMessageId((current) => ({
               ...current,
-              [optimisticAssistantId]: completedState
+              [optimisticAssistantId]: completedState,
             }));
             setFinalProgressByAssistantId((current) => ({
               ...current,
-              [donePayload.assistantMessageId]: completedState
+              [donePayload.assistantMessageId]: completedState,
             }));
           }
 
@@ -572,7 +616,10 @@ export function ChatClient(props: {
             ? {
                 ...item,
                 status: "completed",
-                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+                retrievalDebugJson: JSON.stringify({
+                  debug: finalDebug.retrievalDebug ?? [],
+                  imagePaths: finalDebug.imagePaths ?? [],
+                }),
               }
             : item
         )
@@ -580,7 +627,7 @@ export function ChatClient(props: {
       if (finalProgressState) {
         setProgressByMessageId((current) => ({
           ...current,
-          [optimisticAssistantId]: finalProgressState!
+          [optimisticAssistantId]: finalProgressState!,
         }));
       }
       router.refresh();
@@ -596,13 +643,15 @@ export function ChatClient(props: {
             ...existing,
             status: "error",
             currentStepKey: undefined,
-            currentStepStartedClientAt: undefined
-          }
+            currentStepStartedClientAt: undefined,
+          },
         };
       });
       setError(sendError instanceof Error ? sendError.message : "发送失败");
       setMessages((current) =>
-        current.map((item) => (item.id === optimisticAssistantId ? { ...item, status: "failed" } : item))
+        current.map((item) =>
+          item.id === optimisticAssistantId ? { ...item, status: "failed" } : item
+        )
       );
     } finally {
       setSending(false);
@@ -637,7 +686,9 @@ export function ChatClient(props: {
 
     // 通知后端标记消息完成
     if (currentConversationId) {
-      await fetch(`/api/conversations/${currentConversationId}/stop`, { method: "POST" }).catch(() => undefined);
+      await fetch(`/api/conversations/${currentConversationId}/stop`, { method: "POST" }).catch(
+        () => undefined
+      );
     }
 
     setSending(false);
@@ -652,7 +703,7 @@ export function ChatClient(props: {
     const response = await fetch("/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId: currentConversationId })
+      body: JSON.stringify({ conversationId: currentConversationId }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -667,11 +718,15 @@ export function ChatClient(props: {
     await navigator.clipboard.writeText(value.trim());
     const actionKey = `${message.id}:${format}`;
     setCopiedActionKey(actionKey);
-    window.setTimeout(() => setCopiedActionKey((current) => (current === actionKey ? null : current)), 1600);
+    window.setTimeout(
+      () => setCopiedActionKey((current) => (current === actionKey ? null : current)),
+      1600
+    );
   }
 
   function downloadMessage(message: Message, format: "text" | "markdown") {
-    const content = format === "markdown" ? messageToMarkdown(message) : messageToPlainText(message);
+    const content =
+      format === "markdown" ? messageToMarkdown(message) : messageToPlainText(message);
     const extension = format === "markdown" ? "md" : "txt";
     const blob = new Blob([content.trim() + "\n"], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -730,8 +785,8 @@ export function ChatClient(props: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contentText: editText,
-        imagePaths: editImagePaths
-      })
+        imagePaths: editImagePaths,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -750,8 +805,8 @@ export function ChatClient(props: {
           contentText: editText.trim() || (item.role === "user" ? "用户上传了图片" : ""),
           retrievalDebugJson: JSON.stringify({
             ...debugPayload,
-            imagePaths: editImagePaths
-          })
+            imagePaths: editImagePaths,
+          }),
         };
       })
     );
@@ -777,9 +832,11 @@ export function ChatClient(props: {
     const editedContentText = nextText.trim() || "用户上传了图片";
 
     setMessages((current) => [
-      ...current.slice(0, Math.max(0, messageIndex + 1)).map((item) =>
-        item.id === message.id ? { ...item, contentText: editedContentText } : item
-      ),
+      ...current
+        .slice(0, Math.max(0, messageIndex + 1))
+        .map((item) =>
+          item.id === message.id ? { ...item, contentText: editedContentText } : item
+        ),
       {
         id: optimisticAssistantId,
         role: "assistant",
@@ -789,12 +846,12 @@ export function ChatClient(props: {
         retrievalDebugJson: null,
         feedback: null,
         status: "streaming",
-        createdAt: new Date().toISOString()
-      }
+        createdAt: new Date().toISOString(),
+      },
     ]);
     setProgressByMessageId((current) => ({
       ...current,
-      [optimisticAssistantId]: { status: "running", steps: {}, currentElapsedMs: 0 }
+      [optimisticAssistantId]: { status: "running", steps: {}, currentElapsedMs: 0 },
     }));
     setEditingMessage(null);
 
@@ -803,7 +860,7 @@ export function ChatClient(props: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentText: nextText.trim() }),
-        signal: abortRef.current.signal
+        signal: abortRef.current.signal,
       });
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
@@ -850,7 +907,9 @@ export function ChatClient(props: {
           if (event === "meta" && payload.sourceType) {
             setMessages((current) =>
               current.map((item) =>
-                item.id === optimisticAssistantId ? { ...item, sourceType: payload.sourceType! } : item
+                item.id === optimisticAssistantId
+                  ? { ...item, sourceType: payload.sourceType! }
+                  : item
               )
             );
           }
@@ -858,7 +917,7 @@ export function ChatClient(props: {
           if (event === "debug") {
             finalDebug = {
               retrievalDebug: payload.retrievalDebug,
-              imagePaths: payload.imagePaths
+              imagePaths: payload.imagePaths,
             };
           }
 
@@ -868,7 +927,7 @@ export function ChatClient(props: {
               const existing = current[optimisticAssistantId] ?? {
                 status: "running" as const,
                 steps: {},
-                currentElapsedMs: 0
+                currentElapsedMs: 0,
               };
 
               if (progressPayload.status === "started") {
@@ -879,8 +938,8 @@ export function ChatClient(props: {
                     status: "running",
                     currentStepKey: progressPayload.stepKey,
                     currentStepStartedClientAt: Date.now(),
-                    currentElapsedMs: progressPayload.elapsedTotalMs
-                  }
+                    currentElapsedMs: progressPayload.elapsedTotalMs,
+                  },
                 };
               }
 
@@ -897,15 +956,19 @@ export function ChatClient(props: {
                       startedAtMs: progressPayload.startedAtMs,
                       endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
                       durationMs: progressPayload.durationMs ?? 0,
-                      detail: progressPayload.detail
-                    }
+                      detail: progressPayload.detail,
+                    },
                   },
                   currentStepKey:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepKey,
                   currentStepStartedClientAt:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
-                  currentElapsedMs: progressPayload.elapsedTotalMs
-                }
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs,
+                },
               };
             });
           }
@@ -913,7 +976,9 @@ export function ChatClient(props: {
           if (event === "delta" && payload.text) {
             setMessages((current) =>
               current.map((item) =>
-                item.id === optimisticAssistantId ? { ...item, contentText: item.contentText + payload.text! } : item
+                item.id === optimisticAssistantId
+                  ? { ...item, contentText: item.contentText + payload.text! }
+                  : item
               )
             );
           }
@@ -922,20 +987,25 @@ export function ChatClient(props: {
             const donePayload = payload as ProgressDonePayload;
             const completedState: MessageProgressState = {
               status: "completed",
-              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              steps: Object.fromEntries(
+                donePayload.stepsSummary.map((item) => [item.stepKey, item])
+              ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
               firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
               reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
-              streamAnswerMs: donePayload.streamAnswerMs
+              streamAnswerMs: donePayload.streamAnswerMs,
             };
             finalProgressState = completedState;
-            setProgressByMessageId((current) => ({ ...current, [optimisticAssistantId]: completedState }));
+            setProgressByMessageId((current) => ({
+              ...current,
+              [optimisticAssistantId]: completedState,
+            }));
             setFinalProgressByAssistantId((current) => ({
               ...current,
-              [donePayload.assistantMessageId]: completedState
+              [donePayload.assistantMessageId]: completedState,
             }));
           }
 
@@ -951,13 +1021,19 @@ export function ChatClient(props: {
             ? {
                 ...item,
                 status: "completed",
-                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+                retrievalDebugJson: JSON.stringify({
+                  debug: finalDebug.retrievalDebug ?? [],
+                  imagePaths: finalDebug.imagePaths ?? [],
+                }),
               }
             : item
         )
       );
       if (finalProgressState) {
-        setProgressByMessageId((current) => ({ ...current, [optimisticAssistantId]: finalProgressState! }));
+        setProgressByMessageId((current) => ({
+          ...current,
+          [optimisticAssistantId]: finalProgressState!,
+        }));
       }
       router.refresh();
     } catch (resendError) {
@@ -970,12 +1046,14 @@ export function ChatClient(props: {
             ...existing,
             status: "error",
             currentStepKey: undefined,
-            currentStepStartedClientAt: undefined
-          }
+            currentStepStartedClientAt: undefined,
+          },
         };
       });
       setMessages((current) =>
-        current.map((item) => (item.id === optimisticAssistantId ? { ...item, status: "failed" } : item))
+        current.map((item) =>
+          item.id === optimisticAssistantId ? { ...item, status: "failed" } : item
+        )
       );
       setError(resendError instanceof Error ? resendError.message : "重新发送失败");
     } finally {
@@ -995,19 +1073,25 @@ export function ChatClient(props: {
     setMessages((current) =>
       current.map((item) =>
         item.id === message.id
-          ? { ...item, contentText: "", status: "streaming", sourceType: "system", retrievalDebugJson: null }
+          ? {
+              ...item,
+              contentText: "",
+              status: "streaming",
+              sourceType: "system",
+              retrievalDebugJson: null,
+            }
           : item
       )
     );
     setProgressByMessageId((current) => ({
       ...current,
-      [message.id]: { status: "running", steps: {}, currentElapsedMs: 0 }
+      [message.id]: { status: "running", steps: {}, currentElapsedMs: 0 },
     }));
 
     try {
       const response = await fetch(`/api/messages/${message.id}/regenerate`, {
         method: "POST",
-        signal: abortRef.current.signal
+        signal: abortRef.current.signal,
       });
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
@@ -1053,14 +1137,16 @@ export function ChatClient(props: {
 
           if (event === "meta" && payload.sourceType) {
             setMessages((current) =>
-              current.map((item) => (item.id === message.id ? { ...item, sourceType: payload.sourceType! } : item))
+              current.map((item) =>
+                item.id === message.id ? { ...item, sourceType: payload.sourceType! } : item
+              )
             );
           }
 
           if (event === "debug") {
             finalDebug = {
               retrievalDebug: payload.retrievalDebug,
-              imagePaths: payload.imagePaths
+              imagePaths: payload.imagePaths,
             };
           }
 
@@ -1070,7 +1156,7 @@ export function ChatClient(props: {
               const existing = current[message.id] ?? {
                 status: "running" as const,
                 steps: {},
-                currentElapsedMs: 0
+                currentElapsedMs: 0,
               };
 
               if (progressPayload.status === "started") {
@@ -1081,8 +1167,8 @@ export function ChatClient(props: {
                     status: "running",
                     currentStepKey: progressPayload.stepKey,
                     currentStepStartedClientAt: Date.now(),
-                    currentElapsedMs: progressPayload.elapsedTotalMs
-                  }
+                    currentElapsedMs: progressPayload.elapsedTotalMs,
+                  },
                 };
               }
 
@@ -1099,15 +1185,19 @@ export function ChatClient(props: {
                       startedAtMs: progressPayload.startedAtMs,
                       endedAtMs: progressPayload.endedAtMs ?? progressPayload.startedAtMs,
                       durationMs: progressPayload.durationMs ?? 0,
-                      detail: progressPayload.detail
-                    }
+                      detail: progressPayload.detail,
+                    },
                   },
                   currentStepKey:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepKey,
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepKey,
                   currentStepStartedClientAt:
-                    existing.currentStepKey === progressPayload.stepKey ? undefined : existing.currentStepStartedClientAt,
-                  currentElapsedMs: progressPayload.elapsedTotalMs
-                }
+                    existing.currentStepKey === progressPayload.stepKey
+                      ? undefined
+                      : existing.currentStepStartedClientAt,
+                  currentElapsedMs: progressPayload.elapsedTotalMs,
+                },
               };
             });
           }
@@ -1115,7 +1205,9 @@ export function ChatClient(props: {
           if (event === "delta" && payload.text) {
             setMessages((current) =>
               current.map((item) =>
-                item.id === message.id ? { ...item, contentText: item.contentText + payload.text! } : item
+                item.id === message.id
+                  ? { ...item, contentText: item.contentText + payload.text! }
+                  : item
               )
             );
           }
@@ -1124,18 +1216,23 @@ export function ChatClient(props: {
             const donePayload = payload as ProgressDonePayload;
             const completedState: MessageProgressState = {
               status: "completed",
-              steps: Object.fromEntries(donePayload.stepsSummary.map((item) => [item.stepKey, item])),
+              steps: Object.fromEntries(
+                donePayload.stepsSummary.map((item) => [item.stepKey, item])
+              ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
               firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
               reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
-              streamAnswerMs: donePayload.streamAnswerMs
+              streamAnswerMs: donePayload.streamAnswerMs,
             };
             finalProgressState = completedState;
             setProgressByMessageId((current) => ({ ...current, [message.id]: completedState }));
-            setFinalProgressByAssistantId((current) => ({ ...current, [donePayload.assistantMessageId]: completedState }));
+            setFinalProgressByAssistantId((current) => ({
+              ...current,
+              [donePayload.assistantMessageId]: completedState,
+            }));
           }
 
           if (event === "error") {
@@ -1150,7 +1247,10 @@ export function ChatClient(props: {
             ? {
                 ...item,
                 status: "completed",
-                retrievalDebugJson: JSON.stringify({ debug: finalDebug.retrievalDebug ?? [], imagePaths: finalDebug.imagePaths ?? [] })
+                retrievalDebugJson: JSON.stringify({
+                  debug: finalDebug.retrievalDebug ?? [],
+                  imagePaths: finalDebug.imagePaths ?? [],
+                }),
               }
             : item
         )
@@ -1169,11 +1269,13 @@ export function ChatClient(props: {
             ...existing,
             status: "error",
             currentStepKey: undefined,
-            currentStepStartedClientAt: undefined
-          }
+            currentStepStartedClientAt: undefined,
+          },
         };
       });
-      setMessages((current) => current.map((item) => (item.id === message.id ? { ...item, status: "failed" } : item)));
+      setMessages((current) =>
+        current.map((item) => (item.id === message.id ? { ...item, status: "failed" } : item))
+      );
       setError(regenerateError instanceof Error ? regenerateError.message : "重新生成失败");
     } finally {
       setSending(false);
@@ -1197,14 +1299,25 @@ export function ChatClient(props: {
             className={`flex min-w-0 items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-all duration-150 ${
               activeConversation?.id === item.id
                 ? "border-blue-200 bg-blue-50 shadow-sm dark:border-primary/20 dark:bg-accent"
-                : "border-transparent hover:bg-slate-50 hover:border-slate-200 dark:hover:border-border dark:hover:bg-secondary"
+                : "border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-border dark:hover:bg-secondary"
             }`}
           >
-            <button type="button" onClick={() => openConversation(item.id)} className="min-w-0 flex-1 overflow-hidden text-left">
-              <div className="truncate font-medium text-slate-900 dark:text-foreground">{item.title}</div>
-              <div className="mt-1 text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString("zh-CN")}</div>
+            <button
+              type="button"
+              onClick={() => openConversation(item.id)}
+              className="min-w-0 flex-1 overflow-hidden text-left"
+            >
+              <div className="truncate font-medium text-slate-900 dark:text-foreground">
+                {item.title}
+              </div>
+              <div className="mt-1 text-xs text-muted">
+                {new Date(item.updatedAt).toLocaleDateString("zh-CN")}
+              </div>
             </button>
-            <Dialog open={confirmingDeleteId === item.id} onOpenChange={(open) => setConfirmingDeleteId(open ? item.id : null)}>
+            <Dialog
+              open={confirmingDeleteId === item.id}
+              onOpenChange={(open) => setConfirmingDeleteId(open ? item.id : null)}
+            >
               <DialogTrigger asChild>
                 <button
                   type="button"
@@ -1219,10 +1332,18 @@ export function ChatClient(props: {
                   <DialogDescription className="truncate">{item.title}</DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setConfirmingDeleteId(null)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setConfirmingDeleteId(null)}
+                  >
                     取消
                   </Button>
-                  <Button type="button" variant="destructive" onClick={() => deleteConversation(item.id)}>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => deleteConversation(item.id)}
+                  >
                     确认
                   </Button>
                 </DialogFooter>
@@ -1253,7 +1374,9 @@ export function ChatClient(props: {
               </div>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-6 text-muted">基于企业知识库与大模型的智能问答助手，提供专业、准确、高效的支持服务。</p>
+          <p className="mt-4 text-sm leading-6 text-muted">
+            基于企业知识库与大模型的智能问答助手，提供专业、准确、高效的支持服务。
+          </p>
         </CardContent>
       </Card>
       <Card>
@@ -1262,7 +1385,10 @@ export function ChatClient(props: {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {["药品知识", "合规政策", "经营管理", "系统操作", "医保政策", "会员权益"].map((item) => (
-            <Badge key={item} className="border border-border bg-white px-3 py-2 text-slate-600 dark:border-primary/30 dark:bg-primary/10 dark:text-primary">
+            <Badge
+              key={item}
+              className="border border-border bg-white px-3 py-2 text-slate-600 dark:border-primary/30 dark:bg-primary/10 dark:text-primary"
+            >
               {item}
             </Badge>
           ))}
@@ -1273,7 +1399,14 @@ export function ChatClient(props: {
           <CardTitle>知识库来源</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
-          {["企业 SOP 手册", "药品法规政策", "常见问题库", "医保政策库", "系统操作指南", "培训资料库"].map((item) => (
+          {[
+            "企业 SOP 手册",
+            "药品法规政策",
+            "常见问题库",
+            "医保政策库",
+            "系统操作指南",
+            "培训资料库",
+          ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-slate-700 dark:text-foreground">
               <BookOpenIcon />
               {item}
@@ -1285,11 +1418,16 @@ export function ChatClient(props: {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden xl:grid xl:grid-rows-[minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:gap-5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden xl:grid xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:grid-rows-[minmax(0,1fr)] xl:gap-5">
       <Card className="hidden min-h-0 flex-col overflow-hidden xl:flex">
         <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 [@media(max-height:830px)]:px-4 [@media(max-height:830px)]:py-3">
           <CardTitle className="whitespace-nowrap">会话历史</CardTitle>
-          <Button size="sm" variant="secondary" className="shrink-0 px-3" onClick={startNewConversation}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shrink-0 px-3"
+            onClick={startNewConversation}
+          >
             <Plus className="size-4" />
             新建会话
           </Button>
@@ -1301,23 +1439,31 @@ export function ChatClient(props: {
         </CardContent>
       </Card>
 
-      <Card className="min-h-0 flex flex-1 flex-col overflow-hidden xl:flex-none">
-        <CardHeader className="hidden shrink-0 [@media(max-height:830px)]:px-4 [@media(max-height:830px)]:py-3 xl:block">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-none">
+        <CardHeader className="hidden shrink-0 xl:block [@media(max-height:830px)]:px-4 [@media(max-height:830px)]:py-3">
           <CardTitle>门店智能问答</CardTitle>
-          <p className="text-sm text-muted [@media(max-height:830px)]:hidden">支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。</p>
+          <p className="text-sm text-muted [@media(max-height:830px)]:hidden">
+            支持文字、图片与图文混合输入；知识库命中后做受控润色，未命中时走通用药店场景问答。
+          </p>
         </CardHeader>
         <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
           <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 dark:bg-card xl:hidden">
             <Sheet open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen}>
               <SheetTrigger asChild>
-                <Button size="sm" variant="ghost">历史</Button>
+                <Button size="sm" variant="ghost">
+                  历史
+                </Button>
               </SheetTrigger>
               <SheetContent side="left" className="max-w-[86vw]">
                 <SheetHeader>
                   <SheetTitle>会话历史</SheetTitle>
                 </SheetHeader>
                 <SheetBody className="p-3">
-                  <Button className="mb-3 w-full" variant="secondary" onClick={startNewConversation}>
+                  <Button
+                    className="mb-3 w-full"
+                    variant="secondary"
+                    onClick={startNewConversation}
+                  >
                     <Plus className="size-4" />
                     新建会话
                   </Button>
@@ -1326,12 +1472,18 @@ export function ChatClient(props: {
               </SheetContent>
             </Sheet>
             <div className="min-w-0 text-center">
-              <div className="truncate text-sm font-semibold text-slate-950 dark:text-foreground">门店智能问答</div>
-              <div className="truncate text-[11px] text-muted">{activeConversation?.title ?? "新会话"}</div>
+              <div className="truncate text-sm font-semibold text-slate-950 dark:text-foreground">
+                门店智能问答
+              </div>
+              <div className="truncate text-[11px] text-muted">
+                {activeConversation?.title ?? "新会话"}
+              </div>
             </div>
             <Sheet open={mobileAssistantOpen} onOpenChange={setMobileAssistantOpen}>
               <SheetTrigger asChild>
-                <Button size="sm" variant="ghost">助手</Button>
+                <Button size="sm" variant="ghost">
+                  助手
+                </Button>
               </SheetTrigger>
               <SheetContent side="right" className="max-w-[86vw]">
                 <SheetHeader>
@@ -1353,7 +1505,9 @@ export function ChatClient(props: {
                   <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-100 text-primary dark:bg-accent">
                     <Sparkles className="size-7" />
                   </div>
-                  <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-foreground">门店智能问答</h3>
+                  <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-foreground">
+                    门店智能问答
+                  </h3>
                   <p className="mt-2 max-w-xs text-sm text-muted">
                     在下方输入您的门店相关问题，支持文字、图片与图文混合输入
                   </p>
@@ -1363,176 +1517,250 @@ export function ChatClient(props: {
                 {messages.map((message) => {
                   const attachmentsData = getAttachmentItems(message.attachmentsJson);
                   const debugPayload = safeJsonParse<{
-                    debug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+                    debug?: Array<{
+                      question: string;
+                      sourceFile?: string | null;
+                      rerankScore: number;
+                    }>;
                     imagePaths?: string[];
                   }>(message.retrievalDebugJson, {});
                   const retrievalDebug = debugPayload.debug ?? [];
                   const imagePaths = debugPayload.imagePaths ?? [];
-                  const progressState = progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
+                  const progressState =
+                    progressByMessageId[message.id] ?? finalProgressByAssistantId[message.id];
                   const rawMessageText =
-                    message.contentText || (message.role === "assistant" && progressState?.status === "running" ? "正在生成..." : "");
-                  const messageText = message.role === "assistant" ? stripFixedAssistantSuffix(rawMessageText) : rawMessageText;
+                    message.contentText ||
+                    (message.role === "assistant" && progressState?.status === "running"
+                      ? "正在生成..."
+                      : "");
+                  const messageText =
+                    message.role === "assistant"
+                      ? stripFixedAssistantSuffix(rawMessageText)
+                      : rawMessageText;
                   const isUser = message.role === "user";
                   const isTemporaryMessage = message.id.startsWith("temp-");
                   const canPersistAction = !isTemporaryMessage && message.status !== "streaming";
                   const hasContent = Boolean(
-                    (message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText).trim()
+                    (message.role === "assistant"
+                      ? stripFixedAssistantSuffix(message.contentText)
+                      : message.contentText
+                    ).trim()
                   );
                   const showAssistantFixedSuffix =
-                    message.role === "assistant" && message.status === "completed" && Boolean(messageText.trim());
+                    message.role === "assistant" &&
+                    message.status === "completed" &&
+                    Boolean(messageText.trim());
                   const isEditingMessage = editingMessage?.id === message.id;
-                  const bubbleWidthClass = isEditingMessage ? "w-full max-w-[96%] sm:max-w-[92%]" : "max-w-[92%] sm:max-w-[86%]";
+                  const bubbleWidthClass = isEditingMessage
+                    ? "w-full max-w-[96%] sm:max-w-[92%]"
+                    : "max-w-[92%] sm:max-w-[86%]";
 
                   return (
-                  <div
-                    key={message.id}
-                    className={`flex gap-2 sm:gap-3 ${isUser ? "justify-end" : "justify-start"}`}
-                  >
-                    {!isUser ? (
-                      <div className="mt-2 hidden size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 sm:flex">
-                        {message.sourceType === "kb" ? <Database className="size-4" /> : <Sparkles className="size-4" />}
-                      </div>
-                    ) : null}
                     <div
-                      className={`${bubbleWidthClass} rounded-xl border px-3 py-2.5 shadow-sm sm:px-4 sm:py-3 ${
-                        isUser ? "border-blue-100 bg-blue-50 text-slate-900 dark:border-primary/20 dark:bg-accent dark:text-foreground" : "border-border bg-white dark:bg-card dark:text-foreground"
-                      }`}
+                      key={message.id}
+                      className={`flex gap-2 sm:gap-3 ${isUser ? "justify-end" : "justify-start"}`}
                     >
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <Badge className={sourceBadgeClass(message.sourceType)}>{sourceLabel(message.sourceType, message.role)}</Badge>
-                        <span className="text-xs text-muted">{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
-                      </div>
-                      {message.role === "assistant" && progressState ? <ProgressCard progress={progressState} nowMs={nowMs} /> : null}
-                      {isEditingMessage ? (
-                        <div className="flex flex-col gap-3">
-                          <Textarea
-                            ref={editTextareaRef}
-                            value={editText}
-                            onChange={(event) => setEditText(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Escape") {
-                                setEditingMessage(null);
-                                return;
-                              }
-                              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                                event.preventDefault();
-                                void saveEditedMessage();
-                              }
-                            }}
-                            className="min-h-48 max-h-[420px] w-full resize-none overflow-y-auto rounded-xl bg-white/80 text-sm leading-6 dark:bg-card sm:min-h-56"
-                            placeholder="请输入消息内容"
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <MarkdownMessage content={messageText} />
-                          {showAssistantFixedSuffix ? (
-                            <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{FIXED_ASSISTANT_SUFFIX}</p>
-                          ) : null}
-                        </>
-                      )}
-                      {message.role === "assistant" && isEditingMessage && editImagePaths.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {editImagePaths.map((imagePath) => (
-                            <div key={imagePath} className="relative rounded-lg border border-border bg-slate-50 p-1 dark:bg-secondary">
-                              <img src={getFileUrl(imagePath)} alt="" className="max-h-36 rounded object-contain" />
-                              <button
-                                type="button"
-                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow hover:text-destructive dark:bg-card"
-                                onClick={() => setEditImagePaths((current) => current.filter((item) => item !== imagePath))}
-                              >
-                                <X className="size-3.5" />
-                              </button>
-                            </div>
-                          ))}
+                      {!isUser ? (
+                        <div className="mt-2 hidden size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 sm:flex">
+                          {message.sourceType === "kb" ? (
+                            <Database className="size-4" />
+                          ) : (
+                            <Sparkles className="size-4" />
+                          )}
                         </div>
                       ) : null}
-                      {!isEditingMessage && imagePaths.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {imagePaths.map((img, i) => (
-                            <img
-                              key={i}
-                              src={getFileUrl(img)}
-                              alt=""
-                              className="max-h-48 cursor-pointer rounded-lg border border-border object-contain transition-all duration-200 hover:scale-[1.02] hover:opacity-80 hover:shadow-md"
-                              onClick={() => window.open(getFileUrl(img), "_blank")}
+                      <div
+                        className={`${bubbleWidthClass} rounded-xl border px-3 py-2.5 shadow-sm sm:px-4 sm:py-3 ${
+                          isUser
+                            ? "border-blue-100 bg-blue-50 text-slate-900 dark:border-primary/20 dark:bg-accent dark:text-foreground"
+                            : "border-border bg-white dark:bg-card dark:text-foreground"
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <Badge className={sourceBadgeClass(message.sourceType)}>
+                            {sourceLabel(message.sourceType, message.role)}
+                          </Badge>
+                          <span className="text-xs text-muted">
+                            {new Date(message.createdAt).toLocaleTimeString("zh-CN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        {message.role === "assistant" && progressState ? (
+                          <ProgressCard progress={progressState} nowMs={nowMs} />
+                        ) : null}
+                        {isEditingMessage ? (
+                          <div className="flex flex-col gap-3">
+                            <Textarea
+                              ref={editTextareaRef}
+                              value={editText}
+                              onChange={(event) => setEditText(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  setEditingMessage(null);
+                                  return;
+                                }
+                                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                                  event.preventDefault();
+                                  void saveEditedMessage();
+                                }
+                              }}
+                              className="max-h-[420px] min-h-48 w-full resize-none overflow-y-auto rounded-xl bg-white/80 text-sm leading-6 dark:bg-card sm:min-h-56"
+                              placeholder="请输入消息内容"
                             />
-                          ))}
-                        </div>
-                      ) : null}
-                      <AttachmentGallery attachments={attachmentsData} />
-                      {isEditingMessage ? (
-                        <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3">
-                          <Button type="button" variant="outline" size="sm" onClick={() => setEditingMessage(null)}>
-                            取消
-                          </Button>
-                          <Button type="button" size="sm" onClick={saveEditedMessage} disabled={sending}>
-                            保存
-                          </Button>
-                          {message.role === "user" ? (
-                            <Button type="button" size="sm" onClick={resendCurrentEditedUserMessage} disabled={sending}>
-                              重新发送
+                          </div>
+                        ) : (
+                          <>
+                            <MarkdownMessage content={messageText} />
+                            {showAssistantFixedSuffix ? (
+                              <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
+                                {FIXED_ASSISTANT_SUFFIX}
+                              </p>
+                            ) : null}
+                          </>
+                        )}
+                        {message.role === "assistant" &&
+                        isEditingMessage &&
+                        editImagePaths.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {editImagePaths.map((imagePath) => (
+                              <div
+                                key={imagePath}
+                                className="relative rounded-lg border border-border bg-slate-50 p-1 dark:bg-secondary"
+                              >
+                                <img
+                                  src={getFileUrl(imagePath)}
+                                  alt=""
+                                  className="max-h-36 rounded object-contain"
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow hover:text-destructive dark:bg-card"
+                                  onClick={() =>
+                                    setEditImagePaths((current) =>
+                                      current.filter((item) => item !== imagePath)
+                                    )
+                                  }
+                                >
+                                  <X className="size-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {!isEditingMessage && imagePaths.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {imagePaths.map((img, i) => (
+                              <img
+                                key={i}
+                                src={getFileUrl(img)}
+                                alt=""
+                                className="max-h-48 cursor-pointer rounded-lg border border-border object-contain transition-all duration-200 hover:scale-[1.02] hover:opacity-80 hover:shadow-md"
+                                onClick={() => window.open(getFileUrl(img), "_blank")}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                        <AttachmentGallery attachments={attachmentsData} />
+                        {isEditingMessage ? (
+                          <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingMessage(null)}
+                            >
+                              取消
                             </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {message.role === "user" && !isEditingMessage ? (
-                        <div className="mt-3 flex justify-end border-t border-border pt-3">
-                          <MessageActionMenu
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={saveEditedMessage}
+                              disabled={sending}
+                            >
+                              保存
+                            </Button>
+                            {message.role === "user" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={resendCurrentEditedUserMessage}
+                                disabled={sending}
+                              >
+                                重新发送
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {message.role === "user" && !isEditingMessage ? (
+                          <div className="mt-3 flex justify-end border-t border-border pt-3">
+                            <MessageActionMenu
+                              message={message}
+                              hasContent={hasContent}
+                              canPersistAction={canPersistAction}
+                              copiedActionKey={copiedActionKey}
+                              onCopy={copyMessage}
+                              onDownload={downloadMessage}
+                              onDeleteRequest={() => setConfirmingMessageDeleteId(message.id)}
+                              onEdit={() => openEditMessage(message)}
+                            />
+                          </div>
+                        ) : null}
+                        {message.role === "assistant" && !isEditingMessage ? (
+                          <AssistantMessageFooter
                             message={message}
                             hasContent={hasContent}
                             canPersistAction={canPersistAction}
                             copiedActionKey={copiedActionKey}
+                            retrievalDebug={retrievalDebug}
+                            sending={sending}
+                            onCreateTicket={createTicket}
                             onCopy={copyMessage}
                             onDownload={downloadMessage}
                             onDeleteRequest={() => setConfirmingMessageDeleteId(message.id)}
                             onEdit={() => openEditMessage(message)}
+                            onRegenerate={() => regenerateMessage(message)}
                           />
-                        </div>
-                      ) : null}
-                      {message.role === "assistant" && !isEditingMessage ? (
-                        <AssistantMessageFooter
-                          message={message}
-                          hasContent={hasContent}
-                          canPersistAction={canPersistAction}
-                          copiedActionKey={copiedActionKey}
-                          retrievalDebug={retrievalDebug}
-                          sending={sending}
-                          onCreateTicket={createTicket}
-                          onCopy={copyMessage}
-                          onDownload={downloadMessage}
-                          onDeleteRequest={() => setConfirmingMessageDeleteId(message.id)}
-                          onEdit={() => openEditMessage(message)}
-                          onRegenerate={() => regenerateMessage(message)}
-                        />
-                      ) : null}
-                      <Dialog
-                        open={confirmingMessageDeleteId === message.id}
-                        onOpenChange={(open) => setConfirmingMessageDeleteId(open ? message.id : null)}
-                      >
-                        <DialogContent className="sm:max-w-sm">
-                          <DialogHeader>
-                            <DialogTitle>确认删除这条消息？</DialogTitle>
-                            <DialogDescription className="line-clamp-2">
-                              {message.contentText || sourceLabel(message.sourceType, message.role)}
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setConfirmingMessageDeleteId(null)}>
-                              取消
-                            </Button>
-                            <Button type="button" variant="destructive" onClick={() => deleteMessage(message.id)}>
-                              删除
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                        ) : null}
+                        <Dialog
+                          open={confirmingMessageDeleteId === message.id}
+                          onOpenChange={(open) =>
+                            setConfirmingMessageDeleteId(open ? message.id : null)
+                          }
+                        >
+                          <DialogContent className="sm:max-w-sm">
+                            <DialogHeader>
+                              <DialogTitle>确认删除这条消息？</DialogTitle>
+                              <DialogDescription className="line-clamp-2">
+                                {message.contentText ||
+                                  sourceLabel(message.sourceType, message.role)}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setConfirmingMessageDeleteId(null)}
+                              >
+                                取消
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={() => deleteMessage(message.id)}
+                              >
+                                删除
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
-                  </div>
                   );
                 })}
                 {messages.length ? (
-                  <div className="flex items-center justify-center pt-2 pb-6 text-xs text-muted">
+                  <div className="flex items-center justify-center pb-6 pt-2 text-xs text-muted">
                     <CircleAlert className="size-4" />
                     每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
                   </div>
@@ -1541,13 +1769,20 @@ export function ChatClient(props: {
             </div>
           </ScrollArea>
 
-          <div className="relative shrink-0 border-t border-border bg-white p-3 dark:bg-card [@media(max-height:830px)]:sm:p-3 sm:p-5">
+          <div className="relative shrink-0 border-t border-border bg-white p-3 dark:bg-card sm:p-5 [@media(max-height:830px)]:sm:p-3">
             <button
               type="button"
               className={`absolute -top-12 right-3 z-10 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:bg-blue-700 dark:border dark:border-primary/30 dark:bg-card dark:text-primary dark:hover:bg-secondary ${
-                showScrollButton ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"
+                showScrollButton
+                  ? "scale-100 opacity-100"
+                  : "pointer-events-none scale-75 opacity-0"
               }`}
-              onClick={() => scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" })}
+              onClick={() =>
+                scrollContainerRef.current?.scrollTo({
+                  top: scrollContainerRef.current.scrollHeight,
+                  behavior: "smooth",
+                })
+              }
             >
               <ArrowDown className="size-4" />
             </button>
@@ -1556,9 +1791,20 @@ export function ChatClient(props: {
               {attachments.length ? (
                 <div className="flex flex-wrap gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm dark:border-border dark:bg-card">
                   {attachments.map((item) => (
-                    <span key={item.path} className="inline-flex items-center gap-1 rounded border border-border bg-slate-50 px-2 py-1 text-xs dark:bg-secondary">
+                    <span
+                      key={item.path}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-slate-50 px-2 py-1 text-xs dark:bg-secondary"
+                    >
                       {item.name}
-                      <button type="button" className="text-slate-400 hover:text-red-500 dark:text-muted" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                      <button
+                        type="button"
+                        className="text-slate-400 hover:text-red-500 dark:text-muted"
+                        onClick={() =>
+                          setAttachments((current) =>
+                            current.filter((file) => file.path !== item.path)
+                          )
+                        }
+                      >
                         <X className="size-3" />
                       </button>
                     </span>
@@ -1587,7 +1833,7 @@ export function ChatClient(props: {
                   className="max-h-[33dvh] min-h-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 dark:text-foreground dark:placeholder:text-muted [@media(max-height:830px)]:max-h-20"
                   style={{ fieldSizing: "content" }}
                 />
-                <div className="flex shrink-0 items-center gap-1 pr-2 pb-1">
+                <div className="flex shrink-0 items-center gap-1 pb-1 pr-2">
                   <label className="flex size-8 cursor-pointer items-center justify-center rounded-full text-primary transition-all duration-150 hover:bg-blue-50 active:scale-90 dark:hover:bg-accent">
                     <ImagePlus className="size-5" />
                     <input
@@ -1609,7 +1855,11 @@ export function ChatClient(props: {
                     disabled={!sending && !text.trim() && !attachments.length}
                     className="flex size-8 items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-blue-700 active:scale-90 disabled:opacity-50 dark:border dark:border-primary/30 dark:bg-primary/10 dark:text-primary dark:hover:bg-secondary"
                   >
-                    {sending ? <Square className="size-3.5 fill-current" /> : <SendHorizontal className="size-4" />}
+                    {sending ? (
+                      <Square className="size-3.5 fill-current" />
+                    ) : (
+                      <SendHorizontal className="size-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -1637,9 +1887,20 @@ export function ChatClient(props: {
               />
               <div className="flex flex-wrap gap-2 px-4 [@media(max-height:830px)]:px-3">
                 {attachments.map((item) => (
-                  <span key={item.path} className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300 dark:bg-secondary dark:hover:border-border">
+                  <span
+                    key={item.path}
+                    className="inline-flex items-center gap-2 rounded border border-border bg-slate-50 px-3 py-2 text-xs transition-all duration-150 hover:border-slate-300 dark:bg-secondary dark:hover:border-border"
+                  >
                     {item.name}
-                    <button type="button" className="rounded transition-colors duration-150 hover:bg-red-50 hover:text-red-500 dark:hover:bg-destructive/10 dark:hover:text-destructive" onClick={() => setAttachments((current) => current.filter((file) => file.path !== item.path))}>
+                    <button
+                      type="button"
+                      className="rounded transition-colors duration-150 hover:bg-red-50 hover:text-red-500 dark:hover:bg-destructive/10 dark:hover:text-destructive"
+                      onClick={() =>
+                        setAttachments((current) =>
+                          current.filter((file) => file.path !== item.path)
+                        )
+                      }
+                    >
                       <X className="size-3" />
                     </button>
                   </span>
@@ -1662,18 +1923,33 @@ export function ChatClient(props: {
                     }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground [@media(max-height:830px)]:hidden">
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-2 rounded px-3 text-sm text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.97] dark:text-muted dark:hover:bg-secondary dark:hover:text-foreground [@media(max-height:830px)]:hidden"
+                >
                   <ClipboardPaste className="size-4" />
                   粘贴图片
                 </button>
                 <div className="ml-auto text-xs text-muted">{text.length}/2000</div>
                 <Button onClick={sending ? stopGenerating : sendMessage} disabled={false}>
-                  {sending ? <><Square className="size-3.5 fill-current" /> 停止</> : <><SendHorizontal className="size-4" /> 发送</>}
+                  {sending ? (
+                    <>
+                      <Square className="size-3.5 fill-current" /> 停止
+                    </>
+                  ) : (
+                    <>
+                      <SendHorizontal className="size-4" /> 发送
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
 
-            {error ? <Alert className="mt-3 border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">{error}</Alert> : null}
+            {error ? (
+              <Alert className="mt-3 border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">
+                {error}
+              </Alert>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -1790,15 +2066,24 @@ function MessageActionMenu(props: {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuGroup>
-              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onCopy(props.message, "text")}>
+              <DropdownMenuItem
+                disabled={!props.hasContent}
+                onClick={() => props.onCopy(props.message, "text")}
+              >
                 {textCopied ? <Check className="size-4" /> : <Clipboard className="size-4" />}
                 复制纯文本
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onDownload(props.message, "markdown")}>
+              <DropdownMenuItem
+                disabled={!props.hasContent}
+                onClick={() => props.onDownload(props.message, "markdown")}
+              >
                 <FileText className="size-4" />
                 下载 Markdown
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={!props.hasContent} onClick={() => props.onDownload(props.message, "text")}>
+              <DropdownMenuItem
+                disabled={!props.hasContent}
+                onClick={() => props.onDownload(props.message, "text")}
+              >
                 <Download className="size-4" />
                 下载纯文本
               </DropdownMenuItem>
@@ -1837,7 +2122,13 @@ function AssistantMessageFooter(props: {
 
   const actionRow = (
     <div className="flex shrink-0 items-center gap-2">
-      <Button size="sm" variant="outline" onClick={props.onCreateTicket} disabled={props.sending} className="shrink-0">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={props.onCreateTicket}
+        disabled={props.sending}
+        className="shrink-0"
+      >
         <LifeBuoy className="size-4" />
         人工服务
       </Button>
@@ -1893,14 +2184,20 @@ function KnowledgeSourceSummary(props: {
   const primary = props.retrievalDebug[0];
 
   return (
-    <div className={`rounded border border-border bg-slate-50 text-xs text-muted dark:bg-secondary ${props.className ?? ""}`}>
+    <div
+      className={`rounded border border-border bg-slate-50 text-xs text-muted dark:bg-secondary ${props.className ?? ""}`}
+    >
       <button
         type="button"
         className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left transition-colors duration-150 hover:bg-slate-100 dark:hover:bg-secondary/80"
         onClick={() => props.onOpenChange(!props.open)}
         aria-expanded={props.open}
       >
-        <span className={`shrink-0 transition-transform duration-150 ${props.open ? "rotate-90" : ""}`}>▸</span>
+        <span
+          className={`shrink-0 transition-transform duration-150 ${props.open ? "rotate-90" : ""}`}
+        >
+          ▸
+        </span>
         <span className="min-w-0 truncate">
           命中知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
         </span>
@@ -1910,7 +2207,10 @@ function KnowledgeSourceSummary(props: {
           <div className="mb-2 font-medium text-foreground">知识来源</div>
           <div className="flex flex-col gap-2">
             {props.retrievalDebug.map((item, index) => (
-              <div key={`${props.messageId}-${index}`} className="rounded border border-border bg-white p-2 dark:bg-card">
+              <div
+                key={`${props.messageId}-${index}`}
+                className="rounded border border-border bg-white p-2 dark:bg-card"
+              >
                 <div className="font-medium text-foreground">问题：{item.question || "无"}</div>
                 <div className="mt-1">来源：{item.sourceFile || "未知来源"}</div>
                 <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
@@ -1929,14 +2229,25 @@ function resizeEditTextarea(textarea: HTMLTextAreaElement) {
 }
 
 function messageToMarkdown(message: Message) {
-  const roleLabel = message.role === "user" ? "用户" : message.role === "assistant" ? "助手" : sourceLabel(message.sourceType, message.role);
+  const roleLabel =
+    message.role === "user"
+      ? "用户"
+      : message.role === "assistant"
+        ? "助手"
+        : sourceLabel(message.sourceType, message.role);
   const time = new Date(message.createdAt).toLocaleString("zh-CN");
-  const content = message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText;
+  const content =
+    message.role === "assistant"
+      ? stripFixedAssistantSuffix(message.contentText)
+      : message.contentText;
   return [`### ${roleLabel} · ${time}`, "", content.trim()].join("\n");
 }
 
 function messageToPlainText(message: Message) {
-  const content = message.role === "assistant" ? stripFixedAssistantSuffix(message.contentText) : message.contentText;
+  const content =
+    message.role === "assistant"
+      ? stripFixedAssistantSuffix(message.contentText)
+      : message.contentText;
   return markdownToPlainText(content).trim();
 }
 
@@ -1949,7 +2260,13 @@ function markdownToPlainText(markdown: string) {
 }
 
 function safeFileName(value: string) {
-  return value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim().slice(0, 48) || "消息";
+  return (
+    value
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 48) || "消息"
+  );
 }
 
 function formatMessageTimeForFile(value: string | Date) {
@@ -1960,7 +2277,7 @@ function formatMessageTimeForFile(value: string | Date) {
     pad(date.getMonth() + 1),
     pad(date.getDate()),
     pad(date.getHours()),
-    pad(date.getMinutes())
+    pad(date.getMinutes()),
   ].join("");
 }
 
@@ -1979,8 +2296,9 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
   );
   const totalDurationMs =
     props.progress.status === "running" && props.progress.currentStepStartedClientAt
-      ? props.progress.currentElapsedMs + Math.max(0, props.nowMs - props.progress.currentStepStartedClientAt)
-      : props.progress.totalDurationMs ?? props.progress.currentElapsedMs;
+      ? props.progress.currentElapsedMs +
+        Math.max(0, props.nowMs - props.progress.currentStepStartedClientAt)
+      : (props.progress.totalDurationMs ?? props.progress.currentElapsedMs);
   const title =
     props.progress.status === "completed"
       ? "本次处理完成"
@@ -1995,7 +2313,8 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
     props.progress.status === "running" && props.progress.currentStepStartedClientAt
       ? Math.max(0, props.nowMs - props.progress.currentStepStartedClientAt)
       : undefined;
-  const summaryDurationMs = props.progress.status === "running" ? currentStepDurationMs ?? 0 : totalDurationMs;
+  const summaryDurationMs =
+    props.progress.status === "running" ? (currentStepDurationMs ?? 0) : totalDurationMs;
   const showDetails = detailsOpen;
 
   function clearCloseTimer() {
@@ -2041,7 +2360,7 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
       left,
       top,
       width,
-      maxHeight
+      maxHeight,
     });
   }
 
@@ -2073,14 +2392,16 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
               left: popoverPosition.left,
               top: popoverPosition.top,
               width: popoverPosition.width,
-              maxHeight: popoverPosition.maxHeight
+              maxHeight: popoverPosition.maxHeight,
             }}
             onMouseEnter={openDetails}
             onMouseLeave={scheduleCloseDetails}
           >
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-foreground">{title}</div>
-              <div className="text-xs text-muted">总耗时 {formatDurationSeconds(totalDurationMs)}</div>
+              <div className="text-xs text-muted">
+                总耗时 {formatDurationSeconds(totalDurationMs)}
+              </div>
             </div>
 
             <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
@@ -2095,13 +2416,17 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
               <div className="rounded-xl bg-secondary/40 px-3 py-2">
                 <div>首个正文</div>
                 <div className="mt-1 font-medium text-foreground">
-                  {props.progress.firstTokenLatencyMs != null ? formatDurationSeconds(props.progress.firstTokenLatencyMs) : "未返回"}
+                  {props.progress.firstTokenLatencyMs != null
+                    ? formatDurationSeconds(props.progress.firstTokenLatencyMs)
+                    : "未返回"}
                 </div>
               </div>
               <div className="rounded-xl bg-secondary/40 px-3 py-2">
                 <div>流式输出</div>
                 <div className="mt-1 font-medium text-foreground">
-                  {props.progress.streamAnswerMs != null ? formatDurationSeconds(props.progress.streamAnswerMs) : "未开始"}
+                  {props.progress.streamAnswerMs != null
+                    ? formatDurationSeconds(props.progress.streamAnswerMs)
+                    : "未开始"}
                 </div>
               </div>
             </div>
@@ -2110,7 +2435,9 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
               <div className="mt-3 space-y-2 text-sm">
                 {visibleSteps.map((stepKey) => {
                   const completedStep = props.progress.steps[stepKey];
-                  const isCurrent = props.progress.currentStepKey === stepKey && props.progress.status === "running";
+                  const isCurrent =
+                    props.progress.currentStepKey === stepKey &&
+                    props.progress.status === "running";
 
                   return (
                     <div
@@ -2122,10 +2449,16 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
                       <div className="flex items-center justify-between gap-3">
                         <span>{completedStep?.label ?? PROGRESS_STEP_LABELS[stepKey]}</span>
                         <span className="text-xs">
-                          {completedStep ? formatDurationSeconds(completedStep.durationMs) : isCurrent ? "进行中" : ""}
+                          {completedStep
+                            ? formatDurationSeconds(completedStep.durationMs)
+                            : isCurrent
+                              ? "进行中"
+                              : ""}
                         </span>
                       </div>
-                      {completedStep?.detail ? <div className="mt-1 text-xs text-muted">{completedStep.detail}</div> : null}
+                      {completedStep?.detail ? (
+                        <div className="mt-1 text-xs text-muted">{completedStep.detail}</div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -2137,11 +2470,7 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
       : null;
 
   return (
-    <div
-      className="mb-3"
-      onMouseEnter={openDetails}
-      onMouseLeave={scheduleCloseDetails}
-    >
+    <div className="mb-3" onMouseEnter={openDetails} onMouseLeave={scheduleCloseDetails}>
       <button
         ref={triggerRef}
         type="button"
@@ -2158,7 +2487,9 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-foreground">{latestStepLabel}</div>
         </div>
-        <div className="ml-3 shrink-0 text-xs text-muted">{formatDurationSeconds(summaryDurationMs)}</div>
+        <div className="ml-3 shrink-0 text-xs text-muted">
+          {formatDurationSeconds(summaryDurationMs)}
+        </div>
       </button>
       {detailsPanel}
     </div>

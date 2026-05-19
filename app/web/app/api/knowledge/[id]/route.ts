@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { deleteKnowledgeItem, getKnowledgeItemDetail, updateKnowledgeItem } from "@/lib/services/knowledge";
+import {
+  deleteKnowledgeItem,
+  getKnowledgeItemDetail,
+  updateKnowledgeItem,
+} from "@/lib/services/knowledge";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -22,10 +23,7 @@ export async function GET(
   return NextResponse.json({ item });
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -52,7 +50,7 @@ export async function PUT(
     question: question.trim(),
     answer: answer.trim(),
     imagePaths: imagePaths ?? [],
-    status
+    status,
   });
 
   return NextResponse.json({ ok: true, item: { id: item.id } });

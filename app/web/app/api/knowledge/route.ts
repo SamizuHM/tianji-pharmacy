@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
-import { collectKnowledgeSourceFiles, importKnowledgeFromFiles, listKnowledgeItems, upsertKnowledgeItem } from "@/lib/services/knowledge";
+import {
+  collectKnowledgeSourceFiles,
+  importKnowledgeFromFiles,
+  listKnowledgeItems,
+  upsertKnowledgeItem,
+} from "@/lib/services/knowledge";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -13,9 +18,10 @@ export async function GET(request: NextRequest) {
   const result = await listKnowledgeItems({
     q: searchParams.get("q") ?? undefined,
     category: searchParams.get("category") ?? undefined,
-    status: (searchParams.get("status") as "draft" | "published" | "archived" | "all" | null) ?? "all",
+    status:
+      (searchParams.get("status") as "draft" | "published" | "archived" | "all" | null) ?? "all",
     page: Number(searchParams.get("page") ?? 1),
-    pageSize: Number(searchParams.get("pageSize") ?? 10)
+    pageSize: Number(searchParams.get("pageSize") ?? 10),
   });
 
   return NextResponse.json(result);
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
       imagePaths: imagePaths ?? [],
       originalText: `${question}\n${answer}`,
       normalizedText: `${question}\n${answer}`,
-      chunkTexts: [`问题：${question}\n答案：${answer}`]
+      chunkTexts: [`问题：${question}\n答案：${answer}`],
     });
 
     return NextResponse.json({ ok: true, item: { id: item.id } });

@@ -20,9 +20,9 @@ export async function embedTexts(texts: string[]) {
   const response = await fetch(env.EMBEDDING_SERVICE_URL, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ texts })
+    body: JSON.stringify({ texts }),
   });
 
   if (!response.ok) {
@@ -42,9 +42,9 @@ export async function embedMultimodal(items: MultimodalEmbedInput[]) {
   const response = await fetch(`${env.ML_SERVICE_URL}/embed-multimodal`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ items })
+    body: JSON.stringify({ items }),
   });
 
   if (!response.ok) {
@@ -59,9 +59,9 @@ export async function rerank(query: string, documents: string[]) {
   const response = await fetch(env.RERANK_SERVICE_URL, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, documents })
+    body: JSON.stringify({ query, documents }),
   });
 
   if (!response.ok) {
@@ -85,9 +85,9 @@ export async function rerankMultimodal(
   const response = await fetch(`${env.ML_SERVICE_URL}/rerank-multimodal`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, query_image_paths: queryImagePaths, documents })
+    body: JSON.stringify({ query, query_image_paths: queryImagePaths, documents }),
   });
 
   if (!response.ok) {
@@ -102,9 +102,9 @@ export async function parseDocument(filePath: string) {
   const response = await fetch(`${env.ML_SERVICE_URL}/parse-document`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ file_path: filePath })
+    body: JSON.stringify({ file_path: filePath }),
   });
 
   if (!response.ok) {
@@ -125,7 +125,7 @@ export async function streamMultimodalChat(input: {
   const response = await fetch(`${env.ML_SERVICE_URL}/chat-multimodal-stream`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       system_prompt: input.systemPrompt,
@@ -134,10 +134,10 @@ export async function streamMultimodalChat(input: {
       messages: input.messages?.map((message) => ({
         role: message.role,
         text: message.content,
-        image_paths: message.imagePaths ?? []
+        image_paths: message.imagePaths ?? [],
       })),
-      model: input.model
-    })
+      model: input.model,
+    }),
   });
 
   if (!response.ok || !response.body) {

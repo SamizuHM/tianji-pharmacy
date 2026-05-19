@@ -12,7 +12,7 @@ async function main() {
     const record = await prisma.department.upsert({
       where: { name: dept.name },
       update: { description: dept.description },
-      create: { name: dept.name, description: dept.description }
+      create: { name: dept.name, description: dept.description },
     });
     departmentMap[dept.name] = record.id;
   }
@@ -26,15 +26,15 @@ async function main() {
         displayName: user.displayName,
         passwordHash,
         role: user.role,
-        departmentId
+        departmentId,
       },
       create: {
         username: user.username,
         displayName: user.displayName,
         passwordHash,
         role: user.role,
-        departmentId
-      }
+        departmentId,
+      },
     });
   }
 
@@ -42,14 +42,14 @@ async function main() {
     RETRIEVAL_TOP_K: process.env.RETRIEVAL_TOP_K ?? "8",
     RERANK_TOP_N: process.env.RERANK_TOP_N ?? "5",
     KB_HIT_THRESHOLD: process.env.KB_HIT_THRESHOLD ?? "0.72",
-    MAX_CONTEXT_TURNS: process.env.MAX_CONTEXT_TURNS ?? "6"
+    MAX_CONTEXT_TURNS: process.env.MAX_CONTEXT_TURNS ?? "6",
   };
 
   for (const [key, value] of Object.entries(settings)) {
     await prisma.appSetting.upsert({
       where: { key },
       update: { value },
-      create: { key, value }
+      create: { key, value },
     });
   }
 }

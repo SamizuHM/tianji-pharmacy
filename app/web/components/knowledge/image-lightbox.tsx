@@ -19,8 +19,14 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
     setIndex(initialIndex);
   }, [initialIndex]);
 
-  const prev = useCallback(() => setIndex((i) => (i > 0 ? i - 1 : images.length - 1)), [images.length]);
-  const next = useCallback(() => setIndex((i) => (i < images.length - 1 ? i + 1 : 0)), [images.length]);
+  const prev = useCallback(
+    () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1)),
+    [images.length]
+  );
+  const next = useCallback(
+    () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0)),
+    [images.length]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -40,10 +46,7 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
       onClick={onClose}
     >
-      <div
-        className="relative max-h-[90vh] max-w-[90vw]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
         <img
           src={getFileUrl(images[index])}
           alt={`图片 ${index + 1}`}

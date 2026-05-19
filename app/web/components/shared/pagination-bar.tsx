@@ -37,11 +37,13 @@ export function PaginationBar(props: {
   const disabled = props.isPending;
 
   return (
-    <div className={cn(
-      "flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted transition-opacity duration-150",
-      disabled && "pointer-events-none opacity-60",
-      props.className
-    )}>
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted transition-opacity duration-150",
+        disabled && "pointer-events-none opacity-60",
+        props.className
+      )}
+    >
       <div className="flex items-center gap-2">
         <span>共 {props.total} 条</span>
         {disabled ? <Loader2 className="size-3 animate-spin text-muted" /> : null}
@@ -63,7 +65,12 @@ export function PaginationBar(props: {
             type="button"
             size="icon"
             variant={page === props.page ? "secondary" : "ghost"}
-            className={cn("size-8", page === props.page ? "border border-primary bg-blue-50 text-primary dark:border-primary/30 dark:bg-primary/10" : "")}
+            className={cn(
+              "size-8",
+              page === props.page
+                ? "border border-primary bg-blue-50 text-primary dark:border-primary/30 dark:bg-primary/10"
+                : ""
+            )}
             disabled={disabled}
             onClick={() => update({ page: String(page) })}
           >

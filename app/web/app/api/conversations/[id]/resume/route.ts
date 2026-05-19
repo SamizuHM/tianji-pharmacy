@@ -22,10 +22,12 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   // 清理超时的流：active-streams 中超时但 DB 仍是 streaming 的消息标记为 failed
   const staleIds = getStaleStreamIds(STREAM_TIMEOUT_MS);
   for (const staleId of staleIds) {
-    await prisma.chatMessage.update({
-      where: { id: staleId },
-      data: { status: "failed" }
-    }).catch(() => undefined);
+    await prisma.chatMessage
+      .update({
+        where: { id: staleId },
+        data: { status: "failed" },
+      })
+      .catch(() => undefined);
     failStream(staleId);
   }
 
@@ -34,9 +36,9 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     where: {
       conversationId: id,
       role: "assistant",
-      status: "streaming"
+      status: "streaming",
     },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
 
   if (!streamingMessage) {
@@ -50,6 +52,6 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     streamingMessageId: streamingMessage.id,
     contentText: streamingMessage.contentText,
     sourceType: streamingMessage.sourceType,
-    active
+    active,
   });
 }

@@ -8,7 +8,7 @@ const settingsSchema = z.object({
   retrievalTopK: z.coerce.number().int().min(1).max(50),
   rerankTopN: z.coerce.number().int().min(1).max(50),
   kbHitThreshold: z.coerce.number().min(0).max(1),
-  maxContextTurns: z.coerce.number().int().min(1).max(20)
+  maxContextTurns: z.coerce.number().int().min(1).max(20),
 });
 
 export async function GET() {

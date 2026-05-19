@@ -23,4 +23,3 @@ export async function POST(request: Request) {
   const conversation = await createConversation(user.id, body.title);
   return NextResponse.json({ conversation });
 }
-

@@ -18,7 +18,9 @@ export function OrgTreeSelect(props: {
   onCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<{ targetDept: string; targetUserId?: string } | null>(null);
+  const [selected, setSelected] = useState<{ targetDept: string; targetUserId?: string } | null>(
+    null
+  );
 
   function toggle(name: string) {
     setExpanded((current) => {
@@ -56,13 +58,19 @@ export function OrgTreeSelect(props: {
                   className="flex shrink-0 items-center justify-center p-1.5 text-slate-400 transition-colors hover:text-slate-600 dark:text-muted dark:hover:text-foreground"
                   onClick={() => toggle(dept.name)}
                 >
-                  {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                  {isExpanded ? (
+                    <ChevronDown className="size-4" />
+                  ) : (
+                    <ChevronRight className="size-4" />
+                  )}
                 </button>
                 <button
                   type="button"
                   className={cn(
                     "flex flex-1 items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
-                    isDeptSelected ? "bg-blue-50 text-primary font-medium dark:bg-primary/10" : "hover:bg-slate-50 dark:hover:bg-secondary"
+                    isDeptSelected
+                      ? "bg-blue-50 font-medium text-primary dark:bg-primary/10"
+                      : "hover:bg-slate-50 dark:hover:bg-secondary"
                   )}
                   onClick={() => selectDept(dept.name)}
                 >
@@ -74,14 +82,17 @@ export function OrgTreeSelect(props: {
               {isExpanded ? (
                 <div className="ml-8 pb-1">
                   {dept.users.map((u) => {
-                    const isUserSelected = selected?.targetDept === dept.name && selected.targetUserId === u.id;
+                    const isUserSelected =
+                      selected?.targetDept === dept.name && selected.targetUserId === u.id;
                     return (
                       <button
                         key={u.id}
                         type="button"
                         className={cn(
                           "flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors",
-                          isUserSelected ? "bg-blue-50 text-primary font-medium dark:bg-primary/10" : "text-slate-600 hover:bg-slate-50 dark:text-muted dark:hover:bg-secondary"
+                          isUserSelected
+                            ? "bg-blue-50 font-medium text-primary dark:bg-primary/10"
+                            : "text-slate-600 hover:bg-slate-50 dark:text-muted dark:hover:bg-secondary"
                         )}
                         onClick={() => selectUser(dept.name, u.id)}
                       >
@@ -103,11 +114,7 @@ export function OrgTreeSelect(props: {
         </div>
       ) : null}
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          disabled={!selected}
-          onClick={() => selected && props.onSelect(selected)}
-        >
+        <Button size="sm" disabled={!selected} onClick={() => selected && props.onSelect(selected)}>
           确认升级
         </Button>
         <Button size="sm" variant="outline" onClick={props.onCancel}>

@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
 
   const user = await prisma.user.findUnique({
-    where: { username: body.username }
+    where: { username: body.username },
   });
 
   if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
@@ -24,7 +24,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     role: user.role,
-    redirectTo: roleHome(user.role)
+    redirectTo: roleHome(user.role),
   });
 }
-

@@ -17,7 +17,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
 
   await softDeleteConversation({
     conversationId: id,
-    userId: user.id
+    userId: user.id,
   });
 
   return NextResponse.json({ success: true });

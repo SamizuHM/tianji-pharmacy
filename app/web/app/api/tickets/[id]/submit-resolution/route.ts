@@ -20,10 +20,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const ticket = await submitResolution({
       ticketId: id,
       userId: user.id,
-      resolutionText: body.resolutionText.trim()
+      resolutionText: body.resolutionText.trim(),
     });
     return NextResponse.json({ ticket });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "提交失败" }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "提交失败" },
+      { status: 400 }
+    );
   }
 }

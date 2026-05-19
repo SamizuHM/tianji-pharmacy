@@ -23,7 +23,10 @@ export function AttachmentGallery(props: {
               <img
                 src={fileUrl}
                 alt={item.name}
-                className={props.imageClassName ?? "max-h-48 rounded-xl border border-border object-contain transition hover:opacity-80"}
+                className={
+                  props.imageClassName ??
+                  "max-h-48 rounded-xl border border-border object-contain transition hover:opacity-80"
+                }
               />
             </a>
           );
@@ -35,7 +38,10 @@ export function AttachmentGallery(props: {
             href={fileUrl}
             target="_blank"
             rel="noreferrer"
-            className={props.linkClassName ?? "rounded-xl border border-border bg-white px-3 py-2 text-xs hover:bg-secondary dark:bg-card"}
+            className={
+              props.linkClassName ??
+              "rounded-xl border border-border bg-white px-3 py-2 text-xs hover:bg-secondary dark:bg-card"
+            }
           >
             {item.name}
           </a>

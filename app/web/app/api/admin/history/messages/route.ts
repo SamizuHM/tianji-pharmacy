@@ -12,13 +12,12 @@ export async function GET() {
   const messages = await prisma.chatMessage.findMany({
     include: {
       conversation: {
-        include: { user: true }
-      }
+        include: { user: true },
+      },
     },
     orderBy: { createdAt: "desc" },
-    take: 100
+    take: 100,
   });
 
   return NextResponse.json({ messages });
 }
-

@@ -13,7 +13,10 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn("inline-flex h-10 items-center rounded border border-border bg-white p-1 text-slate-600 dark:bg-card dark:text-muted", className)}
+    className={cn(
+      "inline-flex h-10 items-center rounded border border-border bg-white p-1 text-slate-600 dark:bg-card dark:text-muted",
+      className
+    )}
     {...props}
   />
 ));
@@ -38,7 +41,14 @@ const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn("mt-2 outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95", className)} {...props} />
+  <TabsPrimitive.Content
+    ref={ref}
+    className={cn(
+      "mt-2 outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95",
+      className
+    )}
+    {...props}
+  />
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 

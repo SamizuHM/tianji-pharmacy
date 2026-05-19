@@ -13,16 +13,23 @@ function clampPageSize(value: number | undefined) {
 }
 
 export async function getStatsSummary() {
-  const [totalQuestions, kbHits, llmAnswers, totalTickets, closedTickets, agentClosed, transferCount] =
-    await Promise.all([
-      prisma.chatMessage.count({ where: { role: "user" } }),
-      prisma.chatMessage.count({ where: { role: "assistant", sourceType: "kb" } }),
-      prisma.chatMessage.count({ where: { role: "assistant", sourceType: "llm" } }),
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: "closed" } }),
-      prisma.ticket.count({ where: { status: "closed", closedBy: { role: "agent" } } }),
-      prisma.ticket.count()
-    ]);
+  const [
+    totalQuestions,
+    kbHits,
+    llmAnswers,
+    totalTickets,
+    closedTickets,
+    agentClosed,
+    transferCount,
+  ] = await Promise.all([
+    prisma.chatMessage.count({ where: { role: "user" } }),
+    prisma.chatMessage.count({ where: { role: "assistant", sourceType: "kb" } }),
+    prisma.chatMessage.count({ where: { role: "assistant", sourceType: "llm" } }),
+    prisma.ticket.count(),
+    prisma.ticket.count({ where: { status: "closed" } }),
+    prisma.ticket.count({ where: { status: "closed", closedBy: { role: "agent" } } }),
+    prisma.ticket.count(),
+  ]);
 
   return {
     totalQuestions,
@@ -33,7 +40,7 @@ export async function getStatsSummary() {
     closedTickets,
     agentClosed,
     kbHitRate: totalQuestions ? kbHits / totalQuestions : 0,
-    closedRate: totalTickets ? closedTickets / totalTickets : 0
+    closedRate: totalTickets ? closedTickets / totalTickets : 0,
   };
 }
 
@@ -42,41 +49,57 @@ export async function getTrendData() {
   const messages = await prisma.chatMessage.findMany({
     where: {
       createdAt: {
-        gte: since
-      }
+        gte: since,
+      },
     },
     select: {
       role: true,
       sourceType: true,
-      createdAt: true
-    }
+      createdAt: true,
+    },
   });
 
   const tickets = await prisma.ticket.findMany({
     where: {
       createdAt: {
-        gte: since
-      }
+        gte: since,
+      },
     },
     select: {
       createdAt: true,
       status: true,
-      closedAt: true
-    }
+      closedAt: true,
+    },
   });
 
-  const days = Array.from({ length: 7 }, (_, index) => dayjs().subtract(6 - index, "day").format("MM-DD"));
+  const days = Array.from({ length: 7 }, (_, index) =>
+    dayjs()
+      .subtract(6 - index, "day")
+      .format("MM-DD")
+  );
 
   return days.map((day) => {
-    const questionCount = messages.filter((item) => item.role === "user" && dayjs(item.createdAt).format("MM-DD") === day).length;
+    const questionCount = messages.filter(
+      (item) => item.role === "user" && dayjs(item.createdAt).format("MM-DD") === day
+    ).length;
     const kbHitCount = messages.filter(
-      (item) => item.role === "assistant" && item.sourceType === "kb" && dayjs(item.createdAt).format("MM-DD") === day
+      (item) =>
+        item.role === "assistant" &&
+        item.sourceType === "kb" &&
+        dayjs(item.createdAt).format("MM-DD") === day
     ).length;
     const llmAnswerCount = messages.filter(
-      (item) => item.role === "assistant" && item.sourceType === "llm" && dayjs(item.createdAt).format("MM-DD") === day
+      (item) =>
+        item.role === "assistant" &&
+        item.sourceType === "llm" &&
+        dayjs(item.createdAt).format("MM-DD") === day
     ).length;
-    const ticketCreatedCount = tickets.filter((item) => dayjs(item.createdAt).format("MM-DD") === day).length;
-    const ticketClosedCount = tickets.filter((item) => item.closedAt && dayjs(item.closedAt).format("MM-DD") === day).length;
+    const ticketCreatedCount = tickets.filter(
+      (item) => dayjs(item.createdAt).format("MM-DD") === day
+    ).length;
+    const ticketClosedCount = tickets.filter(
+      (item) => item.closedAt && dayjs(item.closedAt).format("MM-DD") === day
+    ).length;
 
     return {
       day,
@@ -84,12 +107,14 @@ export async function getTrendData() {
       kbHitCount,
       llmAnswerCount,
       ticketCreatedCount,
-      ticketClosedCount
+      ticketClosedCount,
     };
   });
 }
 
-export async function listHistoryMessages(params: { q?: string; page?: number; pageSize?: number } = {}) {
+export async function listHistoryMessages(
+  params: { q?: string; page?: number; pageSize?: number } = {}
+) {
   const page = clampPage(params.page);
   const pageSize = clampPageSize(params.pageSize);
   const q = params.q?.trim();
@@ -98,8 +123,8 @@ export async function listHistoryMessages(params: { q?: string; page?: number; p
         OR: [
           { contentText: { contains: q } },
           { conversation: { title: { contains: q } } },
-          { conversation: { user: { displayName: { contains: q } } } }
-        ]
+          { conversation: { user: { displayName: { contains: q } } } },
+        ],
       }
     : {};
 
@@ -108,20 +133,22 @@ export async function listHistoryMessages(params: { q?: string; page?: number; p
       where,
       include: {
         conversation: {
-          include: { user: true }
-        }
+          include: { user: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
-      take: pageSize
+      take: pageSize,
     }),
-    prisma.chatMessage.count({ where })
+    prisma.chatMessage.count({ where }),
   ]);
 
   return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export async function listHistoryTickets(params: { q?: string; page?: number; pageSize?: number } = {}) {
+export async function listHistoryTickets(
+  params: { q?: string; page?: number; pageSize?: number } = {}
+) {
   const page = clampPage(params.page);
   const pageSize = clampPageSize(params.pageSize);
   const q = params.q?.trim();
@@ -132,8 +159,8 @@ export async function listHistoryTickets(params: { q?: string; page?: number; pa
           { title: { contains: q } },
           { latestUserQuestion: { contains: q } },
           { category: { contains: q } },
-          { createdBy: { displayName: { contains: q } } }
-        ]
+          { createdBy: { displayName: { contains: q } } },
+        ],
       }
     : {};
 
@@ -143,9 +170,9 @@ export async function listHistoryTickets(params: { q?: string; page?: number; pa
       include: { createdBy: true, closedBy: true },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
-      take: pageSize
+      take: pageSize,
     }),
-    prisma.ticket.count({ where })
+    prisma.ticket.count({ where }),
   ]);
 
   return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };

@@ -15,12 +15,16 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       ticketId: id,
       userId: user.id,
       userDisplayName: user.displayName,
-      userDepartmentName: user.department?.name ?? null
+      userDepartmentName: user.department?.name ?? null,
     });
     return NextResponse.json({ ticket });
   } catch (error) {
     const message = error instanceof Error ? error.message : "认领失败";
-    if (message.includes("Record to update not found") || message.includes("工单已被") || message.includes("No record was found")) {
+    if (
+      message.includes("Record to update not found") ||
+      message.includes("工单已被") ||
+      message.includes("No record was found")
+    ) {
       return NextResponse.json({ error: "工单已被其他人认领" }, { status: 409 });
     }
     return NextResponse.json({ error: message }, { status: 400 });

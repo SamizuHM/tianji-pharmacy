@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 
 const themeSchema = z.object({
   theme: z.enum(["blue", "light"]).optional(),
-  colorMode: z.enum(["light", "dark", "system"]).optional()
+  colorMode: z.enum(["light", "dark", "system"]).optional(),
 });
 
 export async function PUT(request: Request) {
@@ -28,8 +28,8 @@ export async function PUT(request: Request) {
     where: { id: user.id },
     data: {
       ...(parsed.data.theme ? { sidebarTheme: parsed.data.theme } : {}),
-      ...(parsed.data.colorMode ? { colorMode: parsed.data.colorMode } : {})
-    }
+      ...(parsed.data.colorMode ? { colorMode: parsed.data.colorMode } : {}),
+    },
   });
 
   return NextResponse.json(parsed.data);

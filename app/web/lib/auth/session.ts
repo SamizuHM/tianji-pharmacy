@@ -19,8 +19,8 @@ export async function createSession(userId: string) {
     data: {
       token,
       userId,
-      expiresAt
-    }
+      expiresAt,
+    },
   });
 
   const cookieStore = await cookies();
@@ -29,7 +29,7 @@ export async function createSession(userId: string) {
     sameSite: "lax",
     secure: false,
     path: "/",
-    expires: expiresAt
+    expires: expiresAt,
   });
 
   return token;
@@ -56,7 +56,7 @@ export async function getCurrentUser() {
 
   const session = await prisma.session.findUnique({
     where: { token },
-    include: { user: { include: { department: true } } }
+    include: { user: { include: { department: true } } },
   });
 
   if (!session || session.expiresAt.getTime() < Date.now()) {

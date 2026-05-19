@@ -21,13 +21,13 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
       StarterKit,
       Image.configure({ inline: false }),
       Placeholder.configure({
-        placeholder: placeholder || "请输入答案内容，可插入图片…"
-      })
+        placeholder: placeholder || "请输入答案内容，可插入图片…",
+      }),
     ],
     content,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
-    }
+    },
   });
 
   const uploadAndInsertImage = useCallback(
@@ -38,14 +38,18 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
 
       const response = await fetch("/api/uploads", {
         method: "POST",
-        body: formData
+        body: formData,
       });
       if (!response.ok) return;
 
       const data = await response.json();
       const uploadedPath = data.files?.[0]?.path;
       if (uploadedPath) {
-        editor.chain().focus().setImage({ src: `/api/files/${uploadedPath.replace(/^uploads\//, "")}` }).run();
+        editor
+          .chain()
+          .focus()
+          .setImage({ src: `/api/files/${uploadedPath.replace(/^uploads\//, "")}` })
+          .run();
       }
     },
     [editor]
@@ -113,7 +117,7 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
             }
           })();
         }}
-        className="min-h-[200px] max-w-none px-3 py-3 prose prose-sm focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:max-w-full [&_.ProseMirror]:overflow-x-auto [&_.ProseMirror]:outline-none [&_.ProseMirror_img]:h-auto [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+        className="prose prose-sm min-h-[200px] max-w-none px-3 py-3 focus:outline-none [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:max-w-full [&_.ProseMirror]:overflow-x-auto [&_.ProseMirror]:outline-none [&_.ProseMirror_img]:h-auto [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:overflow-hidden [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
       />
     </div>
   );

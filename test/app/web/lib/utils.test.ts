@@ -116,7 +116,9 @@ describe("toArray", () => {
 
 describe("getAttachmentItems", () => {
   it("解析有效 JSON 数组", () => {
-    const json = JSON.stringify([{ name: "f.png", path: "a.png", mimeType: "image/png", size: 100 }]);
+    const json = JSON.stringify([
+      { name: "f.png", path: "a.png", mimeType: "image/png", size: 100 },
+    ]);
     const result = getAttachmentItems(json);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("f.png");
