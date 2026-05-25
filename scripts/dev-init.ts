@@ -23,7 +23,6 @@ async function main() {
   }
 
   loadDotEnv();
-  guardPostgresUrl();
 
   await run("pnpm", ["install"]);
   await run("pnpm", ["db:generate"]);
@@ -52,15 +51,6 @@ async function main() {
 
   console.log("基础初始化完成。下一步执行：pnpm dev");
   console.log("如需导入种子知识库，可执行：pnpm kb:import");
-}
-
-function guardPostgresUrl() {
-  const databaseUrl = process.env.DATABASE_URL ?? "";
-  if (databaseUrl.startsWith("file:")) {
-    throw new Error(
-      '检测到 .env 仍在使用 SQLite DATABASE_URL。请改为 PostgreSQL，例如：DATABASE_URL="postgresql://tianji:tianji_password@127.0.0.1:5432/tianji_pharmacy?schema=public"'
-    );
-  }
 }
 
 async function requireCommand(command: string) {
