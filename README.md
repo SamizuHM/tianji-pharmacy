@@ -161,6 +161,8 @@ pnpm dev
 pnpm dev:deps
 ```
 
+`pnpm dev:deps` 会叠加 `docker-compose.dev.yml`，仅在本机把 PostgreSQL 暴露到 `127.0.0.1:5432`、把 Qdrant 暴露到 `127.0.0.1:6333/6334`，不改变服务器部署用的 `docker-compose.yml` 内部通信策略。
+
 说明：
 
 - `pnpm dev:init` 会准备 pnpm 依赖、Python 虚拟环境、PostgreSQL、Qdrant、Prisma migration、seed 和 `uploads/`。
@@ -195,7 +197,7 @@ docker compose logs -f ml-service
 
 注意：
 
-- 当前 compose 设计是内部通信优先：`qdrant`、`ml-service` 不暴露宿主机端口。
+- 当前部署 compose 设计是内部通信优先：`postgres`、`qdrant`、`ml-service` 不暴露宿主机端口；本地开发通过 `docker-compose.dev.yml` 单独暴露 PostgreSQL 和 Qdrant 到 `127.0.0.1`。
 - 对外访问通过 `cloudflared` 隧道转发到 `web:3000`。
 - 首次启动容器会初始化数据库与 seed，后续重启不会重复导入知识。
 - 如果你更关注首次启动速度，可以在 `.env` 中设置 `AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=false`，启动后再手动执行知识导入。

@@ -44,7 +44,7 @@ pnpm dev:init
 pnpm dev
 ```
 
-`pnpm dev:init` 会安装 pnpm 和 Python 依赖、启动 PostgreSQL/Qdrant、执行 migration/seed，并创建 `uploads/`。如果本地依赖被停掉，可先执行 `pnpm dev:deps`；如果只需要重建 ML 虚拟环境，执行 `pnpm ml:install`。
+`pnpm dev:init` 会安装 pnpm 和 Python 依赖、启动 PostgreSQL/Qdrant、执行 migration/seed，并创建 `uploads/`。如果本地依赖被停掉，可先执行 `pnpm dev:deps`；该命令会叠加 `docker-compose.dev.yml`，把 PostgreSQL 暴露到本机 `127.0.0.1:5432`，把 Qdrant 暴露到本机 `127.0.0.1:6333`。如果只需要重建 ML 虚拟环境，执行 `pnpm ml:install`。
 
 如果只改前端静态样式，并且依赖服务已经跑着，可以只启 Web：
 

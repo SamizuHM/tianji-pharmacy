@@ -9,7 +9,7 @@ This pnpm workspace powers a pharmacy Q&A, RAG, and ticketing system. The Next.j
 - `pnpm install`: install workspace dependencies.
 - `pnpm dev:init`: prepare local dependencies, Python venv, database, seed data, and uploads.
 - `pnpm dev`: check local prerequisites, run migrations, then start web and ML services.
-- `pnpm dev:deps`: start only local PostgreSQL and Qdrant via Docker.
+- `pnpm dev:deps`: start local PostgreSQL and Qdrant; both are published to localhost through `docker-compose.dev.yml`.
 - `pnpm dev:web`: start only the Next.js app.
 - `pnpm dev:ml`: start only the ML service.
 - `pnpm build`: build the web app.

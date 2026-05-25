@@ -29,7 +29,7 @@
 - `web` 容器是系统中枢，不只是运行 Next.js，还承担数据库迁移、seed 和首次知识库导入触发。
 - `prisma/migrations` 是数据库版本历史，仍然有用，不能随便删除。
 - 当前 Dockerfile 是多阶段构建：构建阶段需要源码，最终运行镜像主要保留运行产物、初始化脚本和种子知识文件。
-- 除默认 `docker-compose.yml` 的 cloudflared 入口外，也提供 `docker-compose.public-web.yml`，用于直接把 Web 映射到宿主机公网端口。
+- 服务器部署只使用默认 `docker-compose.yml`，通过 cloudflared 对外；线上环境不暴露 PostgreSQL、Qdrant、ML Service 或 Web 到宿主机端口。
 
 ---
 
@@ -80,7 +80,7 @@ web 容器 Next.js :3000
 
 | 服务          | 作用                                                         | 端口策略                                 |
 | ------------- | ------------------------------------------------------------ | ---------------------------------------- |
-| `postgres`    | PostgreSQL，存用户、会话、消息、工单、知识库元数据           | `ports: 5432:5432`，宿主机可访问         |
+| `postgres`    | PostgreSQL，存用户、会话、消息、工单、知识库元数据           | `expose: 5432`，仅 Compose 内部访问      |
 | `qdrant`      | 向量数据库，存知识库 chunk 向量                              | `expose: 6333/6334`，仅 Compose 内部访问 |
 | `ml-service`  | Python FastAPI，负责 embedding、rerank、文档解析、多模态能力 | `expose`/容器内部端口，未映射宿主机      |
 | `web`         | Next.js 主应用，业务入口                                     | `expose: 3000`，未映射宿主机             |
@@ -90,30 +90,8 @@ web 容器 Next.js :3000
 
 - `expose` 只让同一个 Docker 网络里的服务能访问。
 - `ports` 才会映射到宿主机。
-- 当前只有 PostgreSQL 映射到了宿主机 `5432`。
+- 默认部署 compose 不把 PostgreSQL、Qdrant、ML Service 暴露到宿主机；本地开发通过 `docker-compose.dev.yml` 单独绑定到 `127.0.0.1`。
 - `web`、`ml-service`、`qdrant` 默认都不是通过宿主机端口直接访问。
-
-### 直接公网暴露 Web 的替代 Compose
-
-如果不使用 cloudflared，可以使用：
-
-```bash
-docker compose -f docker-compose.public-web.yml up -d --build
-```
-
-该文件只把 `web` 映射到宿主机：
-
-```env
-WEB_PUBLIC_PORT=80
-```
-
-安全边界：
-
-- `postgres`、`qdrant`、`ml-service` 不配置宿主机 `ports`。
-- 这些服务只在同一个 Compose 网络内被 `web` 访问。
-- 云服务器安全组/防火墙仍需只放行 `WEB_PUBLIC_PORT` 对应端口，例如 80/443。
-
----
 
 ## 常用启动命令
 
@@ -636,18 +614,16 @@ ML_SERVICE_URL=http://ml-service:8001
 
 ## 本地开发与容器部署的区别
 
-| 对比项     | `pnpm dev` 本地开发                         | `docker compose up -d --build` 容器部署       |
-| ---------- | ------------------------------------------- | --------------------------------------------- |
-| Web 进程   | 宿主机 Next.js dev server                   | `web` 容器 Next.js standalone                 |
-| ML 进程    | 宿主机 Python venv                          | `ml-service` 容器                             |
-| PostgreSQL | 容器或本机，通常通过 `127.0.0.1:5432`       | `postgres` 容器                               |
-| Qdrant     | 通常用容器，宿主机访问 `127.0.0.1:6333`     | `qdrant` 容器                                 |
-| 服务地址   | localhost/127.0.0.1                         | service name                                  |
-| 数据库迁移 | `pnpm dev` 检查依赖后执行 `pnpm db:migrate` | `web` entrypoint 执行 `prisma migrate deploy` |
-| 构建       | 热更新开发模式                              | Docker build 生产产物                         |
-| 对外入口   | 直接访问本地端口                            | cloudflared tunnel                            |
-
-如果使用 `docker-compose.public-web.yml`，对外入口不是 cloudflared，而是宿主机 `WEB_PUBLIC_PORT -> web:3000`。
+| 对比项     | `pnpm dev` 本地开发                                   | `docker compose up -d --build` 容器部署       |
+| ---------- | ----------------------------------------------------- | --------------------------------------------- |
+| Web 进程   | 宿主机 Next.js dev server                             | `web` 容器 Next.js standalone                 |
+| ML 进程    | 宿主机 Python venv                                    | `ml-service` 容器                             |
+| PostgreSQL | 通过 `docker-compose.dev.yml` 绑定到 `127.0.0.1:5432` | `postgres` 容器，仅 Compose 内部访问          |
+| Qdrant     | 通过 `docker-compose.dev.yml` 绑定到 `127.0.0.1:6333` | `qdrant` 容器，仅 Compose 内部访问            |
+| 服务地址   | localhost/127.0.0.1                                   | service name                                  |
+| 数据库迁移 | `pnpm dev` 检查依赖后执行 `pnpm db:migrate`           | `web` entrypoint 执行 `prisma migrate deploy` |
+| 构建       | 热更新开发模式                                        | Docker build 生产产物                         |
+| 对外入口   | 直接访问本地端口                                      | cloudflared tunnel                            |
 
 ---
 

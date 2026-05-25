@@ -83,7 +83,7 @@ pnpm dev
 - `pnpm dev:init` 会准备 pnpm 依赖、Python 虚拟环境、PostgreSQL、Qdrant、Prisma migration、seed 和 `uploads/`。
 - `pnpm dev` 会先检查 `.env`、PostgreSQL、Qdrant、Python venv，再并发启动 `web` 与 `ml-service`。
 - Web 侧 `app/web/lib/env.ts` 会在进程启动时读取项目根目录 `.env`，因此从根目录或 `app/web` 目录启动都能拿到同一套环境变量。
-- `pnpm dev:deps` 只启动本地 PostgreSQL/Qdrant；`pnpm ml:install` 只修复 ML Python 环境。
+- `pnpm dev:deps` 只启动本地 PostgreSQL/Qdrant，并通过 `docker-compose.dev.yml` 把 PostgreSQL 绑定到 `127.0.0.1:5432`、把 Qdrant 绑定到 `127.0.0.1:6333/6334`；`pnpm ml:install` 只修复 ML Python 环境。
 
 ### 3. 容器部署模式（`docker compose up -d --build`）
 

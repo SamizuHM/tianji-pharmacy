@@ -99,7 +99,7 @@ pnpm db:migrate
 并发启动 web 和 ml
 ```
 
-其中 `pnpm dev:web` 最终执行 `next dev --turbopack`。如果只需要启动基础依赖，执行 `pnpm dev:deps`；如果只需要修复 ML 环境，执行 `pnpm ml:install`。
+其中 `pnpm dev:web` 最终执行 `next dev --turbopack`。如果只需要启动基础依赖，执行 `pnpm dev:deps`；它会通过 `docker-compose.dev.yml` 把 PostgreSQL 暴露到本机 `127.0.0.1:5432`，把 Qdrant 暴露到本机 `127.0.0.1:6333`。如果只需要修复 ML 环境，执行 `pnpm ml:install`。
 
 如果你只想启动 Web：
 

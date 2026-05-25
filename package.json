@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx scripts/dev.ts",
     "dev:init": "tsx scripts/dev-init.ts",
-    "dev:deps": "docker compose up -d postgres qdrant",
+    "dev:deps": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres qdrant",
     "dev:web": "pnpm --filter web dev",
     "dev:ml": "tsx scripts/dev-ml.ts",
     "build": "pnpm --filter web build",

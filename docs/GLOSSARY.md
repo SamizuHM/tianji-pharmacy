@@ -510,10 +510,11 @@ Docker Compose 中只对内部网络暴露端口。
 
 映射到宿主机端口。
 
-当前只有 PostgreSQL 默认映射了：
+默认部署 compose 不映射 PostgreSQL、Qdrant、ML Service 到宿主机；本地开发通过 `docker-compose.dev.yml` 单独绑定到 `127.0.0.1`：
 
 ```text
-5432:5432
+127.0.0.1:5432 -> postgres:5432
+127.0.0.1:6333 -> qdrant:6333
 ```
 
 ### entrypoint
