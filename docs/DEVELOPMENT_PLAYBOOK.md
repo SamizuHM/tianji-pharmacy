@@ -35,17 +35,7 @@ git branch --show-current
 首次：
 
 ```bash
-bash scripts/init.sh
-```
-
-准备 ML 环境：
-
-```bash
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cd ../..
+pnpm dev:init
 ```
 
 启动：
@@ -53,6 +43,8 @@ cd ../..
 ```bash
 pnpm dev
 ```
+
+`pnpm dev:init` 会安装 pnpm 和 Python 依赖、启动 PostgreSQL/Qdrant、执行 migration/seed，并创建 `uploads/`。如果本地依赖被停掉，可先执行 `pnpm dev:deps`；如果只需要重建 ML 虚拟环境，执行 `pnpm ml:install`。
 
 如果只改前端静态样式，并且依赖服务已经跑着，可以只启 Web：
 
@@ -652,7 +644,8 @@ docker compose logs -f ml-service
 app/ml-service/app/main.py
 app/ml-service/requirements.txt
 Dockerfile.ml
-scripts/dev-ml.sh
+scripts/dev-ml.ts
+scripts/ml-install.ts
 ```
 
 接口：

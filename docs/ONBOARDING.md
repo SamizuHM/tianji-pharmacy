@@ -86,33 +86,20 @@ git branch --show-current
 推荐本地开发模式：
 
 ```bash
-bash scripts/init.sh
-```
-
-准备 Python 环境：
-
-```bash
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cd ../..
-```
-
-启动：
-
-```bash
+pnpm dev:init
 pnpm dev
 ```
 
-`pnpm dev` 会做：
+`pnpm dev:init` 会准备 pnpm 依赖、Python 虚拟环境、PostgreSQL、Qdrant、Prisma migration、seed 和 `uploads/`。
+
+`pnpm dev` 会先检查 `.env`、PostgreSQL、Qdrant、Python venv，再执行：
 
 ```text
 pnpm db:migrate
 并发启动 web 和 ml
 ```
 
-其中 `pnpm dev:web` 最终执行 `next dev --turbopack`。
+其中 `pnpm dev:web` 最终执行 `next dev --turbopack`。如果只需要启动基础依赖，执行 `pnpm dev:deps`；如果只需要修复 ML 环境，执行 `pnpm ml:install`。
 
 如果你只想启动 Web：
 

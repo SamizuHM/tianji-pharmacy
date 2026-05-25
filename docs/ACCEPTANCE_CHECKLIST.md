@@ -46,12 +46,14 @@ docker compose version
 ### 初始化
 
 ```bash
-bash scripts/init.sh
+pnpm dev:init
 ```
 
 预期：
 
 - pnpm 依赖安装完成。
+- ML Python 虚拟环境和依赖安装完成。
+- PostgreSQL 和 Qdrant 已启动。
 - Prisma generate 成功。
 - migration 成功。
 - seed 成功。
@@ -60,7 +62,7 @@ bash scripts/init.sh
 ### 依赖服务
 
 ```bash
-docker compose up -d postgres qdrant
+pnpm dev:deps
 ```
 
 检查：
@@ -77,11 +79,7 @@ docker compose ps
 ### ML Service
 
 ```bash
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cd ../..
+pnpm ml:install
 pnpm dev:ml
 ```
 

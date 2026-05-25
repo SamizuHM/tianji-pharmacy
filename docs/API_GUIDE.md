@@ -74,22 +74,16 @@ SESSION_TTL_HOURS="72"
 ### 2. 本地开发模式（`pnpm dev`）
 
 ```bash
-pnpm install
-pnpm db:migrate
-docker compose up -d qdrant
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cd ../..
+pnpm dev:init
 pnpm dev
 ```
 
 说明：
 
-- `pnpm dev` 会并发启动 `web` 与 `ml-service`。
+- `pnpm dev:init` 会准备 pnpm 依赖、Python 虚拟环境、PostgreSQL、Qdrant、Prisma migration、seed 和 `uploads/`。
+- `pnpm dev` 会先检查 `.env`、PostgreSQL、Qdrant、Python venv，再并发启动 `web` 与 `ml-service`。
 - Web 侧 `app/web/lib/env.ts` 会在进程启动时读取项目根目录 `.env`，因此从根目录或 `app/web` 目录启动都能拿到同一套环境变量。
-- `dev:ml` 脚本会自动加载根目录 `.env`，并优先使用 `app/ml-service/.venv`。
+- `pnpm dev:deps` 只启动本地 PostgreSQL/Qdrant；`pnpm ml:install` 只修复 ML Python 环境。
 
 ### 3. 容器部署模式（`docker compose up -d --build`）
 
@@ -1298,14 +1292,10 @@ curl -s -b staff.txt http://127.0.0.1:3000/api/knowledge
 
 ```bash
 # 检查 Python 版本（建议 3.11 / 3.12）
-python3.12 --version
+python --version
 
-# 重新安装依赖
-cd app/ml-service
-rm -rf .venv
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+# 重新安装 ML 依赖
+pnpm ml:install
 ```
 
 ### Embed/Rerank 返回 502

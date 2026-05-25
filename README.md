@@ -109,16 +109,19 @@ SESSION_TTL_HOURS="72"
 ## 一键初始化
 
 ```bash
-bash scripts/init.sh
+pnpm dev:init
 ```
 
 它会完成：
 
 - 安装 pnpm 依赖
 - Prisma generate
-- 执行 Prisma migration
-- 固定账号 seed
+- 创建并安装 `app/ml-service/.venv`
+- 启动本地 PostgreSQL 和 Qdrant 依赖
+- 执行 Prisma migration 和 seed
 - 创建 `uploads/`
+
+初始化完成后，日常开发只需要执行 `pnpm dev`。
 
 ## 启动方式
 
@@ -140,39 +143,30 @@ bash scripts/init.sh
 
 ### 方式一：`pnpm dev`（推荐开发时使用）
 
-1. 安装依赖并初始化：
+首次初始化：
 
 ```bash
-bash scripts/init.sh
+pnpm dev:init
 ```
 
-2. 确认本地依赖服务已启动（初始化脚本会自动启动 PostgreSQL 和 Qdrant）：
-
-```bash
-docker compose up -d postgres qdrant
-```
-
-3. 首次开发时准备 `ml-service` Python 环境：
-
-```bash
-cd app/ml-service
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cd ../..
-```
-
-4. 启动开发模式（会自动 `db:migrate`，并并发启动 Web + ML）：
+日常启动开发模式：
 
 ```bash
 pnpm dev
 ```
 
+如果只需要启动本地基础依赖：
+
+```bash
+pnpm dev:deps
+```
+
 说明：
 
-- `dev:web` 使用 `next dev --turbopack` 启动 Web 开发服务器。
-- `dev:ml` 会优先使用 `app/ml-service/.venv`，并自动加载根目录 `.env`。
-- 若 Python 环境缺依赖，会给出明确安装命令（`pip install -r app/ml-service/requirements.txt`）。
+- `pnpm dev:init` 会准备 pnpm 依赖、Python 虚拟环境、PostgreSQL、Qdrant、Prisma migration、seed 和 `uploads/`。
+- `pnpm dev` 会先检查 `.env`、PostgreSQL、Qdrant、Python venv，再执行 `db:migrate` 并并发启动 Web + ML。
+- `pnpm dev:web` 只启动 Web；`pnpm dev:ml` 只启动 ML 服务。
+- 如只需修复 ML Python 环境，可执行 `pnpm ml:install`。
 
 ### 方式二：`docker compose up -d --build`（部署时使用）
 
@@ -418,7 +412,9 @@ pnpm kb:rebuild
 ## 常用命令
 
 ```bash
-pnpm install
+pnpm dev:init
+pnpm dev:deps
+pnpm ml:install
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed

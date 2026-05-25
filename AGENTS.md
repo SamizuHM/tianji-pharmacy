@@ -7,9 +7,11 @@ This pnpm workspace powers a pharmacy Q&A, RAG, and ticketing system. The Next.j
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install workspace dependencies.
-- `pnpm dev`: run database migrations, then start the web and ML services together.
+- `pnpm dev:init`: prepare local dependencies, Python venv, database, seed data, and uploads.
+- `pnpm dev`: check local prerequisites, run migrations, then start web and ML services.
+- `pnpm dev:deps`: start only local PostgreSQL and Qdrant via Docker.
 - `pnpm dev:web`: start only the Next.js app.
-- `pnpm dev:ml`: start the ML service via `scripts/dev-ml.sh`.
+- `pnpm dev:ml`: start only the ML service.
 - `pnpm build`: build the web app.
 - `pnpm test`: run Vitest tests once.
 - `pnpm test:watch`: run Vitest in watch mode.

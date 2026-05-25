@@ -5,17 +5,11 @@
 ### 1.1 启动依赖服务
 
 ```bash
-# Qdrant 向量数据库（Docker）
-docker compose up -d qdrant
+# 首次初始化，准备 PostgreSQL/Qdrant、数据库、seed 和 ML Python 环境
+pnpm dev:init
 
-# ML 服务（需在项目根目录执行）
-cd app/ml-service
-OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1" \
-OPENAI_API_KEY="your-api-key" \
-.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
-
-# Web 服务（新终端）
-pnpm --filter web dev
+# 日常演示启动 Web + ML
+pnpm dev
 ```
 
 服务就绪确认：

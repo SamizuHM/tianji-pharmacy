@@ -306,7 +306,7 @@ prisma migrate dev
 
 触发时机：
 
-- 本地 `pnpm dev` 会先执行 `pnpm db:migrate`。
+- 本地 `pnpm dev` 会先检查 `.env`、PostgreSQL、Qdrant 和 Python venv，再执行 `pnpm db:migrate`。
 - 修改 `schema.prisma` 后需要生成 migration 时手动执行。
 
 ### db:deploy
@@ -636,16 +636,16 @@ ML_SERVICE_URL=http://ml-service:8001
 
 ## 本地开发与容器部署的区别
 
-| 对比项     | `pnpm dev` 本地开发                     | `docker compose up -d --build` 容器部署       |
-| ---------- | --------------------------------------- | --------------------------------------------- |
-| Web 进程   | 宿主机 Next.js dev server               | `web` 容器 Next.js standalone                 |
-| ML 进程    | 宿主机 Python venv                      | `ml-service` 容器                             |
-| PostgreSQL | 容器或本机，通常通过 `127.0.0.1:5432`   | `postgres` 容器                               |
-| Qdrant     | 通常用容器，宿主机访问 `127.0.0.1:6333` | `qdrant` 容器                                 |
-| 服务地址   | localhost/127.0.0.1                     | service name                                  |
-| 数据库迁移 | `pnpm dev` 前置 `pnpm db:migrate`       | `web` entrypoint 执行 `prisma migrate deploy` |
-| 构建       | 热更新开发模式                          | Docker build 生产产物                         |
-| 对外入口   | 直接访问本地端口                        | cloudflared tunnel                            |
+| 对比项     | `pnpm dev` 本地开发                         | `docker compose up -d --build` 容器部署       |
+| ---------- | ------------------------------------------- | --------------------------------------------- |
+| Web 进程   | 宿主机 Next.js dev server                   | `web` 容器 Next.js standalone                 |
+| ML 进程    | 宿主机 Python venv                          | `ml-service` 容器                             |
+| PostgreSQL | 容器或本机，通常通过 `127.0.0.1:5432`       | `postgres` 容器                               |
+| Qdrant     | 通常用容器，宿主机访问 `127.0.0.1:6333`     | `qdrant` 容器                                 |
+| 服务地址   | localhost/127.0.0.1                         | service name                                  |
+| 数据库迁移 | `pnpm dev` 检查依赖后执行 `pnpm db:migrate` | `web` entrypoint 执行 `prisma migrate deploy` |
+| 构建       | 热更新开发模式                              | Docker build 生产产物                         |
+| 对外入口   | 直接访问本地端口                            | cloudflared tunnel                            |
 
 如果使用 `docker-compose.public-web.yml`，对外入口不是 cloudflared，而是宿主机 `WEB_PUBLIC_PORT -> web:3000`。
 

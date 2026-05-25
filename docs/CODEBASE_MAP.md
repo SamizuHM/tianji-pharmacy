@@ -649,7 +649,9 @@ Dockerfile.ml
 本地开发启动脚本：
 
 ```text
-scripts/dev-ml.sh
+scripts/dev.ts
+scripts/dev-ml.ts
+scripts/dev-init.ts
 ```
 
 ---
@@ -659,13 +661,13 @@ scripts/dev-ml.sh
 ### 初始化
 
 ```text
-scripts/init.sh
+scripts/dev-init.ts
 ```
 
 通常做：
 
-- 安装依赖。
-- 启动依赖服务。
+- 安装 pnpm 和 Python 依赖。
+- 启动 PostgreSQL/Qdrant 本地依赖服务。
 - Prisma generate/migrate。
 - seed。
 - 创建 uploads。
