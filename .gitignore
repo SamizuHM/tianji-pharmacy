@@ -47,3 +47,6 @@ coverage/
 # Lint/format cache
 .eslintcache
 .ruff_cache
+
+# 忽略Windows快捷方式
+*.lnk
