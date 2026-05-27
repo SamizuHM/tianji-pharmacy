@@ -27,7 +27,7 @@ describe("GET /api/settings", () => {
   });
 
   it("返回设置", async () => {
-    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser());
+    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser({ role: "admin" }));
     (getRuntimeSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
       retrievalTopK: 5,
       rerankTopN: 3,
@@ -62,7 +62,7 @@ describe("PUT /api/settings", () => {
   });
 
   it("无效数据返回 400", async () => {
-    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser());
+    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser({ role: "admin" }));
 
     const request = new Request("http://localhost/api/settings", {
       method: "PUT",
@@ -80,7 +80,7 @@ describe("PUT /api/settings", () => {
   });
 
   it("rerankTopN > retrievalTopK 返回 400", async () => {
-    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser());
+    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser({ role: "admin" }));
 
     const request = new Request("http://localhost/api/settings", {
       method: "PUT",
@@ -100,7 +100,7 @@ describe("PUT /api/settings", () => {
   });
 
   it("有效数据更新成功", async () => {
-    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser());
+    (getCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValue(buildUser({ role: "admin" }));
     (updateRuntimeSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
       retrievalTopK: 10,
       rerankTopN: 5,

@@ -77,19 +77,20 @@ export async function getPendingTicketCounts(input?: {
   userDepartmentName?: string | null;
 }) {
   const pendingClaimWhere =
-    input?.role === "agent" && input.userDepartmentName
-      ? { id: "__never__" }
-      : { status: "pending_claim" as const };
+    input?.role === "department" && input.userDepartmentName
+      ? { status: "pending_claim" as const, escalatedToDept: input.userDepartmentName }
+      : input?.role === "staff" && input.userId
+        ? { createdByUserId: input.userId, status: "pending_claim" as const }
+        : { status: "pending_claim" as const };
   const escalatedWhere =
-    input?.role === "agent" && input.userDepartmentName
+    input?.role === "department" && input.userDepartmentName
       ? {
           status: "escalated" as const,
-          OR: [
-            { escalatedToDept: input.userDepartmentName },
-            ...(input.userId ? [{ escalatedToUserId: input.userId }] : []),
-          ],
+          escalatedToDept: input.userDepartmentName,
         }
-      : { status: "escalated" as const };
+      : input?.role === "staff" && input.userId
+        ? { createdByUserId: input.userId, status: "escalated" as const }
+        : { status: "escalated" as const };
 
   const [pendingClaim, escalated] = await Promise.all([
     prisma.ticket.count({

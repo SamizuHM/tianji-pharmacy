@@ -97,7 +97,13 @@ type Message = {
 };
 
 type StreamDebugPayload = {
-  retrievalDebug?: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+  retrievalDebug?: Array<{
+    question: string;
+    sourceFile?: string | null;
+    rerankScore: number;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  }>;
   imagePaths?: string[];
 };
 
@@ -1521,6 +1527,8 @@ export function ChatClient(props: {
                       question: string;
                       sourceFile?: string | null;
                       rerankScore: number;
+                      createdAt?: string | null;
+                      updatedAt?: string | null;
                     }>;
                     imagePaths?: string[];
                   }>(message.retrievalDebugJson, {});
@@ -1965,7 +1973,7 @@ function BookOpenIcon() {
 
 function sourceLabel(sourceType: Message["sourceType"], role: Message["role"]) {
   if (role === "agent") {
-    return "人工客服";
+    return "部门人员";
   }
 
   switch (sourceType) {
@@ -2109,7 +2117,13 @@ function AssistantMessageFooter(props: {
   hasContent: boolean;
   canPersistAction: boolean;
   copiedActionKey: string | null;
-  retrievalDebug: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+  retrievalDebug: Array<{
+    question: string;
+    sourceFile?: string | null;
+    rerankScore: number;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  }>;
   sending: boolean;
   onCreateTicket: () => void | Promise<void>;
   onCopy: (message: Message, format: "text" | "markdown") => void | Promise<void>;
@@ -2176,7 +2190,13 @@ function AssistantMessageFooter(props: {
 
 function KnowledgeSourceSummary(props: {
   messageId: string;
-  retrievalDebug: Array<{ question: string; sourceFile?: string | null; rerankScore: number }>;
+  retrievalDebug: Array<{
+    question: string;
+    sourceFile?: string | null;
+    rerankScore: number;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
@@ -2200,6 +2220,9 @@ function KnowledgeSourceSummary(props: {
         </span>
         <span className="min-w-0 truncate">
           命中知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
+          {primary.updatedAt
+            ? ` · 更新于 ${new Date(primary.updatedAt).toLocaleDateString("zh-CN")}`
+            : ""}
         </span>
       </button>
       {props.open ? (
@@ -2214,6 +2237,11 @@ function KnowledgeSourceSummary(props: {
                 <div className="font-medium text-foreground">问题：{item.question || "无"}</div>
                 <div className="mt-1">来源：{item.sourceFile || "未知来源"}</div>
                 <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
+                {item.updatedAt ? (
+                  <div className="mt-1">
+                    更新于：{new Date(item.updatedAt).toLocaleDateString("zh-CN")}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

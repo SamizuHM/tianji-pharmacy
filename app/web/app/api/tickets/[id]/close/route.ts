@@ -5,8 +5,11 @@ import { closeTicketWithKnowledgeWriteback } from "@/lib/services/tickets";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "staff" && user.role !== "agent")) {
-    return NextResponse.json({ error: "只有药店工作人员或人工客服可以关闭工单" }, { status: 403 });
+  if (!user || (user.role !== "staff" && user.role !== "department" && user.role !== "admin")) {
+    return NextResponse.json(
+      { error: "只有药店工作人员、部门人员或管理员可以关闭工单" },
+      { status: 403 }
+    );
   }
 
   const { id } = await context.params;
@@ -15,6 +18,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     const ticket = await closeTicketWithKnowledgeWriteback({
       ticketId: id,
       closedByUserId: user.id,
+      closedByRole: user.role,
     });
     return NextResponse.json({ ticket });
   } catch (error) {

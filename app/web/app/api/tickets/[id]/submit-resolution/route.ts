@@ -5,7 +5,7 @@ import { submitResolution } from "@/lib/services/tickets";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "agent") {
+  if (!user || user.role !== "department") {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

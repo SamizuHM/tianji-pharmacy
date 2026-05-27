@@ -4,8 +4,10 @@ export function roleLabel(role: UserRole) {
   switch (role) {
     case "staff":
       return "药店工作人员";
-    case "agent":
-      return "人工客服";
+    case "department":
+      return "部门人员";
+    case "admin":
+      return "管理员";
     default:
       return role;
   }
@@ -14,11 +16,11 @@ export function roleLabel(role: UserRole) {
 export function statusLabel(status: TicketStatus) {
   switch (status) {
     case "pending_claim":
-      return "待认领";
+      return "待部门认领";
     case "processing":
       return "处理中";
     case "escalated":
-      return "已升级";
+      return "已转派";
     case "resolved":
       return "已解决";
     case "closed":

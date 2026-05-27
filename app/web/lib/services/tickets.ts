@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/db";
 import { broadcastTicketNotification, getPendingTicketCounts } from "@/lib/notifications/server";
 import {
+  classifyTicketDepartmentWithModel,
   generateTicketKnowledgeDraftWithModel,
   type TicketKnowledgeMaterialForModel,
 } from "@/lib/openai";
@@ -60,6 +61,38 @@ const statusGroups: Record<Exclude<TicketStatusGroup, "all">, TicketStatus[]> = 
   resolved: ["resolved"],
   closed: ["closed"],
 };
+
+const FALLBACK_DEPARTMENT_NAME = "其他部门";
+const DEPARTMENT_CONFIDENCE_THRESHOLD = 0.3;
+
+const CATEGORY_DEPARTMENT_MAP: Record<string, string> = {
+  医保政策: "医保办",
+  商品库存: "营运部",
+  系统操作: "营运部",
+  合规政策: "营运部",
+  用药咨询: "营运部",
+};
+
+const KEYWORD_DEPARTMENT_MAP: Array<{ pattern: RegExp; department: string }> = [
+  { pattern: /培训|学习|考试|入职培训|业务学习|带教/, department: "培训部" },
+  { pattern: /人事|考勤|排班|请假|加班|薪资|社保|公积金|离职|入职/, department: "人事部" },
+  { pattern: /财务|结算|发票|报销|对账|收款|付款|税/, department: "财务部" },
+  { pattern: /医保|统筹|刷卡|报销比例|医保目录/, department: "医保办" },
+  { pattern: /采购|供应商|进货|订货|补货|退货给供应商/, department: "采购部" },
+];
+
+function classifyDepartmentByRules(text: string, category: string): string | null {
+  for (const { pattern, department } of KEYWORD_DEPARTMENT_MAP) {
+    if (pattern.test(text)) {
+      return department;
+    }
+  }
+  const mapped = CATEGORY_DEPARTMENT_MAP[category];
+  if (mapped) {
+    return mapped;
+  }
+  return null;
+}
 
 function clampPage(value: number | undefined) {
   return Math.max(1, Number.isFinite(value ?? 1) ? Number(value ?? 1) : 1);
@@ -114,7 +147,7 @@ function roleLabel(role: MessageRole) {
     case "assistant":
       return "系统大模型";
     case "agent":
-      return "人工客服";
+      return "部门人员";
     case "system":
       return "系统";
     default:
@@ -163,29 +196,37 @@ export function canAccessTicket(input: {
     return input.ticket.createdByUserId === input.userId;
   }
 
-  if (input.ticket.status === "closed" || input.ticket.claimedByUserId === input.userId) {
+  if (input.role === "admin") {
     return true;
   }
 
-  if (!input.userDepartmentName && input.ticket.status === "pending_claim") {
-    return true;
-  }
-
-  if (input.ticket.status !== "escalated") {
+  if (input.role !== "department") {
     return false;
   }
 
-  if (input.ticket.escalatedToUserId === input.userId) {
+  if (input.ticket.claimedByUserId === input.userId) {
     return true;
   }
 
-  if (input.userDepartmentName && input.ticket.escalatedToDept === input.userDepartmentName) {
+  if (!input.userDepartmentName) {
+    return false;
+  }
+
+  if (
+    (input.ticket.status === "pending_claim" || input.ticket.status === "escalated") &&
+    input.ticket.escalatedToDept === input.userDepartmentName
+  ) {
     return true;
   }
 
-  return (
-    !input.userDepartmentName && !input.ticket.escalatedToDept && !input.ticket.escalatedToUserId
-  );
+  if (
+    input.ticket.status === "closed" &&
+    input.ticket.escalatedToDept === input.userDepartmentName
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function baseTicketWhere(
@@ -195,25 +236,77 @@ function baseTicketWhere(
     return { createdByUserId: params.userId };
   }
 
-  // 一级客服（无部门）看待认领工单；二级专家只看升级到自己部门/自己的工单。
-  const conditions: Prisma.TicketWhereInput[] = [
-    { claimedByUserId: params.userId },
-    { status: "closed" },
-  ];
-
-  if (!params.userDepartmentName) {
-    conditions.push({ status: "pending_claim" });
+  if (params.role === "admin") {
+    return {};
   }
 
-  // escalated tickets visible to target department members or target user
-  if (params.userDepartmentName) {
-    conditions.push({ status: "escalated", escalatedToDept: params.userDepartmentName });
+  if (params.role !== "department" || !params.userDepartmentName) {
+    return { id: "__no_visible_tickets__" };
   }
-  conditions.push({ status: "escalated", escalatedToUserId: params.userId });
-  // escalated with no specific target (shouldn't happen, but fallback)
-  conditions.push({ status: "escalated", escalatedToDept: null, escalatedToUserId: null });
 
-  return { OR: conditions };
+  return {
+    OR: [
+      { claimedByUserId: params.userId },
+      {
+        status: { in: ["pending_claim", "escalated"] },
+        escalatedToDept: params.userDepartmentName,
+      },
+      { status: "closed", escalatedToDept: params.userDepartmentName },
+    ],
+  };
+}
+
+export async function classifyTicketDepartment(input: {
+  question: string;
+  aiAnswerSnapshot: string;
+  category: string;
+}) {
+  const departments = await prisma.department.findMany({
+    select: { name: true, description: true },
+    orderBy: { name: "asc" },
+  });
+  const departmentNames = new Set(departments.map((d) => d.name));
+  const fallbackDepartment =
+    departments.find((dept) => dept.name === FALLBACK_DEPARTMENT_NAME) ?? departments[0];
+
+  if (!fallbackDepartment) {
+    return {
+      departmentName: FALLBACK_DEPARTMENT_NAME,
+      confidence: 0,
+      reason: "系统未配置部门，使用默认兜底部门",
+    };
+  }
+
+  const ruleMatch = classifyDepartmentByRules(input.question, input.category);
+  if (ruleMatch && departmentNames.has(ruleMatch)) {
+    return {
+      departmentName: ruleMatch,
+      confidence: 0.95,
+      reason: `关键词/分类规则匹配：${input.category} → ${ruleMatch}`,
+    };
+  }
+
+  try {
+    const classified = await classifyTicketDepartmentWithModel({
+      ...input,
+      departments,
+    });
+    const matched = departments.find((dept) => dept.name === classified.departmentName);
+    if (!matched || classified.confidence < DEPARTMENT_CONFIDENCE_THRESHOLD) {
+      return {
+        departmentName: fallbackDepartment.name,
+        confidence: classified.confidence || 0,
+        reason: classified.reason || "模型置信度不足，使用兜底部门",
+      };
+    }
+    return classified;
+  } catch {
+    return {
+      departmentName: fallbackDepartment.name,
+      confidence: 0,
+      reason: "模型分发失败，使用兜底部门",
+    };
+  }
 }
 
 function buildTicketWhere(params: TicketListParams): Prisma.TicketWhereInput {
@@ -261,6 +354,11 @@ export async function createTicketFromConversation(input: {
   const title = truncateText(latestUser.contentText, 32);
   const category = deriveTicketCategory(latestUser.contentText);
   const tags = deriveTags(latestUser.contentText);
+  const departmentRouting = await classifyTicketDepartment({
+    question: latestUser.contentText,
+    aiAnswerSnapshot: latestAssistant?.contentText ?? "",
+    category,
+  });
   const conversationSnapshot = JSON.stringify(
     messages.map((item) => ({
       id: item.id,
@@ -291,6 +389,9 @@ export async function createTicketFromConversation(input: {
         : "text",
       aiAnswerSnapshot: latestAssistant?.contentText ?? "",
       conversationSnapshot,
+      escalatedAt: new Date(),
+      escalatedToDept: departmentRouting.departmentName,
+      escalatedToUserId: null,
     },
   });
 
@@ -300,7 +401,7 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "system",
         messageType: "system",
-        content: "系统已创建工单，等待人工客服认领。",
+        content: `系统已将工单分发至${departmentRouting.departmentName}，等待部门人员认领。`,
       },
       ...messages.map((message) => {
         const attachments = getAttachmentItems(message.attachmentsJson);
@@ -331,11 +432,11 @@ export async function createTicketFromConversation(input: {
 
   await broadcastTicketNotification({
     type: "ticket_created",
-    title: "收到新的人工工单",
-    message: `工单 ${ticket.ticketNo} 待认领：${ticket.title}`,
+    title: "收到新的部门工单",
+    message: `工单 ${ticket.ticketNo} 已分发至${departmentRouting.departmentName}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["agent"],
+    targetRoles: ["department"],
   });
 
   return ticket;
@@ -355,30 +456,28 @@ export async function claimTicket(input: {
     throw new Error("工单不存在");
   }
 
-  if (existing.status === "pending_claim" && input.userDepartmentName) {
-    throw new Error("二级专家客服不能认领待认领工单，请等待一级人工客服升级后处理");
+  if (!input.userDepartmentName) {
+    throw new Error("当前账号未绑定部门，不能认领工单");
   }
 
-  if (existing.status === "escalated") {
-    const matchedUser = existing.escalatedToUserId === input.userId;
-    const matchedDept = Boolean(
-      input.userDepartmentName && existing.escalatedToDept === input.userDepartmentName
-    );
-    const untargeted = !existing.escalatedToUserId && !existing.escalatedToDept;
-    if (!matchedUser && !matchedDept && !untargeted) {
-      throw new Error("当前工单未升级到你的部门或账号，不能认领");
-    }
+  if (existing.status !== "pending_claim" && existing.status !== "escalated") {
+    throw new Error("当前工单不可认领");
   }
 
-  // Optimistic lock: only claim if status is pending_claim or escalated.
+  if (existing.escalatedToDept !== input.userDepartmentName) {
+    throw new Error("当前工单未分发到你的部门，不能认领");
+  }
+
   const ticket = await prisma.ticket.update({
     where: {
       id: input.ticketId,
       status: { in: ["pending_claim", "escalated"] },
+      escalatedToDept: input.userDepartmentName,
     },
     data: {
       status: "processing",
       claimedByUserId: input.userId,
+      firstRespondedAt: existing.firstRespondedAt ?? new Date(),
     },
   });
 
@@ -387,7 +486,7 @@ export async function claimTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: `${input.userDisplayName} 已认领工单。`,
+      content: `${input.userDisplayName} 已认领${input.userDepartmentName}工单。`,
     },
   });
 
@@ -565,7 +664,6 @@ export async function escalateTicket(input: {
   senderUserId: string;
   senderDisplayName: string;
   targetDept: string;
-  targetUserId?: string;
 }) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: input.ticketId },
@@ -576,10 +674,18 @@ export async function escalateTicket(input: {
   }
 
   if (ticket.claimedByUserId !== input.senderUserId) {
-    throw new Error("只有工单认领人才能升级工单");
+    throw new Error("只有工单认领人才能转派工单");
   }
 
-  const targetLabel = input.targetUserId ? `${input.targetDept} 的指定人员` : input.targetDept;
+  const department = await prisma.department.findUnique({
+    where: { name: input.targetDept },
+  });
+
+  if (!department) {
+    throw new Error("目标部门不存在");
+  }
+
+  const targetLabel = input.targetDept;
 
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
@@ -587,8 +693,7 @@ export async function escalateTicket(input: {
       status: "escalated",
       escalatedAt: new Date(),
       escalatedToDept: input.targetDept,
-      escalatedToUserId: input.targetUserId ?? null,
-      // Clear claim so target can re-claim
+      escalatedToUserId: null,
       claimedByUserId: null,
     },
   });
@@ -598,17 +703,17 @@ export async function escalateTicket(input: {
       ticketId: input.ticketId,
       senderRole: "system",
       messageType: "system",
-      content: `${input.senderDisplayName} 已将工单升级至${targetLabel}。`,
+      content: `${input.senderDisplayName} 已将工单转派至${targetLabel}。`,
     },
   });
 
   await broadcastTicketNotification({
     type: "ticket_escalated",
-    title: "工单已升级",
-    message: `工单 ${ticket.ticketNo} 已升级至${targetLabel}：${ticket.title}`,
+    title: "工单已转派",
+    message: `工单 ${ticket.ticketNo} 已转派至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["agent"],
+    targetRoles: ["department"],
   });
 
   return updated;
@@ -687,7 +792,7 @@ export async function resolveTicket(input: { ticketId: string; resolvedByUserId:
   }
 
   if (!ticket.resolutionText || !ticket.resolutionSubmittedAt) {
-    throw new Error("确认解决前需要人工客服先提交处理方案");
+    throw new Error("确认解决前需要部门人员先提交处理方案");
   }
 
   const updated = await prisma.ticket.update({
@@ -855,6 +960,7 @@ export async function generateTicketKnowledgeDraft(input: {
 export async function closeTicketWithKnowledgeWriteback(input: {
   ticketId: string;
   closedByUserId: string;
+  closedByRole?: UserRole;
 }) {
   const existingTicket = await prisma.ticket.findUnique({
     where: { id: input.ticketId },
@@ -875,11 +981,12 @@ export async function closeTicketWithKnowledgeWriteback(input: {
   }
 
   const canClose =
+    input.closedByRole === "admin" ||
     existingTicket.createdByUserId === input.closedByUserId ||
     existingTicket.claimedByUserId === input.closedByUserId;
 
   if (!canClose) {
-    throw new Error("只有提交工单的药店工作人员或当前处理客服可以关闭工单");
+    throw new Error("只有提交工单的药店工作人员、当前部门处理人或管理员可以关闭工单");
   }
 
   if (existingTicket.status !== "resolved") {
@@ -887,7 +994,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
   }
 
   if (!existingTicket.resolutionText) {
-    throw new Error("关闭工单需要人工客服先提交处理方案");
+    throw new Error("关闭工单需要部门人员先提交处理方案");
   }
 
   const draft = existingTicket.knowledgeDrafts[0];
@@ -956,7 +1063,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     message: `工单 ${ticket.ticketNo} 已完成处理并写回知识库`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["agent"],
+    targetRoles: ["department"],
     targetUserIds: [ticket.createdByUserId, ticket.claimedByUserId].filter(Boolean) as string[],
   });
 

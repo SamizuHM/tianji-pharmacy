@@ -9,8 +9,8 @@ import {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "agent") {
-    return NextResponse.json({ error: "只有客服可以生成待入库内容" }, { status: 403 });
+  if (!user || (user.role !== "department" && user.role !== "admin")) {
+    return NextResponse.json({ error: "只有部门人员或管理员可以生成待入库内容" }, { status: 403 });
   }
 
   const { id } = await context.params;

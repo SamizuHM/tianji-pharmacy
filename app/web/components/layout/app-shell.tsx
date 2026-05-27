@@ -10,6 +10,7 @@ import {
   Bell,
   BookOpen,
   ChevronDown,
+  UsersRound,
   LifeBuoy,
   Menu,
   MessageCircle,
@@ -47,7 +48,7 @@ import { cn } from "@/lib/utils";
 
 function getNavItems(
   role: UserRole,
-  userDepartmentName?: string | null
+  _userDepartmentName?: string | null
 ): Array<{
   href: string;
   label: string;
@@ -57,18 +58,21 @@ function getNavItems(
   if (role === "staff") {
     return [
       { href: "/staff/chat", label: "问答工作台", icon: MessageCircle },
-      { href: "/staff/tickets", label: "人工工单", icon: Tickets },
+      { href: "/staff/tickets", label: "我的工单", icon: Tickets },
+    ];
+  }
+
+  if (role === "admin") {
+    return [
+      { href: "/admin/users", label: "人员管理", icon: UsersRound },
       { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
       { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
       { href: "/admin/settings", label: "系统设置", icon: Settings },
     ];
   }
-  const countKey: "pendingClaim" | "escalated" = userDepartmentName ? "escalated" : "pendingClaim";
+
   return [
-    { href: "/agent/tickets", label: "人工工单", icon: Tickets, countKey },
-    { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
-    { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
-    { href: "/admin/settings", label: "系统设置", icon: Settings },
+    { href: "/department/tickets", label: "部门工单", icon: Tickets, countKey: "pendingClaim" },
   ];
 }
 
@@ -480,7 +484,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
     };
   }, [query]);
 
-  const ticketBase = role === "staff" ? "/staff/tickets" : "/agent/tickets";
+  const ticketBase = role === "staff" ? "/staff/tickets" : "/department/tickets";
 
   return (
     <div className="relative hidden w-full max-w-md md:block">

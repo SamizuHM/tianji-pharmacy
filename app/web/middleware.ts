@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPrefixes = ["/staff", "/agent", "/admin"];
+const protectedPrefixes = ["/staff", "/department", "/agent", "/admin"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,9 +16,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/staff/chat", request.url));
   }
 
+  if (pathname.startsWith("/agent")) {
+    return NextResponse.redirect(new URL(pathname.replace(/^\/agent/, "/department"), request.url));
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/staff/:path*", "/agent/:path*", "/admin/:path*"],
+  matcher: ["/", "/staff/:path*", "/department/:path*", "/agent/:path*", "/admin/:path*"],
 };

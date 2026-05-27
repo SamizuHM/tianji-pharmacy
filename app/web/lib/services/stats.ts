@@ -19,7 +19,7 @@ export async function getStatsSummary() {
     llmAnswers,
     totalTickets,
     closedTickets,
-    agentClosed,
+    departmentClosed,
     transferCount,
   ] = await Promise.all([
     prisma.chatMessage.count({ where: { role: "user" } }),
@@ -27,7 +27,7 @@ export async function getStatsSummary() {
     prisma.chatMessage.count({ where: { role: "assistant", sourceType: "llm" } }),
     prisma.ticket.count(),
     prisma.ticket.count({ where: { status: "closed" } }),
-    prisma.ticket.count({ where: { status: "closed", closedBy: { role: "agent" } } }),
+    prisma.ticket.count({ where: { status: "closed", closedBy: { role: "department" } } }),
     prisma.ticket.count(),
   ]);
 
@@ -38,7 +38,7 @@ export async function getStatsSummary() {
     transferCount,
     totalTickets,
     closedTickets,
-    agentClosed,
+    agentClosed: departmentClosed,
     kbHitRate: totalQuestions ? kbHits / totalQuestions : 0,
     closedRate: totalTickets ? closedTickets / totalTickets : 0,
   };

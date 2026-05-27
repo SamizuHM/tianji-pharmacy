@@ -17,6 +17,8 @@ type RetrievalDebugRecord = {
   sourceFile: string | null;
   rerankScore: number;
   vectorScore: number;
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 export type RetrievalDecision =
@@ -29,6 +31,8 @@ export type RetrievalDecision =
         question: string;
         answer: string;
         imagePaths: string[];
+        createdAt: string;
+        updatedAt: string;
       };
       referenceSnippets: string[];
     }
@@ -110,7 +114,7 @@ export async function retrieveAnswer(
     .sort((a, b) => b.rerankScore - a.rerankScore)
     .slice(0, settings.rerankTopN);
 
-  const retrievalDebug = ranked.map((item) => ({
+  const retrievalDebug: RetrievalDebugRecord[] = ranked.map((item) => ({
     knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
     chunkId: item.pointId,
     question: String(item.payload.question ?? ""),
@@ -118,6 +122,8 @@ export async function retrieveAnswer(
     sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
     rerankScore: item.rerankScore,
     vectorScore: item.vectorScore,
+    createdAt: null,
+    updatedAt: null,
   }));
 
   return runProgressStep(
@@ -169,6 +175,14 @@ export async function retrieveAnswer(
             ? [knowledgeItem.imagePath]
             : [];
 
+        // Fill createdAt/updatedAt into retrievalDebug for matching items
+        for (const debug of retrievalDebug) {
+          if (debug.knowledgeItemId === knowledgeItem.id) {
+            debug.createdAt = knowledgeItem.createdAt.toISOString();
+            debug.updatedAt = knowledgeItem.updatedAt.toISOString();
+          }
+        }
+
         const siblingChunks = await prisma.knowledgeChunk.findMany({
           where: { knowledgeItemId: knowledgeItem.id },
           orderBy: { chunkIndex: "asc" },
@@ -184,6 +198,8 @@ export async function retrieveAnswer(
             question: knowledgeItem.question,
             answer: knowledgeItem.answer,
             imagePaths,
+            createdAt: knowledgeItem.createdAt.toISOString(),
+            updatedAt: knowledgeItem.updatedAt.toISOString(),
           },
           referenceSnippets: siblingChunks.map((item) => item.chunkText).slice(0, 3),
         } satisfies RetrievalDecision;

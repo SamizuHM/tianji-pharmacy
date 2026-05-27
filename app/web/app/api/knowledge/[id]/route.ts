@@ -12,6 +12,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "只有管理员可以管理知识库" }, { status: 403 });
+  }
 
   const { id } = await params;
   const item = await getKnowledgeItemDetail(id);
@@ -27,6 +30,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "只有管理员可以管理知识库" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -63,6 +69,9 @@ export async function DELETE(
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "只有管理员可以管理知识库" }, { status: 403 });
   }
 
   const { id } = await params;

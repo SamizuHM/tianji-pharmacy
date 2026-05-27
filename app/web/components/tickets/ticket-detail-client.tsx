@@ -54,7 +54,7 @@ type Department = {
 };
 
 export function TicketDetailClient(props: {
-  role: "staff" | "agent";
+  role: "staff" | "department" | "admin";
   userId: string;
   userDepartmentName?: string | null;
   ticket: Ticket & {
@@ -118,7 +118,7 @@ export function TicketDetailClient(props: {
     });
   }
 
-  function escalate(target: { targetDept: string; targetUserId?: string }) {
+  function escalate(target: { targetDept: string }) {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/escalate`, {
         method: "POST",
@@ -127,11 +127,12 @@ export function TicketDetailClient(props: {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data.error || "升级失败");
+        setError(data.error || "转派失败");
         return;
       }
       setShowEscalate(false);
-      router.refresh();
+      // 转派后跳转回工单列表，避免因权限变化导致404
+      router.push(`/${props.role}/tickets`);
     });
   }
 
@@ -182,17 +183,18 @@ export function TicketDetailClient(props: {
 
   const isClaimant = props.ticket.claimedBy && props.ticket.claimedByUserId === props.userId;
   const isCreator = props.ticket.createdByUserId === props.userId;
-  const isFrontlineAgent = props.role === "agent" && !props.userDepartmentName;
   const canClaim =
-    props.role === "agent" &&
-    ((isFrontlineAgent && props.ticket.status === "pending_claim") ||
-      props.ticket.status === "escalated");
+    props.role === "department" &&
+    Boolean(props.userDepartmentName) &&
+    (props.ticket.status === "pending_claim" || props.ticket.status === "escalated") &&
+    props.ticket.escalatedToDept === props.userDepartmentName;
   const canReply =
     props.ticket.status !== "closed" &&
-    ((props.role === "staff" && isCreator) || (props.role === "agent" && isClaimant));
-  const canEscalate = isFrontlineAgent && isClaimant && props.ticket.status === "processing";
+    ((props.role === "staff" && isCreator) || (props.role === "department" && isClaimant));
+  const canEscalate =
+    props.role === "department" && Boolean(isClaimant) && props.ticket.status === "processing";
   const canSubmitResolution =
-    props.role === "agent" &&
+    props.role === "department" &&
     (isClaimant || props.ticket.claimedByUserId === props.userId) &&
     props.ticket.status !== "closed" &&
     !props.ticket.resolutionSubmittedAt;
@@ -203,11 +205,14 @@ export function TicketDetailClient(props: {
     props.ticket.status !== "resolved" &&
     Boolean(props.ticket.resolutionSubmittedAt);
   const canGenerateKnowledge =
-    props.role === "agent" && Boolean(isClaimant) && props.ticket.status === "resolved";
+    ((props.role === "department" && Boolean(isClaimant)) || props.role === "admin") &&
+    props.ticket.status === "resolved";
   const latestKnowledgeDraft = props.ticket.knowledgeDrafts[0] ?? null;
   const canClose =
     props.ticket.status === "resolved" &&
-    ((props.role === "staff" && isCreator) || (props.role === "agent" && Boolean(isClaimant)));
+    ((props.role === "staff" && isCreator) ||
+      (props.role === "department" && Boolean(isClaimant)) ||
+      props.role === "admin");
   const canCloseWithWriteback =
     canClose &&
     props.ticket.knowledgeStatus === "pending_writeback" &&
@@ -353,7 +358,7 @@ export function TicketDetailClient(props: {
                   disabled={pending}
                 >
                   <span>
-                    <span className="block text-sm font-medium">升级到部门</span>
+                    <span className="block text-sm font-medium">转派到部门</span>
                     <span className="text-xs text-muted">将工单转交给其他部门处理</span>
                   </span>
                   <ArrowUpRight className="size-5" />
@@ -384,7 +389,7 @@ export function TicketDetailClient(props: {
                 >
                   <span>
                     <span className="block text-sm font-medium">问题已解决</span>
-                    <span className="text-xs text-muted">确认后客服才能整理待入库知识</span>
+                    <span className="text-xs text-muted">确认后可整理待入库知识</span>
                   </span>
                   <CircleCheck className="size-5" />
                 </button>
@@ -398,7 +403,7 @@ export function TicketDetailClient(props: {
                 >
                   <span>
                     <span className="block text-sm font-medium">生成待入库答案</span>
-                    <span className="text-xs text-muted">客服勾选有效对话和附件，整理优质答案</span>
+                    <span className="text-xs text-muted">勾选有效对话和附件，整理优质答案</span>
                   </span>
                   <BookOpen className="size-5" />
                 </button>
@@ -451,7 +456,7 @@ export function TicketDetailClient(props: {
                 <KnowledgeDraftPreview draft={latestKnowledgeDraft} />
               ) : (
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  当前工单尚未生成待入库答案。药店确认问题解决后，客服需要勾选有效历史对话和附件，生成优质答案后才能关闭并写回知识库。
+                  当前工单尚未生成待入库答案。药店确认问题解决后，部门人员或管理员可勾选有效历史对话和附件，生成优质答案后关闭并写回知识库。
                 </p>
               )}
             </CardContent>
@@ -487,17 +492,9 @@ export function TicketDetailClient(props: {
               />
               <InfoRow label="输入方式" value={props.ticket.inputMode} />
               <InfoRow label="首次响应" value={formatDateTime(props.ticket.firstRespondedAt)} />
-              <InfoRow label="升级时间" value={formatDateTime(props.ticket.escalatedAt)} />
+              <InfoRow label="分发/转派时间" value={formatDateTime(props.ticket.escalatedAt)} />
               {props.ticket.escalatedToDept ? (
-                <InfoRow
-                  label="升级目标"
-                  value={
-                    props.ticket.escalatedToDept +
-                    (props.ticket.escalatedToUser
-                      ? ` > ${props.ticket.escalatedToUser.displayName}`
-                      : "")
-                  }
-                />
+                <InfoRow label="当前处理部门" value={props.ticket.escalatedToDept} />
               ) : null}
               {props.ticket.resolutionSubmittedAt ? (
                 <>
@@ -543,7 +540,7 @@ export function TicketDetailClient(props: {
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <Alert className="border-primary/30 bg-blue-50 text-foreground dark:bg-primary/10">
-                  人工客服已提交处理方案。确认问题解决后，客服才能勾选素材生成待入库知识。
+                  部门人员已提交处理方案。确认问题解决后，可勾选素材生成待入库知识。
                 </Alert>
                 <Textarea
                   placeholder="处理方案"
@@ -574,7 +571,7 @@ export function TicketDetailClient(props: {
                 />
                 {!canCloseWithWriteback ? (
                   <Alert className="border-orange-200 bg-orange-50 text-orange-700 dark:border-warning/30 dark:bg-warning/10 dark:text-foreground">
-                    客服尚未生成待入库答案，暂不能关闭并写回知识库。
+                    尚未生成待入库答案，暂不能关闭并写回知识库。
                   </Alert>
                 ) : null}
                 <Button onClick={closeTicket} disabled={pending || !canCloseWithWriteback}>
@@ -793,7 +790,7 @@ function KnowledgeDraftPreview({ draft }: { draft: TicketKnowledgeDraftWithUser 
           待入库
         </Badge>
         <span className="text-xs text-muted">
-          {draft.generatedBy?.displayName ? `生成：${draft.generatedBy.displayName}` : "客服已生成"}
+          {draft.generatedBy?.displayName ? `生成：${draft.generatedBy.displayName}` : "已生成"}
         </span>
       </div>
       <div className="text-xs text-muted">分类</div>
@@ -891,7 +888,7 @@ function senderLabel(role: TicketMessage["senderRole"]) {
     case "assistant":
       return "系统大模型";
     case "agent":
-      return "人工客服";
+      return "部门人员";
     default:
       return "系统";
   }

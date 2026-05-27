@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  if (user.role !== "staff") {
+    return NextResponse.json({ error: "只有药店工作人员可以发起工单" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") as

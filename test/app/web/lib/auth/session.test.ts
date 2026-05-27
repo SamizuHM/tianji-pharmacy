@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 // session.ts 中依赖 next/headers 和 next/navigation 的函数（createSession, destroySession, getCurrentUser, requireUser）
-// 由于 Next.js 的 async storage 机制，无法在 Vitest 中直接 mock。
+// 由于 Next.js 15 的 async storage 机制，无法在 Vitest 中直接 mock。
 // 这些函数通过 API 路由测试间接覆盖（auth-login.test.ts 中验证了 login 流程）。
 // 此文件仅测试纯函数。
 
@@ -19,12 +19,16 @@ describe("session 纯函数", () => {
       expect(roleHome("staff")).toBe("/staff/chat");
     });
 
-    it("agent → /agent/tickets", () => {
-      expect(roleHome("agent")).toBe("/agent/tickets");
+    it("department → /department/tickets", () => {
+      expect(roleHome("department")).toBe("/department/tickets");
+    });
+
+    it("admin → /admin/users", () => {
+      expect(roleHome("admin")).toBe("/admin/users");
     });
 
     it("未知角色 → /login", () => {
-      expect(roleHome("admin" as never)).toBe("/login");
+      expect(roleHome("unknown" as never)).toBe("/login");
     });
   });
 });

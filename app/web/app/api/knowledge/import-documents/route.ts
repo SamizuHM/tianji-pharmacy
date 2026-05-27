@@ -14,6 +14,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "只有管理员可以导入知识库" }, { status: 403 });
+  }
 
   const formData = await request.formData();
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);

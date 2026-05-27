@@ -16,26 +16,30 @@ describe("roleLabel", () => {
     expect(roleLabel("staff")).toBe("药店工作人员");
   });
 
-  it("agent → 人工客服", () => {
-    expect(roleLabel("agent")).toBe("人工客服");
+  it("department → 部门人员", () => {
+    expect(roleLabel("department")).toBe("部门人员");
+  });
+
+  it("admin → 管理员", () => {
+    expect(roleLabel("admin")).toBe("管理员");
   });
 
   it("未知角色原样返回", () => {
-    expect(roleLabel("admin" as never)).toBe("admin");
+    expect(roleLabel("unknown" as never)).toBe("unknown");
   });
 });
 
 describe("statusLabel", () => {
   it("pending_claim → 待认领", () => {
-    expect(statusLabel("pending_claim")).toBe("待认领");
+    expect(statusLabel("pending_claim")).toBe("待部门认领");
   });
 
   it("processing → 处理中", () => {
     expect(statusLabel("processing")).toBe("处理中");
   });
 
-  it("escalated → 已升级", () => {
-    expect(statusLabel("escalated")).toBe("已升级");
+  it("escalated → 已转派", () => {
+    expect(statusLabel("escalated")).toBe("已转派");
   });
 
   it("resolved → 已解决", () => {

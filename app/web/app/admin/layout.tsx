@@ -5,6 +5,10 @@ import { requireUser } from "@/lib/auth/session";
 import { getPendingTicketCounts } from "@/lib/services/tickets";
 
 const TITLES: Record<string, { title: string; description: string }> = {
+  "/admin/users": {
+    title: "人员管理",
+    description: "维护药店工作人员、部门人员和管理员账号。",
+  },
   "/admin/knowledge": {
     title: "知识库管理",
     description: "导入知识文档、手动新增知识条目、查看和管理已有知识。",
@@ -14,7 +18,7 @@ const TITLES: Record<string, { title: string; description: string }> = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  const user = await requireUser(["admin"]);
   const pendingCounts = await getPendingTicketCounts();
   const pathname = (await headers()).get("x-next-url") ?? "/admin";
   const match = TITLES[pathname] ?? { title: "管理后台", description: "" };

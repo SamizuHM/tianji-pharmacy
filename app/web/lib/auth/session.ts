@@ -59,7 +59,7 @@ export async function getCurrentUser() {
     include: { user: { include: { department: true } } },
   });
 
-  if (!session || session.expiresAt.getTime() < Date.now()) {
+  if (!session || session.expiresAt.getTime() < Date.now() || session.user.enabled === false) {
     try {
       cookieStore.delete(COOKIE_NAME);
     } catch {
@@ -97,8 +97,10 @@ export function roleHome(role: UserRole) {
   switch (role) {
     case "staff":
       return "/staff/chat";
-    case "agent":
-      return "/agent/tickets";
+    case "department":
+      return "/department/tickets";
+    case "admin":
+      return "/admin/users";
     default:
       return "/login";
   }

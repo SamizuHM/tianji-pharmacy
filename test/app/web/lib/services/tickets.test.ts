@@ -14,6 +14,9 @@ vi.mock("@/lib/notifications/server", () => ({
 }));
 
 vi.mock("@/lib/openai", () => ({
+  classifyTicketDepartmentWithModel: vi.fn(() =>
+    Promise.resolve({ departmentName: "医保办", confidence: 0.9, reason: "医保相关" })
+  ),
   generateTicketKnowledgeDraftWithModel: vi.fn(),
 }));
 
@@ -47,6 +50,11 @@ import { upsertKnowledgeItem } from "@/lib/services/knowledge";
 describe("tickets service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prisma.department.findMany.mockResolvedValue([
+      { name: "医保办", description: "医保政策、结算对接" },
+      { name: "其他部门", description: "兜底处理" },
+    ]);
+    prisma.department.findUnique.mockResolvedValue({ id: "dept-1", name: "营运部" });
   });
 
   // === 纯函数测试 ===
@@ -70,100 +78,80 @@ describe("tickets service", () => {
       ).toBe(false);
     });
 
-    it("agent 可看所有已关闭工单", () => {
+    it("admin 可看所有工单", () => {
       expect(
         canAccessTicket({
-          role: "agent",
-          userId: "agent-1",
+          role: "admin",
+          userId: "admin-1",
           ticket: { status: "closed", createdByUserId: "user-1" },
         })
       ).toBe(true);
     });
 
-    it("agent 可看自己认领的工单", () => {
+    it("department 可看自己认领的工单", () => {
       expect(
         canAccessTicket({
-          role: "agent",
+          role: "department",
           userId: "agent-1",
           ticket: { status: "processing", createdByUserId: "user-1", claimedByUserId: "agent-1" },
         })
       ).toBe(true);
     });
 
-    it("一级客服（无部门）可看 pending_claim", () => {
+    it("department 可看分发到本部门的 pending_claim", () => {
       expect(
         canAccessTicket({
-          role: "agent",
+          role: "department",
           userId: "agent-1",
-          userDepartmentName: null,
-          ticket: { status: "pending_claim", createdByUserId: "user-1" },
+          userDepartmentName: "营运部",
+          ticket: {
+            status: "pending_claim",
+            createdByUserId: "user-1",
+            escalatedToDept: "营运部",
+          },
         })
       ).toBe(true);
     });
 
-    it("二级专家（有部门）不可看 pending_claim", () => {
+    it("department 不可看分发到其他部门的 pending_claim", () => {
       expect(
         canAccessTicket({
-          role: "agent",
+          role: "department",
           userId: "agent-2",
           userDepartmentName: "营运部",
-          ticket: { status: "pending_claim", createdByUserId: "user-1" },
+          ticket: {
+            status: "pending_claim",
+            createdByUserId: "user-1",
+            escalatedToDept: "采购部",
+          },
         })
       ).toBe(false);
     });
 
-    it("升级工单目标用户可见", () => {
+    it("转派工单目标部门成员可见", () => {
       expect(
         canAccessTicket({
-          role: "agent",
+          role: "department",
           userId: "agent-2",
-          userDepartmentName: "营运部",
-          ticket: { status: "escalated", createdByUserId: "user-1", escalatedToUserId: "agent-2" },
-        })
-      ).toBe(true);
-    });
-
-    it("升级工单目标部门成员可见", () => {
-      expect(
-        canAccessTicket({
-          role: "agent",
-          userId: "agent-3",
           userDepartmentName: "营运部",
           ticket: { status: "escalated", createdByUserId: "user-1", escalatedToDept: "营运部" },
         })
       ).toBe(true);
     });
 
-    it("升级工单非目标不可见", () => {
+    it("转派工单非目标部门不可见", () => {
       expect(
         canAccessTicket({
-          role: "agent",
+          role: "department",
           userId: "agent-3",
           userDepartmentName: "采购部",
           ticket: {
             status: "escalated",
             createdByUserId: "user-1",
             escalatedToDept: "营运部",
-            escalatedToUserId: "agent-2",
           },
         })
       ).toBe(false);
-    });
-
-    it("升级工单无指定目标时一级客服可见", () => {
-      expect(
-        canAccessTicket({
-          role: "agent",
-          userId: "agent-1",
-          userDepartmentName: null,
-          ticket: {
-            status: "escalated",
-            createdByUserId: "user-1",
-            escalatedToDept: null,
-            escalatedToUserId: null,
-          },
-        })
-      ).toBe(true);
     });
   });
 
@@ -258,11 +246,11 @@ describe("tickets service", () => {
       prisma.ticket.findUnique.mockResolvedValue(null);
 
       await expect(
-        claimTicket({ ticketId: "t-1", userId: "agent-1", userDisplayName: "客服" })
+        claimTicket({ ticketId: "t-1", userId: "agent-1", userDisplayName: "部门人员" })
       ).rejects.toThrow("工单不存在");
     });
 
-    it("二级专家不能认领 pending_claim", async () => {
+    it("非目标部门不能认领 pending_claim", async () => {
       prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "pending_claim" }));
 
       await expect(
@@ -272,15 +260,14 @@ describe("tickets service", () => {
           userDisplayName: "专家",
           userDepartmentName: "营运部",
         })
-      ).rejects.toThrow("二级专家客服不能认领待认领工单");
+      ).rejects.toThrow("当前工单未分发到你的部门，不能认领");
     });
 
-    it("升级工单非目标用户不能认领", async () => {
+    it("转派工单非目标部门不能认领", async () => {
       prisma.ticket.findUnique.mockResolvedValue(
         buildTicket({
           status: "escalated",
           escalatedToDept: "营运部",
-          escalatedToUserId: "agent-1",
         })
       );
 
@@ -291,11 +278,13 @@ describe("tickets service", () => {
           userDisplayName: "无关客服",
           userDepartmentName: "采购部",
         })
-      ).rejects.toThrow("当前工单未升级到你的部门或账号，不能认领");
+      ).rejects.toThrow("当前工单未分发到你的部门，不能认领");
     });
 
     it("正确认领 pending_claim 工单", async () => {
-      prisma.ticket.findUnique.mockResolvedValue(buildTicket({ status: "pending_claim" }));
+      prisma.ticket.findUnique.mockResolvedValue(
+        buildTicket({ status: "pending_claim", escalatedToDept: "营运部" })
+      );
       prisma.ticket.update.mockResolvedValue(
         buildTicket({ status: "processing", claimedByUserId: "agent-1" })
       );
@@ -305,6 +294,7 @@ describe("tickets service", () => {
         ticketId: "t-1",
         userId: "agent-1",
         userDisplayName: "客服1",
+        userDepartmentName: "营运部",
       });
 
       expect(prisma.ticket.update).toHaveBeenCalledWith(
@@ -327,10 +317,10 @@ describe("tickets service", () => {
           senderDisplayName: "客服2",
           targetDept: "营运部",
         })
-      ).rejects.toThrow("只有工单认领人才能升级工单");
+      ).rejects.toThrow("只有工单认领人才能转派工单");
     });
 
-    it("正确升级", async () => {
+    it("正确转派", async () => {
       prisma.ticket.findUnique.mockResolvedValue(
         buildTicket({ claimedByUserId: "agent-1", ticketNo: "TK001" })
       );
@@ -469,7 +459,7 @@ describe("tickets service", () => {
       );
 
       await expect(resolveTicket({ ticketId: "t-1", resolvedByUserId: "user-1" })).rejects.toThrow(
-        "确认解决前需要人工客服先提交处理方案"
+        "确认解决前需要部门人员先提交处理方案"
       );
     });
 
@@ -523,7 +513,7 @@ describe("tickets service", () => {
 
       await expect(
         closeTicketWithKnowledgeWriteback({ ticketId: "t-1", closedByUserId: "user-2" })
-      ).rejects.toThrow("只有提交工单的药店工作人员或当前处理客服可以关闭工单");
+      ).rejects.toThrow("只有提交工单的药店工作人员、当前部门处理人或管理员可以关闭工单");
     });
 
     it("无草稿时抛错", async () => {

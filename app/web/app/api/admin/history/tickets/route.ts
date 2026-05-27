@@ -8,6 +8,9 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  }
 
   const tickets = await prisma.ticket.findMany({
     include: {

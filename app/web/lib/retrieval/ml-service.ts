@@ -1,3 +1,5 @@
+import path from "node:path";
+import mammoth from "mammoth";
 import { env } from "@/lib/env";
 import type { ModelChatMessage } from "@/lib/openai";
 
@@ -98,7 +100,88 @@ export async function rerankMultimodal(
   return (await response.json()) as { scores: number[] };
 }
 
+function normalizeLocalText(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function splitLocalTextIntoChunks(text: string, chunkSize = 900, overlap = 120) {
+  const normalized = normalizeLocalText(text);
+  if (!normalized) return [];
+
+  const paragraphs = normalized
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const paragraph of paragraphs) {
+    if ((current + "\n\n" + paragraph).trim().length <= chunkSize) {
+      current = (current + "\n\n" + paragraph).trim();
+      continue;
+    }
+
+    if (current) chunks.push(current);
+
+    if (paragraph.length <= chunkSize) {
+      current = paragraph;
+      continue;
+    }
+
+    for (let start = 0; start < paragraph.length; start += chunkSize - overlap) {
+      chunks.push(paragraph.slice(start, start + chunkSize).trim());
+    }
+
+    current = "";
+  }
+
+  if (current) chunks.push(current);
+
+  return chunks;
+}
+
 export async function parseDocument(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase();
+
+  if (ext === ".docx") {
+    const result = await mammoth.extractRawText({ path: filePath });
+    const originalText = result.value ?? "";
+    const normalizedText = normalizeLocalText(originalText);
+    const chunkTexts = splitLocalTextIntoChunks(normalizedText);
+
+    if (!chunkTexts.length) {
+      return { items: [] };
+    }
+
+    const sourceFile = path.basename(filePath);
+    const question = sourceFile.replace(/\.docx$/i, "");
+
+    return {
+      items: [
+        {
+          categoryL1: "门店知识库",
+          categoryL2: "智能问答",
+          question,
+          answer: normalizedText,
+          tags: ["药店", "门店", "智能问答", "知识库"],
+          docType: "docx",
+          sourceFile,
+          imagePath: null,
+          imagePaths: [],
+          originalText,
+          normalizedText,
+          chunkTexts,
+        },
+      ],
+    };
+  }
+
   const response = await fetch(`${env.ML_SERVICE_URL}/parse-document`, {
     method: "POST",
     headers: {
@@ -109,7 +192,7 @@ export async function parseDocument(filePath: string) {
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`文档解析失败：${message}`);
+    throw new Error(`文档解析服务调用失败：${response.status} ${message}`);
   }
 
   return (await response.json()) as { items: ParsedKnowledgeItem[] };

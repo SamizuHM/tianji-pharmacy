@@ -353,6 +353,8 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             conversationId: input.conversationId,
             sourceType: retrieval.sourceType,
             sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型",
+            knowledgeUpdatedAt:
+              retrieval.sourceType === "kb" ? retrieval.knowledgeItem.updatedAt : null,
           });
           enqueueChunk("debug", {
             retrievalDebug: retrieval.retrievalDebug,
@@ -395,6 +397,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets,
+                    knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
                   })
                 : buildGeneralPharmacyPrompt({
                     question: input.text,
@@ -434,6 +437,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                     referenceQuestion: retrieval.knowledgeItem.question,
                     referenceAnswer: retrieval.knowledgeItem.answer,
                     referenceSnippets: retrieval.referenceSnippets,
+                    knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
                     historyMessages,
                   })
                 : await streamGeneralPharmacyAnswer({

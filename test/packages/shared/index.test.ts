@@ -42,8 +42,8 @@ describe("FIXED_ASSISTANT_SUFFIX", () => {
 });
 
 describe("DEPARTMENTS", () => {
-  it("有 6 个部门", () => {
-    expect(DEPARTMENTS).toHaveLength(6);
+  it("有 7 个部门", () => {
+    expect(DEPARTMENTS).toHaveLength(7);
   });
 
   it("每个部门有 name 和 description", () => {
@@ -57,12 +57,13 @@ describe("DEPARTMENTS", () => {
     const names = DEPARTMENTS.map((d) => d.name);
     expect(names).toContain("营运部");
     expect(names).toContain("医保办");
+    expect(names).toContain("其他部门");
   });
 });
 
 describe("FIXED_USERS", () => {
-  it("有 10 个用户", () => {
-    expect(FIXED_USERS).toHaveLength(10);
+  it("有 9 个用户", () => {
+    expect(FIXED_USERS).toHaveLength(9);
   });
 
   it("每个用户有必要字段", () => {
@@ -70,7 +71,7 @@ describe("FIXED_USERS", () => {
       expect(user.username.length).toBeGreaterThan(0);
       expect(user.password.length).toBeGreaterThan(0);
       expect(user.displayName.length).toBeGreaterThan(0);
-      expect(["staff", "agent"]).toContain(user.role);
+      expect(["staff", "department", "admin"]).toContain(user.role);
     }
   });
 
@@ -78,8 +79,9 @@ describe("FIXED_USERS", () => {
     expect(FIXED_USERS.filter((u) => u.role === "staff")).toHaveLength(1);
   });
 
-  it("包含 9 个 agent 用户", () => {
-    expect(FIXED_USERS.filter((u) => u.role === "agent")).toHaveLength(9);
+  it("包含 7 个部门人员和 1 个管理员", () => {
+    expect(FIXED_USERS.filter((u) => u.role === "department")).toHaveLength(7);
+    expect(FIXED_USERS.filter((u) => u.role === "admin")).toHaveLength(1);
   });
 
   it("默认密码都是 demo123", () => {

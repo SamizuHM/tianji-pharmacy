@@ -5,6 +5,7 @@ export function buildUser(overrides: Record<string, unknown> = {}) {
     displayName: "测试用户",
     passwordHash: "$2a$10$hash",
     role: "staff",
+    enabled: true,
     departmentId: null,
     department: null,
     createdAt: new Date("2025-01-01"),
@@ -16,8 +17,10 @@ export function buildAgentUser(overrides: Record<string, unknown> = {}) {
   return buildUser({
     id: "agent-1",
     username: "agent-user",
-    displayName: "测试客服",
-    role: "agent",
+    displayName: "测试部门人员",
+    role: "department",
+    departmentId: "dept-1",
+    department: buildDepartment(),
     ...overrides,
   });
 }

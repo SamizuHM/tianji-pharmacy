@@ -158,6 +158,47 @@ export type GeneratedTicketKnowledgeDraft = {
   tags: string[];
 };
 
+export type TicketDepartmentClassification = {
+  departmentName: string;
+  confidence: number;
+  reason: string;
+};
+
+export async function classifyTicketDepartmentWithModel(input: {
+  question: string;
+  aiAnswerSnapshot: string;
+  category: string;
+  departments: Array<{ name: string; description?: string | null }>;
+}) {
+  const departmentText = input.departments
+    .map((dept) => `- ${dept.name}：${dept.description || "无说明"}`)
+    .join("\n");
+  const text = await completeText({
+    system:
+      "你是药店门店工单分发助手。你的任务是根据门店工作人员的问题，把工单分发到最合适的部门。" +
+      "只能从用户给出的部门清单中选择 departmentName。" +
+      "如果无法明确归属、跨部门或没有足够信息，必须选择“其他部门”。" +
+      "输出严格 JSON，不要输出 Markdown，不要解释。JSON 字段为 departmentName、confidence、reason；confidence 是 0 到 1 的数字。",
+    userContent:
+      "可选部门：\n" +
+      departmentText +
+      "\n\n问题分类：" +
+      input.category +
+      "\n门店问题：\n" +
+      input.question +
+      "\n\nAI 初始回答：\n" +
+      (input.aiAnswerSnapshot || "无") +
+      "\n\n请输出严格 JSON。",
+  });
+
+  const parsed = JSON.parse(extractJsonObject(text)) as Partial<TicketDepartmentClassification>;
+  return {
+    departmentName: String(parsed.departmentName ?? "").trim(),
+    confidence: Number(parsed.confidence ?? 0),
+    reason: String(parsed.reason ?? "").trim(),
+  };
+}
+
 export async function generateTicketKnowledgeDraftWithModel(input: {
   ticketNo: string;
   title: string;
@@ -233,6 +274,7 @@ export async function streamKbStyledAnswer(input: {
   referenceQuestion: string;
   referenceAnswer: string;
   referenceSnippets: string[];
+  knowledgeUpdatedAt?: string;
   historyMessages: ModelChatMessage[];
 }) {
   const prompt = buildKbStyledPrompt(input);
@@ -260,10 +302,11 @@ export function buildKbStyledPrompt(input: {
   referenceQuestion: string;
   referenceAnswer: string;
   referenceSnippets: string[];
+  knowledgeUpdatedAt?: string;
 }) {
   return {
     system:
-      "你是药店门店知识库问答整理助手。你只能基于给定的参考问题、参考标准答案和参考片段，做表达形式上的整理与润色，不能引入任何新的事实、步骤、原因、风险判断或结论。输出必须简短、清晰，开头写“根据知识库：”，正文可用1到3条短句或短项整理，但信息量不得超出参考内容。若参考答案本身很短，就保持克制。",
+      "你是药店门店知识库问答整理助手。你只能基于给定的参考问题、参考标准答案和参考片段，做表达形式上的整理与润色，不能引入任何新的事实、步骤、原因、风险判断或结论。输出必须简短、清晰，开头写“根据知识库：”，正文可用1到3条短句或短项整理，但信息量不得超出参考内容。若参考答案本身很短，就保持克制。在回答的末尾另起一行，添加来源标注，格式为：\n来源：{参考问题} · 更新于 {更新日期}",
     userText:
       "用户当前问题：" +
       (input.question || "用户上传了图片，请结合知识库回答") +
@@ -275,7 +318,8 @@ export function buildKbStyledPrompt(input: {
       input.referenceAnswer +
       "\n" +
       "参考片段：" +
-      (input.referenceSnippets.length ? input.referenceSnippets.join("\n") : "无"),
+      (input.referenceSnippets.length ? input.referenceSnippets.join("\n") : "无") +
+      (input.knowledgeUpdatedAt ? "\n知识更新日期：" + input.knowledgeUpdatedAt : ""),
   };
 }
 

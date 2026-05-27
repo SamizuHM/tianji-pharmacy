@@ -66,7 +66,7 @@ export function TicketList(props: {
     { key: "all", label: "全部工单", count: result.summary.all },
     { key: "pending", label: "待认领", count: result.summary.pending },
     { key: "processing", label: "处理中", count: result.summary.processing },
-    { key: "escalated", label: "已升级", count: result.summary.escalated },
+    { key: "escalated", label: "已转派", count: result.summary.escalated },
     { key: "resolved", label: "已解决", count: result.summary.resolved },
     { key: "closed", label: "已关闭", count: result.summary.closed },
   ];
@@ -134,7 +134,7 @@ export function TicketList(props: {
           <MetricCard
             label="待认领"
             value={result.summary.pending}
-            description="等待人工响应"
+            description="等待部门响应"
             icon={FileText}
             tone="blue"
             trend="12.5%"
@@ -148,9 +148,9 @@ export function TicketList(props: {
             trend="6.7%"
           />
           <MetricCard
-            label="已升级"
+            label="已转派"
             value={result.summary.escalated}
-            description="部门跟进"
+            description="转派待接收"
             icon={Pin}
             tone="purple"
             trend="2.3%"

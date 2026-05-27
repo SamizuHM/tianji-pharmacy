@@ -29,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const message = await replyTicket({
       ticketId: id,
-      senderRole: user.role === "staff" ? "user" : user.role,
+      senderRole: user.role === "staff" ? "user" : "agent",
       senderUserId: user.id,
       content: body.content?.trim() || "补充了附件说明",
       attachments: body.attachments?.length ? JSON.stringify(body.attachments) : undefined,

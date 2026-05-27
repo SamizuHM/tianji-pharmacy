@@ -142,7 +142,11 @@ export function LoginForm() {
                   <span className="font-medium text-slate-900">{user.username}</span>
                   <span className="text-slate-600">{roleLabel(user.role)}</span>
                   <span className="text-muted">
-                    {user.role === "staff" ? "门店日常问答使用账号" : "人工工单处理账号"}
+                    {user.role === "staff"
+                      ? "门店日常问答使用账号"
+                      : user.role === "admin"
+                        ? "人员与知识库管理账号"
+                        : `${user.department ?? "部门"}工单处理账号`}
                   </span>
                 </button>
               ))}
@@ -241,7 +245,11 @@ function RoleScrollHint(props: { onSelect: (username: string, password: string) 
                   {roleLabel(user.role)}
                 </span>
                 <span className="mt-1 text-[10px] text-muted">
-                  {user.role === "staff" ? "门店日常问答" : "人工工单处理"}
+                  {user.role === "staff"
+                    ? "门店日常问答"
+                    : user.role === "admin"
+                      ? "后台管理"
+                      : "部门工单处理"}
                 </span>
               </button>
             ))}

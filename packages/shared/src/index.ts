@@ -1,4 +1,4 @@
-export type UserRole = "staff" | "agent";
+export type UserRole = "staff" | "department" | "admin";
 
 export type TicketStatus = "pending_claim" | "processing" | "escalated" | "resolved" | "closed";
 
@@ -71,6 +71,7 @@ export const DEPARTMENTS = [
   { name: "人事部", description: "人事管理、考勤排班" },
   { name: "财务部", description: "财务结算、发票管理" },
   { name: "医保办", description: "医保政策、结算对接" },
+  { name: "其他部门", description: "无法明确归属、跨部门或兜底处理" },
 ];
 
 export const FIXED_USERS = [
@@ -82,66 +83,59 @@ export const FIXED_USERS = [
     department: null as string | null,
   },
   {
-    username: "人工处理1",
+    username: "管理员",
     password: "demo123",
-    displayName: "人工处理1",
-    role: "agent" as const,
-    department: null,
-  },
-  {
-    username: "人工处理2",
-    password: "demo123",
-    displayName: "人工处理2",
-    role: "agent" as const,
-    department: null,
-  },
-  {
-    username: "人工处理3",
-    password: "demo123",
-    displayName: "人工处理3",
-    role: "agent" as const,
+    displayName: "系统管理员",
+    role: "admin" as const,
     department: null,
   },
   {
     username: "营运-张伟",
     password: "demo123",
     displayName: "张伟",
-    role: "agent" as const,
+    role: "department" as const,
     department: "营运部",
   },
   {
     username: "采购-李娜",
     password: "demo123",
     displayName: "李娜",
-    role: "agent" as const,
+    role: "department" as const,
     department: "采购部",
   },
   {
     username: "培训-王芳",
     password: "demo123",
     displayName: "王芳",
-    role: "agent" as const,
+    role: "department" as const,
     department: "培训部",
   },
   {
     username: "人事-赵敏",
     password: "demo123",
     displayName: "赵敏",
-    role: "agent" as const,
+    role: "department" as const,
     department: "人事部",
   },
   {
     username: "财务-刘洋",
     password: "demo123",
     displayName: "刘洋",
-    role: "agent" as const,
+    role: "department" as const,
     department: "财务部",
   },
   {
     username: "医保办-陈静",
     password: "demo123",
     displayName: "陈静",
-    role: "agent" as const,
+    role: "department" as const,
     department: "医保办",
+  },
+  {
+    username: "其他-周宁",
+    password: "demo123",
+    displayName: "周宁",
+    role: "department" as const,
+    department: "其他部门",
   },
 ];
