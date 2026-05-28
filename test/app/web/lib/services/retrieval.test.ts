@@ -151,4 +151,39 @@ describe("retrieval service", () => {
 
     expect(result.sourceType).toBe("llm");
   });
+
+  it("地域不匹配的文档不会作为知识库命中", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("小票打印不了");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "point-region",
+        score: 0.9,
+        payload: { knowledgeItemId: "ki-region", chunkText: "内容", question: "Q", answer: "A" },
+      },
+    ]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.9] });
+    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
+    prisma.knowledgeChunk.findUnique.mockResolvedValue({
+      id: "chunk-region",
+      qdrantPointId: "point-region",
+      knowledgeItemId: "ki-region",
+      document: { scopeLevel: "city", cityCode: "other-city" },
+      knowledgeItem: {
+        id: "ki-region",
+        status: "published",
+        question: "Q",
+        answer: "A",
+        imagePathsJson: null,
+        imagePath: null,
+      },
+    });
+
+    const result = await retrieveAnswer({
+      question: "小票打印不了",
+      imagePaths: [],
+      region: { cityCode: "local-city" },
+    });
+
+    expect(result.sourceType).toBe("llm");
+  });
 });

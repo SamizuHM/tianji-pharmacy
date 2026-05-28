@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db";
 import type { ProgressStepKey } from "@/lib/chat-progress";
 import { buildMultimodalQueryText } from "@/lib/openai";
@@ -29,6 +31,13 @@ type QueryPlan = {
   answerPolicy: "allow_llm_fallback" | "kb_only";
   mustTerms: string[];
   queryVariants: string[];
+};
+
+type RegionContext = {
+  storeId?: string | null;
+  provinceCode?: string | null;
+  cityCode?: string | null;
+  districtCode?: string | null;
 };
 
 type RetrievalCandidate = {
@@ -155,7 +164,11 @@ function mergeCandidates(groups: RetrievalCandidate[][]) {
   return Array.from(merged.values()).sort((a, b) => b.rrfScore - a.rrfScore);
 }
 
-async function keywordRecall(plan: QueryPlan, limit: number): Promise<RetrievalCandidate[]> {
+async function keywordRecall(
+  plan: QueryPlan,
+  limit: number,
+  region: RegionContext | undefined
+): Promise<RetrievalCandidate[]> {
   const terms = Array.from(new Set([...plan.mustTerms, plan.businessCategory])).filter(Boolean);
   if (!terms.length) {
     return [];
@@ -166,6 +179,11 @@ async function keywordRecall(plan: QueryPlan, limit: number): Promise<RetrievalC
       where: {
         enabled: true,
         knowledgeItem: { status: "published" },
+        AND: [
+          {
+            OR: [{ documentId: null }, { document: { is: documentVisibilityWhere(region) } }],
+          },
+        ],
         OR: terms.flatMap((term) => [
           { chunkText: { contains: term } },
           { knowledgeItem: { question: { contains: term } } },
@@ -200,8 +218,78 @@ async function keywordRecall(plan: QueryPlan, limit: number): Promise<RetrievalC
     }));
 }
 
+function documentVisibilityWhere(
+  region: RegionContext | undefined
+): Prisma.KnowledgeDocumentWhereInput {
+  if (!region) {
+    return { scopeLevel: "national" };
+  }
+
+  return {
+    OR: [
+      { scopeLevel: "national" },
+      { scopeLevel: "province", provinceCode: region.provinceCode ?? "__none__" },
+      { scopeLevel: "city", cityCode: region.cityCode ?? "__none__" },
+      { scopeLevel: "district", districtCode: region.districtCode ?? "__none__" },
+      { scopeLevel: "store", storeId: region.storeId ?? "__none__" },
+    ],
+  };
+}
+
+function isDocumentVisible(
+  document:
+    | {
+        scopeLevel: string;
+        provinceCode?: string | null;
+        cityCode?: string | null;
+        districtCode?: string | null;
+        storeId?: string | null;
+      }
+    | null
+    | undefined,
+  region: RegionContext | undefined
+) {
+  if (!document || document.scopeLevel === "national") {
+    return true;
+  }
+  if (!region) {
+    return false;
+  }
+  if (document.scopeLevel === "province") return document.provinceCode === region.provinceCode;
+  if (document.scopeLevel === "city") return document.cityCode === region.cityCode;
+  if (document.scopeLevel === "district") return document.districtCode === region.districtCode;
+  if (document.scopeLevel === "store") return document.storeId === region.storeId;
+  return false;
+}
+
+async function resolveAnswerPolicy(plan: QueryPlan) {
+  const rules =
+    (await prisma.answerPolicyRule.findMany({
+      where: {
+        enabled: true,
+        businessCategory: plan.businessCategory,
+      },
+      orderBy: [{ updatedAt: "desc" }],
+      take: 5,
+    })) ?? [];
+
+  const matched = rules.find((rule) => {
+    if (!rule.matchTermsJson) {
+      return true;
+    }
+    try {
+      const terms = JSON.parse(rule.matchTermsJson) as string[];
+      return terms.some((term) => plan.normalizedQuery.includes(term));
+    } catch {
+      return false;
+    }
+  });
+
+  return matched?.answerPolicy ?? plan.answerPolicy;
+}
+
 export async function retrieveAnswer(
-  input: { question: string; imagePaths: string[] },
+  input: { question: string; imagePaths: string[]; region?: RegionContext },
   hooks?: RetrievalProgressHooks
 ): Promise<RetrievalDecision> {
   const settings = await getRuntimeSettings();
@@ -213,6 +301,7 @@ export async function retrieveAnswer(
   );
 
   const queryPlan = buildQueryPlan(queryText);
+  const answerPolicy = await resolveAnswerPolicy(queryPlan);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
     embedMultimodal(
       queryPlan.queryVariants.map((text) => ({
@@ -243,7 +332,8 @@ export async function retrieveAnswer(
   );
   const keywordCandidates = await keywordRecall(
     queryPlan,
-    Math.max(settings.retrievalTopK, settings.rerankTopN * 2)
+    Math.max(settings.retrievalTopK, settings.rerankTopN * 2),
+    input.region
   );
   const searchResult = mergeCandidates([...vectorGroups, keywordCandidates]).slice(
     0,
@@ -303,12 +393,14 @@ export async function retrieveAnswer(
             where: { id: top.pointId },
             include: {
               knowledgeItem: true,
+              document: true,
             },
           })) ??
           (await prisma.knowledgeChunk.findUnique({
             where: { qdrantPointId: top.pointId },
             include: {
               knowledgeItem: true,
+              document: true,
             },
           }));
 
@@ -323,6 +415,9 @@ export async function retrieveAnswer(
 
         const knowledgeItem = chunk.knowledgeItem;
         if (knowledgeItem.status !== "published") {
+          continue;
+        }
+        if (!isDocumentVisible(chunk.document, input.region)) {
           continue;
         }
 
@@ -371,11 +466,11 @@ export async function retrieveAnswer(
       }
 
       return {
-        sourceType: queryPlan.answerPolicy === "kb_only" ? "refusal" : "llm",
+        sourceType: answerPolicy === "kb_only" ? "refusal" : "llm",
         queryText,
         retrievalDebug,
         refusalReason:
-          queryPlan.answerPolicy === "kb_only"
+          answerPolicy === "kb_only"
             ? `当前问题属于${queryPlan.businessCategory}类问题，但知识库中没有检索到足够匹配的依据。`
             : "",
       } satisfies RetrievalDecision;

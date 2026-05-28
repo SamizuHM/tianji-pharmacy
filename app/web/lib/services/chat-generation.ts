@@ -319,7 +319,13 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
 
           progress.startStep("summarize_context");
           const settings = await getRuntimeSettings();
-          const allMessages = await getConversationMessages(input.conversationId);
+          const [allMessages, conversationScope] = await Promise.all([
+            getConversationMessages(input.conversationId),
+            prisma.conversation.findUnique({
+              where: { id: input.conversationId },
+              include: { user: { include: { store: true } } },
+            }),
+          ]);
           const historyMessages = toModelHistoryMessages(
             allMessages,
             userMessage.id,
@@ -337,6 +343,12 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             {
               question: input.text,
               imagePaths: attachmentImagePaths,
+              region: {
+                storeId: conversationScope?.user.storeId,
+                provinceCode: conversationScope?.user.store?.provinceCode,
+                cityCode: conversationScope?.user.store?.cityCode,
+                districtCode: conversationScope?.user.store?.districtCode,
+              },
             },
             {
               startStep: (stepKey, detail) => progress.startStep(stepKey, detail),
