@@ -166,6 +166,32 @@ describe("createAssistantGenerationStream", () => {
     );
   });
 
+  it("强制知识库类问题未命中时直接拒答，不调用通用大模型", async () => {
+    (appendConversationMessage as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ id: "user-msg-1", createdAt: new Date() })
+      .mockResolvedValueOnce({ id: "asst-msg-1" });
+    (getConversationMessages as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (retrieveAnswer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      sourceType: "refusal",
+      queryText: "医保刷不了",
+      retrievalDebug: [],
+      refusalReason: "当前问题属于医保类问题，但知识库中没有检索到足够匹配的依据。",
+    });
+
+    const response = createAssistantGenerationStream({
+      mode: "create",
+      conversationId: "conv-1",
+      text: "医保刷不了",
+      attachments: [],
+    });
+
+    const text = await consumeStream(response);
+
+    expect(text).toContain("不会使用通用大模型兜底回答");
+    expect(streamGeneralPharmacyAnswer).not.toHaveBeenCalled();
+    expect(completeStream).toHaveBeenCalledWith("asst-msg-1");
+  });
+
   it("SSE 流包含 progress、delta、done 事件", async () => {
     (appendConversationMessage as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ id: "user-msg-1", createdAt: new Date() })

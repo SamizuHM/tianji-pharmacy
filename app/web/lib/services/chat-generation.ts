@@ -348,11 +348,18 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             debug: retrieval.retrievalDebug,
             imagePaths: retrieval.sourceType === "kb" ? retrieval.knowledgeItem.imagePaths : [],
           });
+          const assistantSourceType =
+            retrieval.sourceType === "refusal" ? "system" : retrieval.sourceType;
 
           enqueueChunk("meta", {
             conversationId: input.conversationId,
-            sourceType: retrieval.sourceType,
-            sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型",
+            sourceType: assistantSourceType,
+            sourceLabel:
+              retrieval.sourceType === "kb"
+                ? "知识库"
+                : retrieval.sourceType === "refusal"
+                  ? "知识库未命中"
+                  : "大模型",
             knowledgeUpdatedAt:
               retrieval.sourceType === "kb" ? retrieval.knowledgeItem.updatedAt : null,
           });
@@ -365,7 +372,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             const assistantMessage = await appendConversationMessage({
               conversationId: input.conversationId,
               role: "assistant",
-              sourceType: retrieval.sourceType,
+              sourceType: assistantSourceType,
               contentText: "",
               status: "streaming",
               retrievalDebugJson,
@@ -376,7 +383,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             await prisma.chatMessage.update({
               where: { id: assistantMessageId },
               data: {
-                sourceType: retrieval.sourceType,
+                sourceType: assistantSourceType,
                 retrievalDebugJson,
               },
             });
@@ -385,81 +392,88 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
 
           progress.startStep("await_first_token");
 
-          const hasGenerationImages =
-            attachmentImagePaths.length > 0 ||
-            historyMessages.some((message) => Boolean(message.imagePaths?.length));
-
-          if (hasGenerationImages) {
-            const prompt =
-              retrieval.sourceType === "kb"
-                ? buildKbStyledPrompt({
-                    question: input.text,
-                    referenceQuestion: retrieval.knowledgeItem.question,
-                    referenceAnswer: retrieval.knowledgeItem.answer,
-                    referenceSnippets: retrieval.referenceSnippets,
-                    knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
-                  })
-                : buildGeneralPharmacyPrompt({
-                    question: input.text,
-                  });
-            const messages: ModelChatMessage[] = [
-              ...historyMessages,
-              {
-                role: "user",
-                content: prompt.userText,
-                imagePaths: attachmentImagePaths,
-              },
-            ];
-
-            const multimodalResponse = await streamMultimodalChat({
-              systemPrompt: prompt.system,
-              messages,
-            });
-            const reader = multimodalResponse.body!.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) {
-                break;
-              }
-              const delta = decoder.decode(value, { stream: true });
-              if (!delta) {
-                continue;
-              }
-              emitFirstDelta(delta);
-            }
+          if (retrieval.sourceType === "refusal") {
+            emitFirstDelta(
+              retrieval.refusalReason +
+                "为避免误导，系统不会使用通用大模型兜底回答。请补充地区、门店或业务场景后重新提问，或转人工处理。"
+            );
           } else {
-            const llmStream =
-              retrieval.sourceType === "kb"
-                ? await streamKbStyledAnswer({
-                    question: input.text,
-                    referenceQuestion: retrieval.knowledgeItem.question,
-                    referenceAnswer: retrieval.knowledgeItem.answer,
-                    referenceSnippets: retrieval.referenceSnippets,
-                    knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
-                    historyMessages,
-                  })
-                : await streamGeneralPharmacyAnswer({
-                    question: input.text,
-                    historyMessages,
-                  });
+            const hasGenerationImages =
+              attachmentImagePaths.length > 0 ||
+              historyMessages.some((message) => Boolean(message.imagePaths?.length));
 
-            for await (const chunk of llmStream) {
-              const choiceDelta = chunk.choices[0]?.delta;
-              const reasoningDelta =
-                typeof choiceDelta?.reasoning_content === "string"
-                  ? choiceDelta.reasoning_content
-                  : "";
-              if (reasoningDelta) {
-                markFirstResponse("模型已开始推理，等待正文输出");
-              }
+            if (hasGenerationImages) {
+              const prompt =
+                retrieval.sourceType === "kb"
+                  ? buildKbStyledPrompt({
+                      question: input.text,
+                      referenceQuestion: retrieval.knowledgeItem.question,
+                      referenceAnswer: retrieval.knowledgeItem.answer,
+                      referenceSnippets: retrieval.referenceSnippets,
+                      knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
+                    })
+                  : buildGeneralPharmacyPrompt({
+                      question: input.text,
+                    });
+              const messages: ModelChatMessage[] = [
+                ...historyMessages,
+                {
+                  role: "user",
+                  content: prompt.userText,
+                  imagePaths: attachmentImagePaths,
+                },
+              ];
 
-              const delta = typeof choiceDelta?.content === "string" ? choiceDelta.content : "";
-              if (!delta) {
-                continue;
+              const multimodalResponse = await streamMultimodalChat({
+                systemPrompt: prompt.system,
+                messages,
+              });
+              const reader = multimodalResponse.body!.getReader();
+              const decoder = new TextDecoder();
+
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                  break;
+                }
+                const delta = decoder.decode(value, { stream: true });
+                if (!delta) {
+                  continue;
+                }
+                emitFirstDelta(delta);
               }
-              emitFirstDelta(delta);
+            } else {
+              const llmStream =
+                retrieval.sourceType === "kb"
+                  ? await streamKbStyledAnswer({
+                      question: input.text,
+                      referenceQuestion: retrieval.knowledgeItem.question,
+                      referenceAnswer: retrieval.knowledgeItem.answer,
+                      referenceSnippets: retrieval.referenceSnippets,
+                      knowledgeUpdatedAt: retrieval.knowledgeItem.updatedAt,
+                      historyMessages,
+                    })
+                  : await streamGeneralPharmacyAnswer({
+                      question: input.text,
+                      historyMessages,
+                    });
+
+              for await (const chunk of llmStream) {
+                const choiceDelta = chunk.choices[0]?.delta;
+                const reasoningDelta =
+                  typeof choiceDelta?.reasoning_content === "string"
+                    ? choiceDelta.reasoning_content
+                    : "";
+                if (reasoningDelta) {
+                  markFirstResponse("模型已开始推理，等待正文输出");
+                }
+
+                const delta = typeof choiceDelta?.content === "string" ? choiceDelta.content : "";
+                if (!delta) {
+                  continue;
+                }
+                emitFirstDelta(delta);
+              }
             }
           }
 

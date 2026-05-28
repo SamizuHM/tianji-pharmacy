@@ -39,6 +39,7 @@ import { qdrant } from "@/lib/retrieval/qdrant";
 describe("retrieval service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("查询文本");
   });
 
   it("知识命中路径：返回 sourceType kb", async () => {
@@ -108,6 +109,19 @@ describe("retrieval service", () => {
     const result = await retrieveAnswer({ question: "问题", imagePaths: [] });
 
     expect(result.sourceType).toBe("llm");
+  });
+
+  it("医保类问题无知识命中时拒绝大模型兜底", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("医保刷不了");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
+
+    const result = await retrieveAnswer({ question: "医保刷不了", imagePaths: [] });
+
+    expect(result.sourceType).toBe("refusal");
+    if (result.sourceType === "refusal") {
+      expect(result.refusalReason).toContain("医保");
+    }
   });
 
   it("未发布知识跳过", async () => {

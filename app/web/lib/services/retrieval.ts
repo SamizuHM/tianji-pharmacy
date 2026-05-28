@@ -17,8 +17,27 @@ type RetrievalDebugRecord = {
   sourceFile: string | null;
   rerankScore: number;
   vectorScore: number;
+  keywordScore?: number;
+  rrfScore?: number;
   createdAt: string | null;
   updatedAt: string | null;
+};
+
+type QueryPlan = {
+  normalizedQuery: string;
+  businessCategory: string;
+  answerPolicy: "allow_llm_fallback" | "kb_only";
+  mustTerms: string[];
+  queryVariants: string[];
+};
+
+type RetrievalCandidate = {
+  pointId: string;
+  payload: Record<string, unknown>;
+  vectorScore: number;
+  keywordScore: number;
+  rrfScore: number;
+  sources: Set<"vector" | "keyword">;
 };
 
 export type RetrievalDecision =
@@ -40,6 +59,12 @@ export type RetrievalDecision =
       sourceType: "llm";
       queryText: string;
       retrievalDebug: RetrievalDebugRecord[];
+    }
+  | {
+      sourceType: "refusal";
+      queryText: string;
+      retrievalDebug: RetrievalDebugRecord[];
+      refusalReason: string;
     };
 
 type RetrievalProgressHooks = {
@@ -60,6 +85,121 @@ async function runProgressStep<T>(
   return result;
 }
 
+function inferBusinessCategory(text: string) {
+  if (/医保|统筹|报销|结算|刷卡|医保卡/.test(text)) return "医保";
+  if (/用药|药品|处方|剂量|不良反应|禁忌|过敏|孕妇|儿童|老人/.test(text)) return "用药";
+  if (/小票|打印|收银|票据|打印机/.test(text)) return "收银打印";
+  return "通用";
+}
+
+function buildQueryPlan(queryText: string): QueryPlan {
+  const normalizedQuery = queryText.trim() || "用户未输入明确问题";
+  const businessCategory = inferBusinessCategory(normalizedQuery);
+  const synonymMap: Record<string, string[]> = {
+    小票: ["收银小票", "打印凭证", "票据", "热敏打印机"],
+    打印: ["打印机", "出纸", "票据打印"],
+    医保: ["医保结算", "医保刷卡", "统筹支付", "报销"],
+    用药: ["药品", "剂量", "禁忌", "不良反应", "处方"],
+  };
+  const synonyms = Object.entries(synonymMap)
+    .filter(([term]) => normalizedQuery.includes(term))
+    .flatMap(([, values]) => values);
+  const terms = Array.from(
+    new Set(
+      normalizedQuery
+        .split(/[，。；、\s,.!?！？]+/)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2)
+    )
+  ).slice(0, 8);
+  const variants = Array.from(
+    new Set([
+      normalizedQuery,
+      [normalizedQuery, ...synonyms].filter(Boolean).join(" "),
+      [businessCategory, normalizedQuery].filter(Boolean).join(" "),
+    ])
+  ).slice(0, 3);
+
+  return {
+    normalizedQuery,
+    businessCategory,
+    answerPolicy: ["医保", "用药"].includes(businessCategory) ? "kb_only" : "allow_llm_fallback",
+    mustTerms: terms,
+    queryVariants: variants,
+  };
+}
+
+function mergeCandidates(groups: RetrievalCandidate[][]) {
+  const merged = new Map<string, RetrievalCandidate>();
+  const rrfK = 60;
+
+  for (const group of groups) {
+    group.forEach((candidate, index) => {
+      const existing = merged.get(candidate.pointId);
+      const rrfScore = 1 / (rrfK + index + 1);
+      if (existing) {
+        existing.vectorScore = Math.max(existing.vectorScore, candidate.vectorScore);
+        existing.keywordScore = Math.max(existing.keywordScore, candidate.keywordScore);
+        existing.rrfScore += rrfScore;
+        candidate.sources.forEach((source) => existing.sources.add(source));
+        return;
+      }
+      merged.set(candidate.pointId, {
+        ...candidate,
+        rrfScore,
+        sources: new Set(candidate.sources),
+      });
+    });
+  }
+
+  return Array.from(merged.values()).sort((a, b) => b.rrfScore - a.rrfScore);
+}
+
+async function keywordRecall(plan: QueryPlan, limit: number): Promise<RetrievalCandidate[]> {
+  const terms = Array.from(new Set([...plan.mustTerms, plan.businessCategory])).filter(Boolean);
+  if (!terms.length) {
+    return [];
+  }
+
+  const chunks =
+    (await prisma.knowledgeChunk.findMany({
+      where: {
+        enabled: true,
+        knowledgeItem: { status: "published" },
+        OR: terms.flatMap((term) => [
+          { chunkText: { contains: term } },
+          { knowledgeItem: { question: { contains: term } } },
+          { knowledgeItem: { answer: { contains: term } } },
+        ]),
+      },
+      include: { knowledgeItem: true },
+      orderBy: [{ createdAt: "desc" }],
+      take: limit,
+    })) ?? [];
+
+  return chunks
+    .filter((chunk) => chunk.knowledgeItem)
+    .map((chunk, index) => ({
+      pointId: chunk.qdrantPointId,
+      payload: {
+        knowledgeItemId: chunk.knowledgeItemId,
+        chunkText: chunk.chunkText,
+        question: chunk.knowledgeItem.question,
+        answer: chunk.knowledgeItem.answer,
+        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+        imagePaths: chunk.knowledgeItem.imagePathsJson
+          ? JSON.parse(chunk.knowledgeItem.imagePathsJson)
+          : chunk.knowledgeItem.imagePath
+            ? [chunk.knowledgeItem.imagePath]
+            : [],
+      },
+      vectorScore: 0,
+      keywordScore: 1 / (index + 1),
+      rrfScore: 0,
+      sources: new Set<"vector" | "keyword">(["keyword"]),
+    }));
+}
+
 export async function retrieveAnswer(
   input: { question: string; imagePaths: string[] },
   hooks?: RetrievalProgressHooks
@@ -72,21 +212,42 @@ export async function retrieveAnswer(
     })
   );
 
+  const queryPlan = buildQueryPlan(queryText);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
-    embedMultimodal([
-      {
-        text: queryText,
+    embedMultimodal(
+      queryPlan.queryVariants.map((text) => ({
+        text,
         image_path: input.imagePaths[0] ?? undefined,
         image_paths: input.imagePaths,
-      },
-    ])
+      }))
+    )
   );
-  const searchResult = await runProgressStep(hooks, "search_qdrant", () =>
-    qdrant.search(COLLECTION_NAME, {
-      vector: embedResults.vectors[0],
-      with_payload: true,
-      limit: settings.retrievalTopK,
-    })
+  const vectorGroups = await runProgressStep(hooks, "search_qdrant", async () =>
+    Promise.all(
+      embedResults.vectors.map(async (vector) => {
+        const searchResult = await qdrant.search(COLLECTION_NAME, {
+          vector,
+          with_payload: true,
+          limit: Math.max(settings.retrievalTopK, settings.rerankTopN * 2),
+        });
+        return searchResult.map((item) => ({
+          pointId: String(item.id),
+          payload: item.payload as Record<string, unknown>,
+          vectorScore: item.score ?? 0,
+          keywordScore: 0,
+          rrfScore: 0,
+          sources: new Set<"vector" | "keyword">(["vector"]),
+        }));
+      })
+    )
+  );
+  const keywordCandidates = await keywordRecall(
+    queryPlan,
+    Math.max(settings.retrievalTopK, settings.rerankTopN * 2)
+  );
+  const searchResult = mergeCandidates([...vectorGroups, keywordCandidates]).slice(
+    0,
+    Math.max(settings.retrievalTopK * 3, settings.rerankTopN * 4)
   );
 
   const rerankDocs = searchResult.map((item) => {
@@ -106,9 +267,11 @@ export async function retrieveAnswer(
 
   const ranked = searchResult
     .map((item, index) => ({
-      pointId: String(item.id),
+      pointId: item.pointId,
       payload: item.payload as Record<string, unknown>,
-      vectorScore: item.score ?? 0,
+      vectorScore: item.vectorScore,
+      keywordScore: item.keywordScore,
+      rrfScore: item.rrfScore,
       rerankScore: rerankResult.scores[index] ?? 0,
     }))
     .sort((a, b) => b.rerankScore - a.rerankScore)
@@ -122,6 +285,8 @@ export async function retrieveAnswer(
     sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
     rerankScore: item.rerankScore,
     vectorScore: item.vectorScore,
+    keywordScore: item.keywordScore,
+    rrfScore: item.rrfScore,
     createdAt: null,
     updatedAt: null,
   }));
@@ -178,8 +343,8 @@ export async function retrieveAnswer(
         // Fill createdAt/updatedAt into retrievalDebug for matching items
         for (const debug of retrievalDebug) {
           if (debug.knowledgeItemId === knowledgeItem.id) {
-            debug.createdAt = knowledgeItem.createdAt.toISOString();
-            debug.updatedAt = knowledgeItem.updatedAt.toISOString();
+            debug.createdAt = knowledgeItem.createdAt?.toISOString?.() ?? null;
+            debug.updatedAt = knowledgeItem.updatedAt?.toISOString?.() ?? null;
           }
         }
 
@@ -198,20 +363,28 @@ export async function retrieveAnswer(
             question: knowledgeItem.question,
             answer: knowledgeItem.answer,
             imagePaths,
-            createdAt: knowledgeItem.createdAt.toISOString(),
-            updatedAt: knowledgeItem.updatedAt.toISOString(),
+            createdAt: knowledgeItem.createdAt?.toISOString?.() ?? new Date().toISOString(),
+            updatedAt: knowledgeItem.updatedAt?.toISOString?.() ?? new Date().toISOString(),
           },
           referenceSnippets: siblingChunks.map((item) => item.chunkText).slice(0, 3),
         } satisfies RetrievalDecision;
       }
 
       return {
-        sourceType: "llm",
+        sourceType: queryPlan.answerPolicy === "kb_only" ? "refusal" : "llm",
         queryText,
         retrievalDebug,
+        refusalReason:
+          queryPlan.answerPolicy === "kb_only"
+            ? `当前问题属于${queryPlan.businessCategory}类问题，但知识库中没有检索到足够匹配的依据。`
+            : "",
       } satisfies RetrievalDecision;
     },
     (result) =>
-      result.sourceType === "kb" ? "知识库命中，进入答案整理" : "未命中知识库，转入通用药店问答"
+      result.sourceType === "kb"
+        ? "知识库命中，进入答案整理"
+        : result.sourceType === "refusal"
+          ? "强制知识库类问题未命中，拒绝兜底"
+          : "未命中知识库，转入通用药店问答"
   );
 }
