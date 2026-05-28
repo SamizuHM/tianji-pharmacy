@@ -3,12 +3,13 @@ import {
   KnowledgeCreateForm,
   RebuildIndexButton,
 } from "@/components/knowledge/knowledge-admin";
+import { KnowledgeDocumentTable } from "@/components/knowledge/knowledge-document-table";
 import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { MetricCard } from "@/components/shared/metric-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prisma } from "@/lib/db";
-import { listKnowledgeItems } from "@/lib/services/knowledge";
+import { listKnowledgeDocuments, listKnowledgeItems } from "@/lib/services/knowledge";
 import { BookOpen, CheckSquare, FileUp, Image, PlusSquare, Target } from "lucide-react";
 
 export default async function AdminKnowledgePage(props: {
@@ -21,7 +22,15 @@ export default async function AdminKnowledgePage(props: {
   }>;
 }) {
   const searchParams = await props.searchParams;
-  const [knowledgeResult, jobs] = await Promise.all([
+  const [documentResult, knowledgeResult, jobs] = await Promise.all([
+    listKnowledgeDocuments({
+      q: searchParams.q,
+      category: searchParams.category,
+      status:
+        (searchParams.status as "draft" | "published" | "archived" | "all" | undefined) ?? "all",
+      page: Number(searchParams.page ?? 1),
+      pageSize: Number(searchParams.pageSize ?? 10),
+    }),
     listKnowledgeItems({
       q: searchParams.q,
       category: searchParams.category,
@@ -35,6 +44,22 @@ export default async function AdminKnowledgePage(props: {
       take: 20,
     }),
   ]);
+
+  const serializedDocuments = documentResult.items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    sourceFile: item.sourceFile,
+    businessCategory: item.businessCategory,
+    answerPolicy: item.answerPolicy,
+    scopeLevel: item.scopeLevel,
+    provinceName: item.provinceName,
+    cityName: item.cityName,
+    districtName: item.districtName,
+    status: item.status,
+    hitCount: item.hitCount,
+    updatedAt: item.updatedAt,
+    _count: item._count,
+  }));
 
   const serializedItems = knowledgeResult.items.map((item) => ({
     id: item.id,
@@ -182,9 +207,33 @@ export default async function AdminKnowledgePage(props: {
       <div className="mt-6">
         <Card className="min-w-0">
           <CardHeader>
-            <CardTitle>知识条目 ({knowledgeResult.total})</CardTitle>
+            <CardTitle>知识文档 ({documentResult.total})</CardTitle>
             <CardDescription className="mt-1">
-              按分类、状态和关键词筛选，选中条目后可查看详情。
+              按文档管理解析结果和切分后的 chunk，发布后进入检索索引。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="min-w-0 overflow-x-auto">
+            <KnowledgeDocumentTable
+              documents={serializedDocuments}
+              total={documentResult.total}
+              page={documentResult.page}
+              pageSize={documentResult.pageSize}
+              pageCount={documentResult.pageCount}
+              categoryOptions={documentResult.categoryOptions}
+              q={searchParams.q}
+              category={searchParams.category}
+              status={searchParams.status}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-6">
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>兼容问答条目 ({knowledgeResult.total})</CardTitle>
+            <CardDescription className="mt-1">
+              旧版 QA 和工单回写知识仍在这里维护，后续会逐步归并到文档视图。
             </CardDescription>
           </CardHeader>
           <CardContent className="min-w-0 overflow-x-auto">
