@@ -17,7 +17,9 @@ import {
   upsertKnowledgeItem,
   getKnowledgeSummary,
   deleteKnowledgeItem,
+  importKnowledgeFromFiles,
 } from "@/lib/services/knowledge";
+import { parseDocument } from "@/lib/retrieval/ml-service";
 import { buildKnowledgeItem, buildKnowledgeChunk } from "../../../../helpers/factories";
 
 describe("knowledge service", () => {
@@ -94,6 +96,59 @@ describe("knowledge service", () => {
       await deleteKnowledgeItem("ki-1");
 
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe("importKnowledgeFromFiles", () => {
+    it("导入文档时创建文档、解析记录、chunk set 并挂载知识条目", async () => {
+      (parseDocument as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        items: [
+          {
+            categoryL1: "医保",
+            categoryL2: "结算",
+            question: "医保刷卡失败怎么办",
+            answer: "检查医保网络和结算状态。",
+            tags: ["医保"],
+            docType: ".md",
+            sourceFile: "医保.md",
+            imagePath: null,
+            imagePaths: [],
+            originalText: "医保刷卡失败怎么办\n检查医保网络和结算状态。",
+            normalizedText: "医保刷卡失败怎么办\n检查医保网络和结算状态。",
+            chunkTexts: ["医保刷卡失败怎么办\n检查医保网络和结算状态。"],
+          },
+        ],
+      });
+      prisma.importJob.create.mockResolvedValue({ id: "job-1" });
+      prisma.importJob.update.mockResolvedValue({});
+      prisma.knowledgeItem.findFirst.mockResolvedValue(null);
+      prisma.knowledgeItem.findUniqueOrThrow.mockResolvedValue(buildKnowledgeItem());
+
+      const result = await importKnowledgeFromFiles(["/tmp/医保.md"], {
+        sourceFileNameByPath: { "/tmp/医保.md": "医保.md" },
+        uploadedByUserId: "admin-1",
+      });
+
+      expect(result.importedFiles).toBe(1);
+      expect(prisma.knowledgeDocument.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: "医保",
+            businessCategory: "医保",
+            answerPolicy: "kb_only",
+          }),
+        })
+      );
+      expect(prisma.knowledgeChunkSet.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ isActive: true }),
+        })
+      );
+      expect(prisma.knowledgeItem.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ documentId: expect.any(String) }),
+        })
+      );
     });
   });
 });

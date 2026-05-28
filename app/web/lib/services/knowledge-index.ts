@@ -32,12 +32,23 @@ type ChunkRecord = KnowledgeChunk & {
 };
 
 export type KnowledgeChunkProjectionSource = {
+  documentId?: string | null;
+  chunkSetId?: string | null;
   knowledgeItemId: string;
   chunkId: string;
   chunkIndex: number;
   chunkText: string;
   sourceFile?: string | null;
   docType?: string | null;
+  businessCategory?: string | null;
+  answerPolicy?: string | null;
+  scopeLevel?: string | null;
+  provinceCode?: string | null;
+  cityCode?: string | null;
+  districtCode?: string | null;
+  storeId?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   knowledgeItem: {
     question: string;
     answer: string;
@@ -50,9 +61,25 @@ export type KnowledgeChunkProjectionSource = {
   };
 };
 
+type ChunkMetadata = {
+  documentId?: string | null;
+  chunkSetId?: string | null;
+  businessCategory?: string | null;
+  answerPolicy?: string | null;
+  scopeLevel?: string | null;
+  provinceCode?: string | null;
+  cityCode?: string | null;
+  districtCode?: string | null;
+  storeId?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+};
+
 type QdrantUpsertPayload = {
   knowledgeItemId: string;
+  documentId: string | null;
   chunkId: string;
+  chunkSetId: string | null;
   chunkIndex: number;
   chunkText: string;
   question: string;
@@ -61,6 +88,15 @@ type QdrantUpsertPayload = {
   docType: string | null;
   categoryL1: string;
   categoryL2: string;
+  businessCategory: string;
+  answerPolicy: string;
+  scopeLevel: string;
+  provinceCode: string | null;
+  cityCode: string | null;
+  districtCode: string | null;
+  storeId: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
   imagePath: string | null;
   imagePaths: string[];
 };
@@ -105,10 +141,26 @@ function parseImagePathsFromSource(source: KnowledgeChunkProjectionSource) {
   return source.knowledgeItem.imagePath ? [source.knowledgeItem.imagePath] : [];
 }
 
+function parseChunkMetadata(metadataJson: string | null | undefined): ChunkMetadata {
+  if (!metadataJson) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(metadataJson) as ChunkMetadata;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
+  const metadata = parseChunkMetadata(chunk.metadataJson);
   return {
     knowledgeItemId: chunk.knowledgeItemId,
+    documentId: chunk.documentId ?? metadata.documentId ?? null,
     chunkId: chunk.id,
+    chunkSetId: chunk.chunkSetId ?? metadata.chunkSetId ?? null,
     chunkIndex: chunk.chunkIndex,
     chunkText: chunk.chunkText,
     question: chunk.knowledgeItem.question,
@@ -117,6 +169,15 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     docType: chunk.docType ?? chunk.knowledgeItem.docType ?? null,
     categoryL1: chunk.knowledgeItem.categoryL1,
     categoryL2: chunk.knowledgeItem.categoryL2,
+    businessCategory: metadata.businessCategory ?? chunk.knowledgeItem.categoryL1,
+    answerPolicy: metadata.answerPolicy ?? "allow_llm_fallback",
+    scopeLevel: metadata.scopeLevel ?? "national",
+    provinceCode: metadata.provinceCode ?? null,
+    cityCode: metadata.cityCode ?? null,
+    districtCode: metadata.districtCode ?? null,
+    storeId: metadata.storeId ?? null,
+    effectiveFrom: metadata.effectiveFrom ?? null,
+    effectiveTo: metadata.effectiveTo ?? null,
     imagePath: chunk.knowledgeItem.imagePath ?? null,
     imagePaths: parseImagePaths(chunk.knowledgeItem),
   };
@@ -125,7 +186,9 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
 function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): QdrantUpsertPayload {
   return {
     knowledgeItemId: source.knowledgeItemId,
+    documentId: source.documentId ?? null,
     chunkId: source.chunkId,
+    chunkSetId: source.chunkSetId ?? null,
     chunkIndex: source.chunkIndex,
     chunkText: source.chunkText,
     question: source.knowledgeItem.question,
@@ -134,6 +197,15 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     docType: source.docType ?? source.knowledgeItem.docType ?? null,
     categoryL1: source.knowledgeItem.categoryL1,
     categoryL2: source.knowledgeItem.categoryL2,
+    businessCategory: source.businessCategory ?? source.knowledgeItem.categoryL1,
+    answerPolicy: source.answerPolicy ?? "allow_llm_fallback",
+    scopeLevel: source.scopeLevel ?? "national",
+    provinceCode: source.provinceCode ?? null,
+    cityCode: source.cityCode ?? null,
+    districtCode: source.districtCode ?? null,
+    storeId: source.storeId ?? null,
+    effectiveFrom: source.effectiveFrom ?? null,
+    effectiveTo: source.effectiveTo ?? null,
     imagePath: source.knowledgeItem.imagePath ?? null,
     imagePaths: parseImagePathsFromSource(source),
   };

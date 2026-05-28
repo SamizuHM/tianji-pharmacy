@@ -7,7 +7,17 @@ import { uploadDirAbsolute } from "@/lib/env";
 import { importKnowledgeFromFiles } from "@/lib/services/knowledge";
 import { saveUploadedFile } from "@/lib/uploads";
 
-const SUPPORTED_WORD_EXTENSIONS = new Set([".doc", ".docx"]);
+const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
+  ".doc",
+  ".docx",
+  ".txt",
+  ".md",
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+]);
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -22,15 +32,17 @@ export async function POST(request: Request) {
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
   if (!files.length) {
-    return NextResponse.json({ error: "请选择 Word 文档" }, { status: 400 });
+    return NextResponse.json({ error: "请选择要导入的文档" }, { status: 400 });
   }
 
   const unsupported = files.filter(
-    (file) => !SUPPORTED_WORD_EXTENSIONS.has(path.extname(file.name).toLowerCase())
+    (file) => !SUPPORTED_DOCUMENT_EXTENSIONS.has(path.extname(file.name).toLowerCase())
   );
   if (unsupported.length) {
     return NextResponse.json(
-      { error: `仅支持 .doc/.docx：${unsupported.map((file) => file.name).join("、")}` },
+      {
+        error: `仅支持 doc、docx、txt、md、pdf、图片：${unsupported.map((file) => file.name).join("、")}`,
+      },
       { status: 400 }
     );
   }
@@ -45,6 +57,9 @@ export async function POST(request: Request) {
     sourceFileNameByPath[absolutePath] = saved.name;
   }
 
-  const result = await importKnowledgeFromFiles(filePaths, { sourceFileNameByPath });
+  const result = await importKnowledgeFromFiles(filePaths, {
+    sourceFileNameByPath,
+    uploadedByUserId: user.id,
+  });
   return NextResponse.json(result);
 }

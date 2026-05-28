@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import {
@@ -30,11 +31,40 @@ type UpsertKnowledgeInput = {
   sourceTicketId?: string;
   sourceFile?: string;
   docType?: string;
+  documentId?: string | null;
+  chunkSetId?: string | null;
+  businessCategory?: string;
+  answerPolicy?: "allow_llm_fallback" | "kb_only";
+  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  provinceCode?: string | null;
+  provinceName?: string | null;
+  cityCode?: string | null;
+  cityName?: string | null;
+  districtCode?: string | null;
+  districtName?: string | null;
+  storeId?: string | null;
+  effectiveFrom?: Date | null;
+  effectiveTo?: Date | null;
   imagePath?: string | null;
   imagePaths?: string[];
   originalText: string;
   normalizedText: string;
   chunkTexts: string[];
+};
+
+export type DocumentImportOptions = {
+  sourceFileNameByPath?: Record<string, string>;
+  uploadedByUserId?: string;
+  businessCategory?: string;
+  answerPolicy?: "allow_llm_fallback" | "kb_only";
+  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  provinceCode?: string | null;
+  provinceName?: string | null;
+  cityCode?: string | null;
+  cityName?: string | null;
+  districtCode?: string | null;
+  districtName?: string | null;
+  storeId?: string | null;
 };
 
 export type KnowledgeListParams = {
@@ -53,6 +83,26 @@ function buildTagsJson(tags: string[]) {
 
 function buildImagePaths(input: UpsertKnowledgeInput) {
   return input.imagePaths?.filter(Boolean) ?? [];
+}
+
+function inferBusinessCategory(input: { categoryL1?: string; categoryL2?: string; text?: string }) {
+  const text = [input.categoryL1, input.categoryL2, input.text].filter(Boolean).join("\n");
+  if (/医保|统筹|报销|结算|刷卡|医保卡/.test(text)) return "医保";
+  if (/用药|药品|处方|剂量|不良反应|禁忌|过敏|孕妇|儿童|老人/.test(text)) return "用药";
+  if (/小票|打印|收银|票据|打印机/.test(text)) return "收银打印";
+  return input.categoryL1 || "通用";
+}
+
+function inferAnswerPolicy(businessCategory: string): "allow_llm_fallback" | "kb_only" {
+  return ["医保", "用药"].includes(businessCategory) ? "kb_only" : "allow_llm_fallback";
+}
+
+function hashText(text: string) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+function toNullableIso(value: Date | null | undefined) {
+  return value ? value.toISOString() : null;
 }
 
 function clampPage(value: number | undefined) {
@@ -102,6 +152,8 @@ function buildChunkMetadata(
 ) {
   return {
     knowledgeItemId: itemId,
+    documentId: input.documentId ?? null,
+    chunkSetId: input.chunkSetId ?? null,
     chunkId,
     chunkIndex,
     chunkText,
@@ -111,6 +163,19 @@ function buildChunkMetadata(
     docType: input.docType ?? null,
     categoryL1: input.categoryL1,
     categoryL2: input.categoryL2,
+    businessCategory: input.businessCategory ?? inferBusinessCategory(input),
+    answerPolicy:
+      input.answerPolicy ?? inferAnswerPolicy(input.businessCategory ?? input.categoryL1),
+    scopeLevel: input.scopeLevel ?? "national",
+    provinceCode: input.provinceCode ?? null,
+    provinceName: input.provinceName ?? null,
+    cityCode: input.cityCode ?? null,
+    cityName: input.cityName ?? null,
+    districtCode: input.districtCode ?? null,
+    districtName: input.districtName ?? null,
+    storeId: input.storeId ?? null,
+    effectiveFrom: toNullableIso(input.effectiveFrom),
+    effectiveTo: toNullableIso(input.effectiveTo),
     imagePath: input.imagePath ?? null,
     imagePaths: buildImagePaths(input),
   };
@@ -145,17 +210,27 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
   const chunkPlans = input.chunkTexts.map((chunkText, chunkIndex) => {
     const existingChunk = existingChunks[chunkIndex];
     const chunkId = existingChunk?.id ?? crypto.randomUUID();
+    const businessCategory = input.businessCategory ?? inferBusinessCategory(input);
     return {
       id: chunkId,
       knowledgeItemId: itemId,
+      documentId: input.documentId ?? null,
+      chunkSetId: input.chunkSetId ?? null,
       chunkIndex,
       chunkText,
       originalText: input.originalText,
       sourceFile: input.sourceFile,
       docType: input.docType,
+      sectionPath: `${input.categoryL1} / ${input.categoryL2}`,
+      tokenCount: chunkText.length,
+      enabled: true,
       qdrantPointId: buildStablePointId(chunkId),
       metadataJson: JSON.stringify(
-        buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, input)
+        buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
+          ...input,
+          businessCategory,
+          answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
+        })
       ),
     };
   });
@@ -163,12 +238,25 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     (chunk) => !chunkPlans.some((plan) => plan.id === chunk.id)
   );
   const taskSources: KnowledgeChunkProjectionSource[] = chunkPlans.map((chunk) => ({
+    documentId: chunk.documentId,
+    chunkSetId: chunk.chunkSetId,
     knowledgeItemId: itemId,
     chunkId: chunk.id,
     chunkIndex: chunk.chunkIndex,
     chunkText: chunk.chunkText,
     sourceFile: chunk.sourceFile ?? null,
     docType: chunk.docType ?? null,
+    businessCategory: input.businessCategory ?? inferBusinessCategory(input),
+    answerPolicy:
+      input.answerPolicy ??
+      inferAnswerPolicy(input.businessCategory ?? inferBusinessCategory(input)),
+    scopeLevel: input.scopeLevel ?? "national",
+    provinceCode: input.provinceCode ?? null,
+    cityCode: input.cityCode ?? null,
+    districtCode: input.districtCode ?? null,
+    storeId: input.storeId ?? null,
+    effectiveFrom: toNullableIso(input.effectiveFrom),
+    effectiveTo: toNullableIso(input.effectiveTo),
     knowledgeItem: {
       question: input.question,
       answer: input.answer,
@@ -194,6 +282,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       sourceTicketId: input.sourceTicketId ?? null,
       sourceFile: input.sourceFile ?? null,
       docType: input.docType ?? null,
+      documentId: input.documentId ?? null,
       imagePath: input.imagePath ?? null,
       imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
     };
@@ -220,8 +309,13 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           chunkIndex: chunk.chunkIndex,
           chunkText: chunk.chunkText,
           originalText: chunk.originalText,
+          documentId: chunk.documentId,
+          chunkSetId: chunk.chunkSetId,
           sourceFile: chunk.sourceFile ?? null,
           docType: chunk.docType ?? null,
+          sectionPath: chunk.sectionPath,
+          tokenCount: chunk.tokenCount,
+          enabled: chunk.enabled,
           qdrantPointId: chunk.qdrantPointId,
           metadataJson: chunk.metadataJson,
         },
@@ -322,6 +416,85 @@ export async function listKnowledgeItems(params: KnowledgeListParams = {}) {
     summary,
     categoryOptions,
   };
+}
+
+export async function listKnowledgeDocuments(params: KnowledgeListParams = {}) {
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(params.pageSize);
+  const q = params.q?.trim();
+  const and: Prisma.KnowledgeDocumentWhereInput[] = [];
+
+  if (params.status && params.status !== "all") {
+    const mappedStatus = params.status;
+    and.push({ status: mappedStatus });
+  }
+
+  if (params.category && params.category !== "all") {
+    and.push({ businessCategory: params.category });
+  }
+
+  if (q) {
+    and.push({
+      OR: [
+        { title: { contains: q } },
+        { sourceFile: { contains: q } },
+        { businessCategory: { contains: q } },
+        { chunks: { some: { chunkText: { contains: q } } } },
+      ],
+    });
+  }
+
+  const where: Prisma.KnowledgeDocumentWhereInput = and.length ? { AND: and } : {};
+
+  const [items, total, categories] = await Promise.all([
+    prisma.knowledgeDocument.findMany({
+      where,
+      include: {
+        _count: { select: { chunks: true, chunkSets: true } },
+      },
+      orderBy: [{ updatedAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.knowledgeDocument.count({ where }),
+    prisma.knowledgeDocument.findMany({
+      select: { businessCategory: true },
+      distinct: ["businessCategory"],
+      orderBy: [{ businessCategory: "asc" }],
+    }),
+  ]);
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    categoryOptions: categories.map((item) => item.businessCategory).filter(Boolean),
+  };
+}
+
+export async function getKnowledgeDocumentDetail(id: string) {
+  return prisma.knowledgeDocument.findUnique({
+    where: { id },
+    include: {
+      versions: { orderBy: { createdAt: "desc" } },
+      parseRuns: { orderBy: { createdAt: "desc" } },
+      chunkSets: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          chunks: {
+            orderBy: { chunkIndex: "asc" },
+            take: 300,
+          },
+        },
+      },
+      chunks: {
+        orderBy: { chunkIndex: "asc" },
+        take: 300,
+      },
+    },
+  });
 }
 
 export async function getKnowledgeSummary() {
@@ -449,11 +622,87 @@ export async function collectKnowledgeSourceFiles() {
   return Array.from(files);
 }
 
+async function createDocumentIngestion(input: {
+  filePath: string;
+  sourceFile: string;
+  extractedText: string;
+  chunkStrategy?: "fixed_overlap" | "qa";
+  options?: DocumentImportOptions;
+}) {
+  const businessCategory =
+    input.options?.businessCategory ?? inferBusinessCategory({ text: input.extractedText });
+  const answerPolicy = input.options?.answerPolicy ?? inferAnswerPolicy(businessCategory);
+  const title = input.sourceFile.replace(/\.[^.]+$/, "");
+  const contentHash = hashText(input.extractedText || `${input.sourceFile}:${Date.now()}`);
+  const documentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const parseRunId = crypto.randomUUID();
+  const chunkSetId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.knowledgeDocument.create({
+      data: {
+        id: documentId,
+        title,
+        sourceType: "uploaded_doc",
+        sourceFile: input.sourceFile,
+        mimeType: path.extname(input.sourceFile).toLowerCase().replace(".", "") || null,
+        businessCategory,
+        answerPolicy,
+        scopeLevel: input.options?.scopeLevel ?? "national",
+        provinceCode: input.options?.provinceCode ?? null,
+        provinceName: input.options?.provinceName ?? null,
+        cityCode: input.options?.cityCode ?? null,
+        cityName: input.options?.cityName ?? null,
+        districtCode: input.options?.districtCode ?? null,
+        districtName: input.options?.districtName ?? null,
+        storeId: input.options?.storeId ?? null,
+        status: "published",
+      },
+    });
+    await tx.knowledgeDocumentVersion.create({
+      data: {
+        id: versionId,
+        documentId,
+        originalFilePath: input.filePath,
+        sourceFileName: input.sourceFile,
+        contentHash,
+        uploadedByUserId: input.options?.uploadedByUserId ?? null,
+      },
+    });
+    await tx.knowledgeParseRun.create({
+      data: {
+        id: parseRunId,
+        documentId,
+        documentVersionId: versionId,
+        parserType: input.sourceFile.match(/\.(png|jpg|jpeg|webp)$/i)
+          ? "image_vlm"
+          : input.sourceFile.match(/\.pdf$/i)
+            ? "pdf_text"
+            : input.sourceFile.match(/\.docx?$/i)
+              ? "docx_layout"
+              : "basic_text",
+        status: "success",
+        extractedText: input.extractedText,
+      },
+    });
+    await tx.knowledgeChunkSet.create({
+      data: {
+        id: chunkSetId,
+        documentId,
+        parseRunId,
+        chunkStrategy: input.chunkStrategy ?? "qa",
+        isActive: true,
+      },
+    });
+  });
+
+  return { documentId, chunkSetId, businessCategory, answerPolicy };
+}
+
 export async function importKnowledgeFromFiles(
   filePaths: string[],
-  options?: {
-    sourceFileNameByPath?: Record<string, string>;
-  }
+  options?: DocumentImportOptions
 ) {
   let importedFiles = 0;
   let importedChunks = 0;
@@ -476,17 +725,43 @@ export async function importKnowledgeFromFiles(
         continue;
       }
 
+      const sourceFile =
+        options?.sourceFileNameByPath?.[filePath] ??
+        parsed.items[0]?.sourceFile ??
+        path.basename(filePath);
+      const extractedText = parsed.items
+        .map((item) => item.normalizedText || item.originalText || item.chunkTexts.join("\n"))
+        .join("\n\n");
+      const ingestion = await createDocumentIngestion({
+        filePath,
+        sourceFile,
+        extractedText,
+        chunkStrategy: parsed.items.length === 1 ? "fixed_overlap" : "qa",
+        options,
+      });
+
       for (const item of parsed.items) {
-        const sourceFile = options?.sourceFileNameByPath?.[filePath] ?? item.sourceFile;
         await upsertKnowledgeItem({
           categoryL1: item.categoryL1,
           categoryL2: item.categoryL2,
           question: item.question,
           answer: item.answer,
           tags: item.tags,
-          sourceType: item.docType.startsWith("image") ? "image_doc" : "seed_doc",
+          sourceType: item.docType.startsWith("image") ? "image_doc" : "uploaded_doc",
           sourceFile,
           docType: item.docType,
+          documentId: ingestion.documentId,
+          chunkSetId: ingestion.chunkSetId,
+          businessCategory: ingestion.businessCategory,
+          answerPolicy: ingestion.answerPolicy,
+          scopeLevel: options?.scopeLevel ?? "national",
+          provinceCode: options?.provinceCode ?? null,
+          provinceName: options?.provinceName ?? null,
+          cityCode: options?.cityCode ?? null,
+          cityName: options?.cityName ?? null,
+          districtCode: options?.districtCode ?? null,
+          districtName: options?.districtName ?? null,
+          storeId: options?.storeId ?? null,
           imagePath: item.imagePath,
           imagePaths: item.imagePaths,
           originalText: item.originalText,
