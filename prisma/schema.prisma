@@ -69,12 +69,57 @@ enum KnowledgeSourceType {
   image_doc
   manual_ticket
   manual
+  uploaded_doc
+  manual_qa
 }
 
 enum KnowledgeStatus {
   draft
   published
   archived
+}
+
+enum KnowledgeDocumentStatus {
+  draft
+  published
+  archived
+}
+
+enum KnowledgeParserType {
+  basic_text
+  pdf_text
+  docx_layout
+  image_vlm
+  legacy_qa
+}
+
+enum KnowledgeParseRunStatus {
+  pending
+  running
+  success
+  failed
+}
+
+enum KnowledgeChunkStrategy {
+  fixed_overlap
+  recursive
+  heading
+  qa
+  page
+  parent_child
+}
+
+enum KnowledgeAnswerPolicy {
+  allow_llm_fallback
+  kb_only
+}
+
+enum KnowledgeScopeLevel {
+  national
+  province
+  city
+  district
+  store
 }
 
 enum ImportJobStatus {
@@ -103,6 +148,22 @@ model Department {
   users       User[]
 }
 
+model Store {
+  id           String   @id @default(cuid())
+  name         String
+  provinceCode String?
+  provinceName String?
+  cityCode     String?
+  cityName     String?
+  districtCode String?
+  districtName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  users        User[]
+
+  @@index([provinceCode, cityCode, districtCode])
+}
+
 model User {
   id                       String                 @id @default(cuid())
   username                 String                 @unique
@@ -113,9 +174,11 @@ model User {
   sidebarTheme             String                 @default("blue")
   colorMode                String                 @default("system")
   departmentId             String?
+  storeId                  String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   department               Department?            @relation(fields: [departmentId], references: [id])
+  store                    Store?                 @relation(fields: [storeId], references: [id])
   sessions                 Session[]
   conversations            Conversation[]
   createdTickets           Ticket[]               @relation("TicketCreatedBy")
@@ -125,6 +188,7 @@ model User {
   submittedResolutions     Ticket[]               @relation("TicketResolutionSubmittedBy")
   ticketMessages           TicketMessage[]
   generatedKnowledgeDrafts TicketKnowledgeDraft[]
+  uploadedKnowledgeVersions KnowledgeDocumentVersion[]
 }
 
 model Session {
@@ -262,21 +326,27 @@ model KnowledgeItem {
   docType        String?
   imagePath      String?
   imagePathsJson String?
+  documentId     String?
   hitCount       Int                 @default(0)
   lastHitAt      DateTime?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   chunks         KnowledgeChunk[]
+  document       KnowledgeDocument?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
   @@index([categoryL1, categoryL2])
   @@index([sourceType, createdAt])
   @@index([status, updatedAt])
   @@index([hitCount])
+  @@index([documentId])
 }
 
 model KnowledgeChunk {
   id              String        @id @default(cuid())
   knowledgeItemId String
+  documentId      String?
+  chunkSetId      String?
+  parentChunkId   String?
   chunkIndex      Int
   chunkText       String
   originalText    String
@@ -284,10 +354,121 @@ model KnowledgeChunk {
   docType         String?
   qdrantPointId   String        @unique
   metadataJson    String
+  sectionPath     String?
+  pageStart       Int?
+  pageEnd         Int?
+  tokenCount      Int?
+  enabled         Boolean       @default(true)
   createdAt       DateTime      @default(now())
   knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+  document        KnowledgeDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkSet        KnowledgeChunkSet? @relation(fields: [chunkSetId], references: [id], onDelete: Cascade)
+  parentChunk     KnowledgeChunk?    @relation("KnowledgeChunkParent", fields: [parentChunkId], references: [id], onDelete: SetNull)
+  childChunks     KnowledgeChunk[]   @relation("KnowledgeChunkParent")
 
   @@index([knowledgeItemId, chunkIndex])
+  @@index([documentId, chunkIndex])
+  @@index([chunkSetId, chunkIndex])
+  @@index([enabled])
+}
+
+model KnowledgeDocument {
+  id               String                  @id @default(cuid())
+  title            String
+  sourceType       KnowledgeSourceType
+  sourceFile       String?
+  mimeType         String?
+  businessCategory String                  @default("通用")
+  answerPolicy     KnowledgeAnswerPolicy   @default(allow_llm_fallback)
+  scopeLevel       KnowledgeScopeLevel     @default(national)
+  provinceCode     String?
+  provinceName     String?
+  cityCode         String?
+  cityName         String?
+  districtCode     String?
+  districtName     String?
+  storeId          String?
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  status           KnowledgeDocumentStatus @default(draft)
+  hitCount         Int                     @default(0)
+  lastHitAt        DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  versions         KnowledgeDocumentVersion[]
+  parseRuns        KnowledgeParseRun[]
+  chunkSets        KnowledgeChunkSet[]
+  chunks           KnowledgeChunk[]
+  knowledgeItems   KnowledgeItem[]
+
+  @@index([status, updatedAt])
+  @@index([businessCategory, status])
+  @@index([scopeLevel, provinceCode, cityCode, districtCode, storeId])
+}
+
+model KnowledgeDocumentVersion {
+  id                String            @id @default(cuid())
+  documentId        String
+  originalFilePath  String?
+  sourceFileName    String?
+  contentHash       String
+  uploadedByUserId  String?
+  createdAt         DateTime          @default(now())
+  document          KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy        User?             @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  parseRuns         KnowledgeParseRun[]
+
+  @@index([documentId, createdAt])
+  @@index([contentHash])
+}
+
+model KnowledgeParseRun {
+  id                  String                  @id @default(cuid())
+  documentId          String
+  documentVersionId   String
+  parserType          KnowledgeParserType
+  status              KnowledgeParseRunStatus @default(pending)
+  extractedText       String?
+  structuredJson      String?
+  error               String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  document            KnowledgeDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion     KnowledgeDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  chunkSets           KnowledgeChunkSet[]
+
+  @@index([documentId, createdAt])
+  @@index([status, createdAt])
+}
+
+model KnowledgeChunkSet {
+  id              String                 @id @default(cuid())
+  documentId      String
+  parseRunId      String
+  chunkStrategy   KnowledgeChunkStrategy
+  isActive        Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+  document        KnowledgeDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parseRun        KnowledgeParseRun      @relation(fields: [parseRunId], references: [id], onDelete: Cascade)
+  chunks          KnowledgeChunk[]
+
+  @@index([documentId, isActive])
+  @@index([parseRunId])
+}
+
+model AnswerPolicyRule {
+  id                String                @id @default(cuid())
+  name              String
+  businessCategory  String
+  matchTermsJson    String?
+  answerPolicy      KnowledgeAnswerPolicy @default(allow_llm_fallback)
+  minRerankScore    Float?
+  minEvidenceCount  Int                   @default(1)
+  enabled           Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([businessCategory, enabled])
 }
 
 model KnowledgeIndexTask {
