@@ -135,7 +135,6 @@ describe("knowledge service", () => {
           data: expect.objectContaining({
             title: "医保",
             businessCategory: "医保",
-            answerPolicy: "kb_only",
           }),
         })
       );

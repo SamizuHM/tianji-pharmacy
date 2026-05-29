@@ -176,7 +176,7 @@ describe("createAssistantGenerationStream", () => {
       sourceType: "refusal",
       queryText: "医保刷不了",
       retrievalDebug: [],
-      refusalReason: "当前问题属于医保类问题，但知识库中没有检索到足够匹配的依据。",
+      refusalReason: "当前知识库中未找到相关政策，建议咨询上级主管部门。",
     });
 
     const response = createAssistantGenerationStream({
@@ -188,7 +188,8 @@ describe("createAssistantGenerationStream", () => {
 
     const text = await consumeStream(response);
 
-    expect(text).toContain("不会使用通用大模型兜底回答");
+    expect(text).toContain("当前知识库中未找到相关政策，建议咨询上级主管部门。");
+    expect(text).not.toContain("不会使用通用大模型兜底回答");
     expect(streamGeneralPharmacyAnswer).not.toHaveBeenCalled();
     expect(completeStream).toHaveBeenCalledWith("asst-msg-1");
   });

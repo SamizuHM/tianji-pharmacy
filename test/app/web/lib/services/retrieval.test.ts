@@ -106,6 +106,28 @@ describe("retrieval service", () => {
     expect(result.queryText).toBe("查询文本");
   });
 
+  it("文档历史回答策略不决定兜底，普通问题低分仍可走大模型", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("打印机卡纸怎么办");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "point-policy-old",
+        score: 0.5,
+        payload: {
+          knowledgeItemId: "ki-policy-old",
+          chunkText: "低分旧知识",
+          question: "问题",
+          answer: "答案",
+          answerPolicy: "kb_only",
+        },
+      },
+    ]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.2] });
+
+    const result = await retrieveAnswer({ question: "打印机卡纸怎么办", imagePaths: [] });
+
+    expect(result.sourceType).toBe("llm");
+  });
+
   it("空搜索结果返回 llm", async () => {
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
@@ -123,7 +145,7 @@ describe("retrieval service", () => {
 
     expect(result.sourceType).toBe("refusal");
     if (result.sourceType === "refusal") {
-      expect(result.refusalReason).toContain("医保");
+      expect(result.refusalReason).toBe("当前知识库中未找到相关政策，建议咨询上级主管部门。");
     }
   });
 

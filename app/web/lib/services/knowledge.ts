@@ -44,8 +44,7 @@ type UpsertKnowledgeInput = {
   documentId?: string | null;
   chunkSetId?: string | null;
   businessCategory?: string;
-  answerPolicy?: "allow_llm_fallback" | "kb_only";
-  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  scopeLevel?: "national" | "city";
   provinceCode?: string | null;
   provinceName?: string | null;
   cityCode?: string | null;
@@ -67,8 +66,7 @@ export type DocumentImportOptions = {
   sourceFileNameByPath?: Record<string, string>;
   uploadedByUserId?: string;
   businessCategory?: string;
-  answerPolicy?: "allow_llm_fallback" | "kb_only";
-  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  scopeLevel?: "national" | "city";
   provinceCode?: string | null;
   provinceName?: string | null;
   cityCode?: string | null;
@@ -121,10 +119,6 @@ function inferBusinessCategory(input: { categoryL1?: string; categoryL2?: string
   if (/用药|药品|处方|剂量|不良反应|禁忌|过敏|孕妇|儿童|老人/.test(text)) return "用药";
   if (/小票|打印|收银|票据|打印机/.test(text)) return "收银打印";
   return input.categoryL1 || "通用";
-}
-
-function inferAnswerPolicy(businessCategory: string): "allow_llm_fallback" | "kb_only" {
-  return ["医保", "用药"].includes(businessCategory) ? "kb_only" : "allow_llm_fallback";
 }
 
 function hashText(text: string) {
@@ -194,8 +188,6 @@ function buildChunkMetadata(
     categoryL1: input.categoryL1,
     categoryL2: input.categoryL2,
     businessCategory: input.businessCategory ?? inferBusinessCategory(input),
-    answerPolicy:
-      input.answerPolicy ?? inferAnswerPolicy(input.businessCategory ?? input.categoryL1),
     scopeLevel: input.scopeLevel ?? "national",
     provinceCode: input.provinceCode ?? null,
     provinceName: input.provinceName ?? null,
@@ -279,7 +271,6 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
         ...buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
           ...input,
           businessCategory,
-          answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
         }),
         ...(plan.metadata ?? {}),
       }),
@@ -298,9 +289,6 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     sourceFile: chunk.sourceFile ?? null,
     docType: chunk.docType ?? null,
     businessCategory: input.businessCategory ?? inferBusinessCategory(input),
-    answerPolicy:
-      input.answerPolicy ??
-      inferAnswerPolicy(input.businessCategory ?? inferBusinessCategory(input)),
     scopeLevel: input.scopeLevel ?? "national",
     provinceCode: input.provinceCode ?? null,
     cityCode: input.cityCode ?? null,
@@ -447,8 +435,7 @@ async function ensureQaDocumentShell(input: {
   question: string;
   answer: string;
   businessCategory?: string;
-  answerPolicy?: "allow_llm_fallback" | "kb_only";
-  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  scopeLevel?: "national" | "city";
   provinceCode?: string | null;
   provinceName?: string | null;
   cityCode?: string | null;
@@ -480,7 +467,6 @@ async function ensureQaDocumentShell(input: {
       data: {
         title: qaDocumentTitle(input),
         businessCategory,
-        answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
         scopeLevel: input.scopeLevel ?? "national",
         provinceCode: input.provinceCode ?? null,
         provinceName: input.provinceName ?? null,
@@ -519,7 +505,6 @@ async function ensureQaDocumentShell(input: {
         sourceFile: input.sourceFile ?? null,
         mimeType: "qa",
         businessCategory,
-        answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
         scopeLevel: input.scopeLevel ?? "national",
         provinceCode: input.provinceCode ?? null,
         provinceName: input.provinceName ?? null,
@@ -922,7 +907,6 @@ async function createDocumentIngestion(input: {
 }) {
   const businessCategory =
     input.options?.businessCategory ?? inferBusinessCategory({ text: input.extractedText });
-  const answerPolicy = input.options?.answerPolicy ?? inferAnswerPolicy(businessCategory);
   const title = input.sourceFile.replace(/\.[^.]+$/, "");
   const contentHash = hashText(input.extractedText || `${input.sourceFile}:${Date.now()}`);
   const documentId = crypto.randomUUID();
@@ -970,7 +954,6 @@ async function createDocumentIngestion(input: {
         sourceFile: input.sourceFile,
         mimeType: path.extname(input.sourceFile).toLowerCase().replace(".", "") || null,
         businessCategory,
-        answerPolicy,
         scopeLevel: input.options?.scopeLevel ?? "national",
         provinceCode: input.options?.provinceCode ?? null,
         provinceName: input.options?.provinceName ?? null,
@@ -1020,7 +1003,7 @@ async function createDocumentIngestion(input: {
     });
   });
 
-  return { documentId, chunkSetId, businessCategory, answerPolicy };
+  return { documentId, chunkSetId, businessCategory };
 }
 
 function resolveChunkStrategy(config: DocumentChunkingConfig) {
@@ -1144,7 +1127,6 @@ export async function importKnowledgeFromFiles(
           documentId: ingestion.documentId,
           chunkSetId: ingestion.chunkSetId,
           businessCategory: ingestion.businessCategory,
-          answerPolicy: ingestion.answerPolicy,
           scopeLevel: options?.scopeLevel ?? "national",
           provinceCode: options?.provinceCode ?? null,
           provinceName: options?.provinceName ?? null,

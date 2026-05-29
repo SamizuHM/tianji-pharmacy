@@ -32,11 +32,12 @@ type RetrievalDebugRecord = {
 type QueryPlan = {
   normalizedQuery: string;
   businessCategory: string;
-  answerPolicy: "allow_llm_fallback" | "kb_only";
   mustTerms: string[];
   queryVariants: string[];
   bm25Queries: string[];
 };
+
+const KNOWLEDGE_ONLY_REFUSAL_TEXT = "当前知识库中未找到相关政策，建议咨询上级主管部门。";
 
 type RegionContext = {
   storeId?: string | null;
@@ -108,6 +109,10 @@ function inferBusinessCategory(text: string) {
   return "通用";
 }
 
+function resolveQuestionAnswerPolicy(plan: QueryPlan): "allow_llm_fallback" | "kb_only" {
+  return ["医保", "用药"].includes(plan.businessCategory) ? "kb_only" : "allow_llm_fallback";
+}
+
 function expandProfessionalTerms(query: string) {
   const expansionMap: Array<[RegExp, string[]]> = [
     [/安定|地西泮/, ["地西泮", "安定", "苯二氮䓬类", "第二类精神药品", "处方药"]],
@@ -175,7 +180,6 @@ function buildQueryPlan(queryText: string, historyText = ""): QueryPlan {
   return {
     normalizedQuery,
     businessCategory,
-    answerPolicy: ["医保", "用药"].includes(businessCategory) ? "kb_only" : "allow_llm_fallback",
     mustTerms: terms,
     queryVariants: variants,
     bm25Queries,
@@ -385,10 +389,7 @@ function documentVisibilityWhere(
   return {
     OR: [
       { scopeLevel: "national" },
-      { scopeLevel: "province", provinceCode: region.provinceCode ?? "__none__" },
       { scopeLevel: "city", cityCode: region.cityCode ?? "__none__" },
-      { scopeLevel: "district", districtCode: region.districtCode ?? "__none__" },
-      { scopeLevel: "store", storeId: region.storeId ?? "__none__" },
     ],
   };
 }
@@ -412,10 +413,7 @@ function isDocumentVisible(
   if (!region) {
     return false;
   }
-  if (document.scopeLevel === "province") return document.provinceCode === region.provinceCode;
   if (document.scopeLevel === "city") return document.cityCode === region.cityCode;
-  if (document.scopeLevel === "district") return document.districtCode === region.districtCode;
-  if (document.scopeLevel === "store") return document.storeId === region.storeId;
   return false;
 }
 
@@ -427,10 +425,7 @@ function payloadScopeVisible(payload: Record<string, unknown>, region: RegionCon
   if (!region) {
     return false;
   }
-  if (scopeLevel === "province") return String(payload.provinceCode ?? "") === region.provinceCode;
   if (scopeLevel === "city") return String(payload.cityCode ?? "") === region.cityCode;
-  if (scopeLevel === "district") return String(payload.districtCode ?? "") === region.districtCode;
-  if (scopeLevel === "store") return String(payload.storeId ?? "") === region.storeId;
   return false;
 }
 
@@ -440,14 +435,6 @@ function qdrantScopeFilter(region: RegionContext | undefined) {
     { key: "scopeLevel", match: { value: "common" } },
   ];
 
-  if (region?.provinceCode) {
-    should.push({
-      must: [
-        { key: "scopeLevel", match: { value: "province" } },
-        { key: "provinceCode", match: { value: region.provinceCode } },
-      ],
-    });
-  }
   if (region?.cityCode) {
     should.push({
       must: [
@@ -456,50 +443,8 @@ function qdrantScopeFilter(region: RegionContext | undefined) {
       ],
     });
   }
-  if (region?.districtCode) {
-    should.push({
-      must: [
-        { key: "scopeLevel", match: { value: "district" } },
-        { key: "districtCode", match: { value: region.districtCode } },
-      ],
-    });
-  }
-  if (region?.storeId) {
-    should.push({
-      must: [
-        { key: "scopeLevel", match: { value: "store" } },
-        { key: "storeId", match: { value: region.storeId } },
-      ],
-    });
-  }
 
   return { should };
-}
-
-async function resolveAnswerPolicy(plan: QueryPlan) {
-  const rules =
-    (await prisma.answerPolicyRule.findMany({
-      where: {
-        enabled: true,
-        businessCategory: plan.businessCategory,
-      },
-      orderBy: [{ updatedAt: "desc" }],
-      take: 5,
-    })) ?? [];
-
-  const matched = rules.find((rule) => {
-    if (!rule.matchTermsJson) {
-      return true;
-    }
-    try {
-      const terms = JSON.parse(rule.matchTermsJson) as string[];
-      return terms.some((term) => plan.normalizedQuery.includes(term));
-    } catch {
-      return false;
-    }
-  });
-
-  return matched?.answerPolicy ?? plan.answerPolicy;
 }
 
 export async function retrieveAnswer(
@@ -525,7 +470,7 @@ export async function retrieveAnswer(
       .map((message) => `${message.role === "user" ? "用户" : "助手"}：${message.content}`)
       .join("\n") ?? "";
   const queryPlan = buildQueryPlan(queryText, historyText);
-  const answerPolicy = await resolveAnswerPolicy(queryPlan);
+  const answerPolicy = resolveQuestionAnswerPolicy(queryPlan);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
     embedMultimodal(
       queryPlan.queryVariants.map((text) => ({
@@ -744,10 +689,7 @@ export async function retrieveAnswer(
         sourceType: answerPolicy === "kb_only" ? "refusal" : "llm",
         queryText,
         retrievalDebug,
-        refusalReason:
-          answerPolicy === "kb_only"
-            ? `当前问题属于${queryPlan.businessCategory}类问题，但知识库中没有检索到足够匹配的依据。`
-            : "",
+        refusalReason: answerPolicy === "kb_only" ? KNOWLEDGE_ONLY_REFUSAL_TEXT : "",
       } satisfies RetrievalDecision;
     },
     (result) =>

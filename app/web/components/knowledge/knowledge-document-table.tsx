@@ -19,7 +19,6 @@ type KnowledgeDocumentRow = {
   title: string;
   sourceFile: string | null;
   businessCategory: string;
-  answerPolicy: "allow_llm_fallback" | "kb_only";
   scopeLevel: "national" | "province" | "city" | "district" | "store";
   provinceName: string | null;
   cityName: string | null;
@@ -54,11 +53,8 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
 };
 
 function scopeLabel(item: KnowledgeDocumentRow) {
-  if (item.scopeLevel === "national") return "全国";
-  if (item.scopeLevel === "province") return item.provinceName || "省级";
-  if (item.scopeLevel === "city") return item.cityName || "市级";
-  if (item.scopeLevel === "district") return item.districtName || "区县";
-  return "门店";
+  if (item.scopeLevel === "city") return item.cityName || "城市专属";
+  return "通用";
 }
 
 export function KnowledgeDocumentTable({
@@ -199,8 +195,7 @@ export function KnowledgeDocumentTable({
             <tr>
               <TH>文档</TH>
               <TH>分类</TH>
-              <TH>地域</TH>
-              <TH>回答策略</TH>
+              <TH>适用范围</TH>
               <TH>Chunks</TH>
               <TH>命中</TH>
               <TH>状态</TH>
@@ -221,9 +216,6 @@ export function KnowledgeDocumentTable({
                 </TD>
                 <TD>{item.businessCategory}</TD>
                 <TD>{scopeLabel(item)}</TD>
-                <TD>
-                  <Badge>{item.answerPolicy === "kb_only" ? "仅知识库" : "允许兜底"}</Badge>
-                </TD>
                 <TD>{item._count?.chunks ?? 0}</TD>
                 <TD>{item.hitCount}</TD>
                 <TD>
@@ -238,7 +230,7 @@ export function KnowledgeDocumentTable({
             ))}
             {!documents.length ? (
               <tr>
-                <TD colSpan={8} className="py-10 text-center text-muted">
+                <TD colSpan={7} className="py-10 text-center text-muted">
                   暂无文档
                 </TD>
               </tr>
@@ -265,7 +257,7 @@ export function KnowledgeDocumentTable({
                     <div className="font-medium">{visibleDetail.businessCategory}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted">适用地域</div>
+                    <div className="text-xs text-muted">适用范围</div>
                     <div className="font-medium">{scopeLabel(visibleDetail)}</div>
                   </div>
                   <div>

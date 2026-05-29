@@ -48,7 +48,6 @@ export default async function AdminKnowledgePage(props: {
     title: item.title,
     sourceFile: item.sourceFile,
     businessCategory: item.businessCategory,
-    answerPolicy: item.answerPolicy,
     scopeLevel: item.scopeLevel,
     provinceName: item.provinceName,
     cityName: item.cityName,

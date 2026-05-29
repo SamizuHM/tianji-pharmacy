@@ -33,10 +33,11 @@ export async function POST(request: Request) {
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
   const chunkingConfigRaw = String(formData.get("chunkingConfig") ?? "");
   const businessCategory = String(formData.get("businessCategory") ?? "").trim();
-  const answerPolicy = String(formData.get("answerPolicy") ?? "").trim();
+  const scopeTarget = String(formData.get("scopeTarget") ?? "").trim();
   const scopeLevel = String(formData.get("scopeLevel") ?? "").trim();
   const cityCode = String(formData.get("cityCode") ?? "").trim();
   const cityName = String(formData.get("cityName") ?? "").trim();
+  const isCityScope = Boolean(scopeTarget && scopeTarget !== "common") || scopeLevel === "city";
 
   let chunkingConfig;
   try {
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if (isCityScope && !cityCode) {
+    return NextResponse.json({ error: "城市专属知识必须选择城市" }, { status: 400 });
+  }
 
   const filePaths: string[] = [];
   const sourceFileNameByPath: Record<string, string> = {};
@@ -78,22 +82,11 @@ export async function POST(request: Request) {
     uploadedByUserId: user.id,
     chunkingConfig,
     businessCategory: businessCategory || undefined,
-    answerPolicy:
-      answerPolicy === "kb_only" || answerPolicy === "allow_llm_fallback"
-        ? answerPolicy
-        : undefined,
-    scopeLevel:
-      scopeLevel === "province" ||
-      scopeLevel === "city" ||
-      scopeLevel === "district" ||
-      scopeLevel === "store" ||
-      scopeLevel === "national"
-        ? scopeLevel
-        : undefined,
-    provinceCode: scopeLevel === "city" ? "420000" : undefined,
-    provinceName: scopeLevel === "city" ? "湖北省" : undefined,
-    cityCode: scopeLevel === "city" ? cityCode || undefined : undefined,
-    cityName: scopeLevel === "city" ? cityName || undefined : undefined,
+    scopeLevel: isCityScope ? "city" : "national",
+    provinceCode: isCityScope ? "420000" : undefined,
+    provinceName: isCityScope ? "湖北省" : undefined,
+    cityCode: isCityScope ? cityCode : undefined,
+    cityName: isCityScope ? cityName || cityCode : undefined,
   });
   return NextResponse.json(result);
 }

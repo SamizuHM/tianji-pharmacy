@@ -35,6 +35,24 @@ function cityNameByCode(code: string) {
   return HUBEI_CITIES.find((city) => city.code === code)?.name ?? "";
 }
 
+type KnowledgeScopeOption = "common" | (typeof HUBEI_CITIES)[number]["code"];
+
+function scopePayload(scope: KnowledgeScopeOption) {
+  if (scope === "common") {
+    return {
+      scopeLevel: "national" as const,
+      cityCode: null,
+      cityName: null,
+    };
+  }
+
+  return {
+    scopeLevel: "city" as const,
+    cityCode: scope,
+    cityName: cityNameByCode(scope),
+  };
+}
+
 /* ---------- 工具函数 ---------- */
 
 function extractTextFromHtml(html: string): string {
@@ -71,13 +89,7 @@ export function KnowledgeDocumentUpload() {
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"general" | "parent_child" | "qa">("general");
   const [businessCategory, setBusinessCategory] = useState("通用");
-  const [answerPolicy, setAnswerPolicy] = useState<"allow_llm_fallback" | "kb_only">(
-    "allow_llm_fallback"
-  );
-  const [scopeLevel, setScopeLevel] = useState<
-    "national" | "province" | "city" | "district" | "store"
-  >("national");
-  const [cityCode, setCityCode] = useState("420100");
+  const [scope, setScope] = useState<KnowledgeScopeOption>("common");
   const [preview, setPreview] = useState<
     Array<{
       fileName: string;
@@ -134,11 +146,12 @@ export function KnowledgeDocumentUpload() {
     files.forEach((file) => formData.append("files", file));
     formData.append("chunkingConfig", JSON.stringify(buildChunkingConfig()));
     formData.append("businessCategory", businessCategory);
-    formData.append("answerPolicy", answerPolicy);
-    formData.append("scopeLevel", scopeLevel);
-    if (scopeLevel === "city") {
-      formData.append("cityCode", cityCode);
-      formData.append("cityName", cityNameByCode(cityCode));
+    formData.append("scopeTarget", scope);
+    const resolvedScope = scopePayload(scope);
+    formData.append("scopeLevel", resolvedScope.scopeLevel);
+    if (resolvedScope.scopeLevel === "city") {
+      formData.append("cityCode", resolvedScope.cityCode);
+      formData.append("cityName", resolvedScope.cityName);
     }
 
     startTransition(async () => {
@@ -215,7 +228,7 @@ export function KnowledgeDocumentUpload() {
         />
       </label>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs text-muted">切片模式</span>
           <Select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
@@ -232,35 +245,12 @@ export function KnowledgeDocumentUpload() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-muted">回答策略</span>
+          <span className="text-xs text-muted">适用范围</span>
           <Select
-            value={answerPolicy}
-            onChange={(event) => setAnswerPolicy(event.target.value as typeof answerPolicy)}
+            value={scope}
+            onChange={(event) => setScope(event.target.value as KnowledgeScopeOption)}
           >
-            <option value="allow_llm_fallback">允许大模型兜底</option>
-            <option value="kb_only">仅知识库命中</option>
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-muted">适用地域</span>
-          <Select
-            value={scopeLevel}
-            onChange={(event) => setScopeLevel(event.target.value as typeof scopeLevel)}
-          >
-            <option value="national">全国</option>
-            <option value="province">省级</option>
-            <option value="city">市级</option>
-            <option value="district">区县</option>
-            <option value="store">门店</option>
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-muted">城市编码</span>
-          <Select
-            value={cityCode}
-            disabled={scopeLevel !== "city"}
-            onChange={(event) => setCityCode(event.target.value)}
-          >
+            <option value="common">通用</option>
             {HUBEI_CITIES.map((city) => (
               <option key={city.code} value={city.code}>
                 {city.name} {city.code}
@@ -367,8 +357,7 @@ export function KnowledgeCreateForm() {
   const [answerHtml, setAnswerHtml] = useState(
     initialAnswer ? buildEditorHtml(initialAnswer, []) : ""
   );
-  const [scopeLevel, setScopeLevel] = useState<"national" | "city">("national");
-  const [cityCode, setCityCode] = useState("420100");
+  const [scope, setScope] = useState<KnowledgeScopeOption>("common");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -397,9 +386,8 @@ export function KnowledgeCreateForm() {
           question: question.trim(),
           answer: answerText,
           imagePaths,
-          scopeLevel,
-          cityCode: scopeLevel === "city" ? cityCode : null,
-          cityName: scopeLevel === "city" ? cityNameByCode(cityCode) : null,
+          scopeTarget: scope,
+          ...scopePayload(scope),
         }),
       });
 
@@ -445,31 +433,19 @@ export function KnowledgeCreateForm() {
           placeholder="请输入问题"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium">适用范围</label>
-          <Select
-            value={scopeLevel}
-            onChange={(event) => setScopeLevel(event.target.value as typeof scopeLevel)}
-          >
-            <option value="national">通用</option>
-            <option value="city">城市专属</option>
-          </Select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">城市编码</label>
-          <Select
-            value={cityCode}
-            disabled={scopeLevel !== "city"}
-            onChange={(event) => setCityCode(event.target.value)}
-          >
-            {HUBEI_CITIES.map((city) => (
-              <option key={city.code} value={city.code}>
-                {city.name} {city.code}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium">适用范围</label>
+        <Select
+          value={scope}
+          onChange={(event) => setScope(event.target.value as KnowledgeScopeOption)}
+        >
+          <option value="common">通用</option>
+          {HUBEI_CITIES.map((city) => (
+            <option key={city.code} value={city.code}>
+              {city.name} {city.code}
+            </option>
+          ))}
+        </Select>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">答案</label>

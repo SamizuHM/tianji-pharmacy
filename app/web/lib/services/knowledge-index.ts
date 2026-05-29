@@ -41,7 +41,6 @@ export type KnowledgeChunkProjectionSource = {
   sourceFile?: string | null;
   docType?: string | null;
   businessCategory?: string | null;
-  answerPolicy?: string | null;
   scopeLevel?: string | null;
   provinceCode?: string | null;
   cityCode?: string | null;
@@ -65,7 +64,6 @@ type ChunkMetadata = {
   documentId?: string | null;
   chunkSetId?: string | null;
   businessCategory?: string | null;
-  answerPolicy?: string | null;
   scopeLevel?: string | null;
   provinceCode?: string | null;
   cityCode?: string | null;
@@ -91,7 +89,6 @@ type QdrantUpsertPayload = {
   categoryL1: string;
   categoryL2: string;
   businessCategory: string;
-  answerPolicy: string;
   scopeLevel: string;
   provinceCode: string | null;
   cityCode: string | null;
@@ -176,7 +173,6 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     categoryL1: chunk.knowledgeItem.categoryL1,
     categoryL2: chunk.knowledgeItem.categoryL2,
     businessCategory: metadata.businessCategory ?? chunk.knowledgeItem.categoryL1,
-    answerPolicy: metadata.answerPolicy ?? "allow_llm_fallback",
     scopeLevel: metadata.scopeLevel ?? "national",
     provinceCode: metadata.provinceCode ?? null,
     cityCode: chunk.cityCode ?? metadata.cityCode ?? null,
@@ -208,7 +204,6 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     categoryL1: source.knowledgeItem.categoryL1,
     categoryL2: source.knowledgeItem.categoryL2,
     businessCategory: source.businessCategory ?? source.knowledgeItem.categoryL1,
-    answerPolicy: source.answerPolicy ?? "allow_llm_fallback",
     scopeLevel: source.scopeLevel ?? "national",
     provinceCode: source.provinceCode ?? null,
     cityCode: source.cityCode ?? null,

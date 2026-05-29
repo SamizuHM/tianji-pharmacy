@@ -406,10 +406,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           progress.startStep("await_first_token");
 
           if (retrieval.sourceType === "refusal") {
-            emitFirstDelta(
-              retrieval.refusalReason +
-                "为避免误导，系统不会使用通用大模型兜底回答。请补充地区、门店或业务场景后重新提问，或转人工处理。"
-            );
+            emitFirstDelta(retrieval.refusalReason);
           } else {
             const hasGenerationImages =
               attachmentImagePaths.length > 0 ||
