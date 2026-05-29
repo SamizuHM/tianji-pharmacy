@@ -31,6 +31,7 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
 }));
 
 import {
+  buildHypotheticalQuestionsJsonByChunkId,
   buildStablePointId,
   drainKnowledgeIndexTasks,
   prepareKnowledgeChunkUpsertTasks,
@@ -119,6 +120,11 @@ describe("knowledge-index service", () => {
 
       expect(result.length).toBeGreaterThan(2);
       expect(result[0].pointId).toBe(buildStablePointId("chunk-1"));
+      expect(result[0].retrievalBasisType).toBe("question");
+      expect(result.slice(1).every((task) => task.retrievalBasisType === "hq")).toBe(true);
+      expect(buildHypotheticalQuestionsJsonByChunkId(result).get("chunk-1")).toContain(
+        "没带处方能买安定吗"
+      );
       expect(embedMultimodal).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ text: expect.stringContaining("安定无处方") }),

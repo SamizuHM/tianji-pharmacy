@@ -8,6 +8,7 @@ vi.mock("@/lib/retrieval/ml-service", () => ({
 
 vi.mock("@/lib/services/knowledge-index", () => ({
   prepareKnowledgeChunkUpsertTasks: vi.fn().mockResolvedValue([]),
+  buildHypotheticalQuestionsJsonByChunkId: vi.fn(() => new Map()),
   tryDrainKnowledgeIndexTasks: vi.fn(),
   enqueueDeletePointTask: vi.fn(),
   enqueueUpsertTasksForChunkIds: vi.fn(),

@@ -110,6 +110,15 @@ type KnowledgeIndexTaskPayload =
       chunkId?: string | null;
     };
 
+type PreparedKnowledgeIndexTask = {
+  chunkId: string;
+  knowledgeItemId: string;
+  pointId: string;
+  payloadJson: string;
+  retrievalBasis: string;
+  retrievalBasisType: QdrantUpsertPayload["retrievalBasisType"];
+};
+
 function getRetryDelayMs(retryCount: number) {
   return Math.min(INDEX_RETRY_BASE_MS * 2 ** Math.max(0, retryCount - 1), INDEX_RETRY_MAX_MS);
 }
@@ -262,8 +271,8 @@ function buildProjectionPayload(payload: QdrantUpsertPayload, basis: string, ind
 
 async function buildUpsertTaskInputs(
   chunks: ChunkRecord[]
-): Promise<Array<{ chunk: ChunkRecord; pointId: string; payloadJson: string }>> {
-  const results: Array<{ chunk: ChunkRecord; pointId: string; payloadJson: string }> = [];
+): Promise<Array<PreparedKnowledgeIndexTask & { chunk: ChunkRecord }>> {
+  const results: Array<PreparedKnowledgeIndexTask & { chunk: ChunkRecord }> = [];
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
@@ -298,15 +307,20 @@ async function buildUpsertTaskInputs(
         throw new Error(`chunk ${chunk.id} embedding 结果为空`);
       }
 
+      const projectedPayload = buildProjectionPayload(buildQdrantPayload(chunk), basis, index);
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildProjectionPayload(buildQdrantPayload(chunk), basis, index),
+        payload: projectedPayload,
       };
 
       results.push({
         chunk,
+        chunkId: chunk.id,
+        knowledgeItemId: chunk.knowledgeItemId,
         pointId: buildPointId(chunk.id, basis, index),
         payloadJson: JSON.stringify(payload),
+        retrievalBasis: basis,
+        retrievalBasisType: projectedPayload.retrievalBasisType,
       });
     });
   }
@@ -316,15 +330,8 @@ async function buildUpsertTaskInputs(
 
 export async function prepareKnowledgeChunkUpsertTasks(
   chunks: KnowledgeChunkProjectionSource[]
-): Promise<
-  Array<{ chunkId: string; knowledgeItemId: string; pointId: string; payloadJson: string }>
-> {
-  const results: Array<{
-    chunkId: string;
-    knowledgeItemId: string;
-    pointId: string;
-    payloadJson: string;
-  }> = [];
+): Promise<PreparedKnowledgeIndexTask[]> {
+  const results: PreparedKnowledgeIndexTask[] = [];
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
@@ -359,9 +366,14 @@ export async function prepareKnowledgeChunkUpsertTasks(
         throw new Error(`chunk ${chunk.chunkId} embedding 结果为空`);
       }
 
+      const projectedPayload = buildProjectionPayload(
+        buildQdrantPayloadFromSource(chunk),
+        basis,
+        index
+      );
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildProjectionPayload(buildQdrantPayloadFromSource(chunk), basis, index),
+        payload: projectedPayload,
       };
 
       results.push({
@@ -369,11 +381,37 @@ export async function prepareKnowledgeChunkUpsertTasks(
         knowledgeItemId: chunk.knowledgeItemId,
         pointId: buildPointId(chunk.chunkId, basis, index),
         payloadJson: JSON.stringify(payload),
+        retrievalBasis: basis,
+        retrievalBasisType: projectedPayload.retrievalBasisType,
       });
     });
   }
 
   return results;
+}
+
+export function buildHypotheticalQuestionsJsonByChunkId(
+  tasks: Array<
+    Pick<PreparedKnowledgeIndexTask, "chunkId" | "retrievalBasis" | "retrievalBasisType">
+  >
+) {
+  const grouped = new Map<string, string[]>();
+  for (const task of tasks) {
+    if (task.retrievalBasisType !== "hq") {
+      continue;
+    }
+    const values = grouped.get(task.chunkId) ?? [];
+    if (!values.includes(task.retrievalBasis)) {
+      values.push(task.retrievalBasis);
+    }
+    grouped.set(task.chunkId, values);
+  }
+
+  const result = new Map<string, string | null>();
+  for (const [chunkId, questions] of grouped.entries()) {
+    result.set(chunkId, questions.length ? JSON.stringify(questions) : null);
+  }
+  return result;
 }
 
 async function processTask(task: {
@@ -612,6 +650,14 @@ export async function enqueueUpsertTasksForChunkIds(
 
   const taskInputs = await buildUpsertTaskInputs(chunks);
   const db = options?.tx ?? prisma;
+  const hqJsonByChunkId = buildHypotheticalQuestionsJsonByChunkId(taskInputs);
+
+  for (const [chunkId, hypotheticalQuestionsJson] of hqJsonByChunkId.entries()) {
+    await db.knowledgeChunk.update({
+      where: { id: chunkId },
+      data: { hypotheticalQuestionsJson },
+    });
+  }
 
   await db.knowledgeIndexTask.createMany({
     data: taskInputs.map(({ chunk, pointId, payloadJson }) => ({
@@ -793,6 +839,14 @@ export async function rebuildKnowledgeIndex() {
   }
 
   const taskInputs = await buildUpsertTaskInputs(chunks);
+  const hqJsonByChunkId = buildHypotheticalQuestionsJsonByChunkId(taskInputs);
+  for (const [chunkId, hypotheticalQuestionsJson] of hqJsonByChunkId.entries()) {
+    await prisma.knowledgeChunk.update({
+      where: { id: chunkId },
+      data: { hypotheticalQuestionsJson },
+    });
+  }
+
   await prisma.knowledgeIndexTask.createMany({
     data: taskInputs.map(({ chunk, pointId, payloadJson }) => ({
       taskType: KnowledgeIndexTaskType.upsert,

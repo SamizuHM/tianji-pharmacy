@@ -24,6 +24,7 @@ import {
   type DocumentChunkingConfig,
 } from "@/lib/services/document-chunking";
 import {
+  buildHypotheticalQuestionsJsonByChunkId,
   buildStablePointId,
   enqueueUpsertTasksForChunkIds,
   prepareKnowledgeChunkUpsertTasks,
@@ -295,6 +296,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     },
   }));
   const upsertTasks = await prepareKnowledgeChunkUpsertTasks(taskSources);
+  const hypotheticalQuestionsJsonByChunkId = buildHypotheticalQuestionsJsonByChunkId(upsertTasks);
 
   const item = await prisma.$transaction(async (tx) => {
     const itemData = {
@@ -348,10 +350,13 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           overrideScope: chunk.overrideScope,
           bm25SearchText: chunk.bm25SearchText,
           bm25DocLength: chunk.bm25DocLength,
-          hypotheticalQuestionsJson: chunk.hypotheticalQuestionsJson,
+          hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
           metadataJson: chunk.metadataJson,
         },
-        create: chunk,
+        create: {
+          ...chunk,
+          hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
+        },
       });
     }
 
