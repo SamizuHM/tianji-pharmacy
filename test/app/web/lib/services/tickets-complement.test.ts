@@ -16,7 +16,7 @@ vi.mock("@/lib/services/conversations", () => ({
 }));
 
 vi.mock("@/lib/services/knowledge", () => ({
-  upsertKnowledgeItem: vi.fn(),
+  upsertQaKnowledgeDocument: vi.fn(),
 }));
 
 import {

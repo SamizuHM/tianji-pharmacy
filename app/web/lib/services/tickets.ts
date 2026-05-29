@@ -15,7 +15,7 @@ import {
   type TicketKnowledgeMaterialForModel,
 } from "@/lib/openai";
 import { appendConversationMessage } from "@/lib/services/conversations";
-import { upsertKnowledgeItem } from "@/lib/services/knowledge";
+import { upsertQaKnowledgeDocument } from "@/lib/services/knowledge";
 import type { AttachmentItem } from "@pharmacy/shared";
 import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
@@ -1004,7 +1004,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
 
   const tags = tagsFromDraft(draft.question, JSON.parse(draft.tagsJson || "[]") as string[]);
   const imagePaths = JSON.parse(draft.imagePathsJson || "[]") as string[];
-  const item = await upsertKnowledgeItem({
+  const item = await upsertQaKnowledgeDocument({
     categoryL1: draft.categoryL1,
     categoryL2: draft.categoryL2,
     question: draft.question,
@@ -1015,9 +1015,6 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     docType: "manual_ticket",
     imagePath: imagePaths[0] ?? null,
     imagePaths,
-    originalText: `${draft.question}\n${draft.answer}`,
-    normalizedText: `${draft.question}\n${draft.answer}`,
-    chunkTexts: [`问题：${draft.question}\n答案：${draft.answer}`],
   });
 
   const ticket = await prisma.$transaction(async (tx) => {

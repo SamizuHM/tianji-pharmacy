@@ -25,7 +25,7 @@ vi.mock("@/lib/services/conversations", () => ({
 }));
 
 vi.mock("@/lib/services/knowledge", () => ({
-  upsertKnowledgeItem: vi.fn(),
+  upsertQaKnowledgeDocument: vi.fn(),
 }));
 
 import {
@@ -40,7 +40,7 @@ import {
   closeTicketWithKnowledgeWriteback,
 } from "@/lib/services/tickets";
 import { broadcastTicketNotification } from "@/lib/notifications/server";
-import { upsertKnowledgeItem } from "@/lib/services/knowledge";
+import { upsertQaKnowledgeDocument } from "@/lib/services/knowledge";
 import { appendConversationMessage } from "@/lib/services/conversations";
 
 // ============================================================
@@ -199,7 +199,7 @@ describe("工单完整流转 (lifecycle)", () => {
         conversationId: "conv-1",
       })
     );
-    (upsertKnowledgeItem as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
+    (upsertQaKnowledgeDocument as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
     prisma.$transaction.mockImplementation(async (fn: Function) => fn(prisma));
     prisma.ticketKnowledgeDraft.update.mockResolvedValue({});
     prisma.ticket.update.mockResolvedValue(buildTicket({ status: "closed" }));
@@ -209,7 +209,7 @@ describe("工单完整流转 (lifecycle)", () => {
       ticketId: "ticket-flow",
       closedByUserId: "user-staff",
     });
-    expect(upsertKnowledgeItem).toHaveBeenCalledWith(
+    expect(upsertQaKnowledgeDocument).toHaveBeenCalledWith(
       expect.objectContaining({
         categoryL1: "医保政策",
         question: "医保报销比例是多少？",
@@ -903,7 +903,7 @@ describe("closeTicketWithKnowledgeWriteback 补充场景", () => {
         conversationId: null,
       })
     );
-    (upsertKnowledgeItem as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
+    (upsertQaKnowledgeDocument as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
     prisma.$transaction.mockImplementation(async (fn: Function) => fn(prisma));
     prisma.ticketKnowledgeDraft.update.mockResolvedValue({});
     prisma.ticket.update.mockResolvedValue(buildTicket({ status: "closed" }));
@@ -939,7 +939,7 @@ describe("closeTicketWithKnowledgeWriteback 补充场景", () => {
         conversationId: null,
       })
     );
-    (upsertKnowledgeItem as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
+    (upsertQaKnowledgeDocument as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ki-new" });
     prisma.$transaction.mockImplementation(async (fn: Function) => fn(prisma));
     prisma.ticketKnowledgeDraft.update.mockResolvedValue({});
     prisma.ticket.update.mockResolvedValue(buildTicket({ status: "closed" }));

@@ -4,12 +4,15 @@ import {
   RebuildIndexButton,
 } from "@/components/knowledge/knowledge-admin";
 import { KnowledgeDocumentTable } from "@/components/knowledge/knowledge-document-table";
-import { KnowledgeTable } from "@/components/knowledge/knowledge-table";
 import { MetricCard } from "@/components/shared/metric-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prisma } from "@/lib/db";
-import { listKnowledgeDocuments, listKnowledgeItems } from "@/lib/services/knowledge";
+import {
+  ensureKnowledgeItemsHaveDocuments,
+  getKnowledgeSummary,
+  listKnowledgeDocuments,
+} from "@/lib/services/knowledge";
 import { BookOpen, CheckSquare, FileUp, Image, PlusSquare, Target } from "lucide-react";
 
 export default async function AdminKnowledgePage(props: {
@@ -22,7 +25,9 @@ export default async function AdminKnowledgePage(props: {
   }>;
 }) {
   const searchParams = await props.searchParams;
-  const [documentResult, knowledgeResult, jobs] = await Promise.all([
+  await ensureKnowledgeItemsHaveDocuments();
+
+  const [documentResult, summary, jobs] = await Promise.all([
     listKnowledgeDocuments({
       q: searchParams.q,
       category: searchParams.category,
@@ -31,14 +36,7 @@ export default async function AdminKnowledgePage(props: {
       page: Number(searchParams.page ?? 1),
       pageSize: Number(searchParams.pageSize ?? 10),
     }),
-    listKnowledgeItems({
-      q: searchParams.q,
-      category: searchParams.category,
-      status:
-        (searchParams.status as "draft" | "published" | "archived" | "all" | undefined) ?? "all",
-      page: Number(searchParams.page ?? 1),
-      pageSize: Number(searchParams.pageSize ?? 10),
-    }),
+    getKnowledgeSummary(),
     prisma.importJob.findMany({
       orderBy: { createdAt: "desc" },
       take: 20,
@@ -61,29 +59,12 @@ export default async function AdminKnowledgePage(props: {
     _count: item._count,
   }));
 
-  const serializedItems = knowledgeResult.items.map((item) => ({
-    id: item.id,
-    categoryL1: item.categoryL1,
-    categoryL2: item.categoryL2,
-    question: item.question,
-    answer: item.answer,
-    sourceFile: item.sourceFile,
-    sourceType: item.sourceType,
-    status: item.status,
-    hitCount: item.hitCount,
-    lastHitAt: item.lastHitAt,
-    updatedAt: item.updatedAt,
-    tagsJson: item.tagsJson,
-    imagePathsJson: item.imagePathsJson,
-    imagePath: item.imagePath,
-  }));
-
   return (
     <>
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="知识条目数"
-          value={knowledgeResult.summary.total}
+          value={summary.total}
           description="全量知识沉淀"
           icon={BookOpen}
           tone="blue"
@@ -91,7 +72,7 @@ export default async function AdminKnowledgePage(props: {
         />
         <MetricCard
           label="图片知识数"
-          value={knowledgeResult.summary.imageCount}
+          value={summary.imageCount}
           description="多模态资料"
           icon={Image}
           tone="green"
@@ -99,14 +80,14 @@ export default async function AdminKnowledgePage(props: {
         />
         <MetricCard
           label="今日新增"
-          value={knowledgeResult.summary.todayCreated}
+          value={summary.todayCreated}
           description="新增知识"
           icon={PlusSquare}
           tone="purple"
         />
         <MetricCard
           label="已发布"
-          value={knowledgeResult.summary.published}
+          value={summary.published}
           description="可被检索命中"
           icon={CheckSquare}
           tone="orange"
@@ -161,10 +142,8 @@ export default async function AdminKnowledgePage(props: {
                     发布率
                   </div>
                   <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-foreground">
-                    {knowledgeResult.summary.total
-                      ? Math.round(
-                          (knowledgeResult.summary.published / knowledgeResult.summary.total) * 1000
-                        ) / 10
+                    {summary.total
+                      ? Math.round((summary.published / summary.total) * 1000) / 10
                       : 0}
                     %
                   </div>
@@ -220,30 +199,6 @@ export default async function AdminKnowledgePage(props: {
               pageSize={documentResult.pageSize}
               pageCount={documentResult.pageCount}
               categoryOptions={documentResult.categoryOptions}
-              q={searchParams.q}
-              category={searchParams.category}
-              status={searchParams.status}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mt-6">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>兼容问答条目 ({knowledgeResult.total})</CardTitle>
-            <CardDescription className="mt-1">
-              旧版 QA 和工单回写知识仍在这里维护，后续会逐步归并到文档视图。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="min-w-0 overflow-x-auto">
-            <KnowledgeTable
-              items={serializedItems}
-              total={knowledgeResult.total}
-              page={knowledgeResult.page}
-              pageSize={knowledgeResult.pageSize}
-              pageCount={knowledgeResult.pageCount}
-              categoryOptions={knowledgeResult.categoryOptions}
               q={searchParams.q}
               category={searchParams.category}
               status={searchParams.status}

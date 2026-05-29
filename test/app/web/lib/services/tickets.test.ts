@@ -25,7 +25,7 @@ vi.mock("@/lib/services/conversations", () => ({
 }));
 
 vi.mock("@/lib/services/knowledge", () => ({
-  upsertKnowledgeItem: vi.fn(),
+  upsertQaKnowledgeDocument: vi.fn(),
 }));
 
 import {
@@ -42,7 +42,7 @@ import {
 
 import { broadcastTicketNotification } from "@/lib/notifications/server";
 import { generateTicketKnowledgeDraftWithModel } from "@/lib/openai";
-import { upsertKnowledgeItem } from "@/lib/services/knowledge";
+import { upsertQaKnowledgeDocument } from "@/lib/services/knowledge";
 
 // 测试内部纯函数 — 通过导出的 canAccessTicket 间接测试
 // deriveTicketCategory, deriveTicketPriority 等通过 createTicketFromConversation 测试
@@ -556,7 +556,7 @@ describe("tickets service", () => {
       );
 
       const mockUpsertedItem = { id: "ki-new" };
-      (upsertKnowledgeItem as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpsertedItem);
+      (upsertQaKnowledgeDocument as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpsertedItem);
 
       prisma.$transaction.mockImplementation(async (fn: Function) => fn(prisma));
       prisma.ticketKnowledgeDraft.update.mockResolvedValue({});
@@ -568,7 +568,7 @@ describe("tickets service", () => {
         closedByUserId: "user-1",
       });
 
-      expect(upsertKnowledgeItem).toHaveBeenCalled();
+      expect(upsertQaKnowledgeDocument).toHaveBeenCalled();
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(broadcastTicketNotification).toHaveBeenCalled();
     });

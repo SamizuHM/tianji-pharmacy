@@ -15,6 +15,7 @@ import { repoRoot } from "@/lib/env";
 import { parseDocument } from "@/lib/retrieval/ml-service";
 import {
   DEFAULT_DOCUMENT_CHUNKING_CONFIG,
+  DEFAULT_QA_CHUNKING_CONFIG,
   chunkPlainText,
   chunkQaItems,
   sanitizeChunkingConfig,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/services/document-chunking";
 import {
   buildStablePointId,
+  enqueueUpsertTasksForChunkIds,
   prepareKnowledgeChunkUpsertTasks,
   tryDrainKnowledgeIndexTasks,
   type KnowledgeChunkProjectionSource,
@@ -77,6 +79,15 @@ export type DocumentImportOptions = {
   chunkingConfig?: Partial<DocumentChunkingConfig>;
 };
 
+export type UpsertQaKnowledgeDocumentInput = Omit<
+  UpsertKnowledgeInput,
+  "sourceType" | "originalText" | "normalizedText" | "chunkTexts" | "chunkPlans"
+> & {
+  sourceType?: KnowledgeSourceType;
+  originalText?: string;
+  normalizedText?: string;
+};
+
 export type KnowledgeListParams = {
   q?: string;
   category?: string;
@@ -86,6 +97,15 @@ export type KnowledgeListParams = {
 };
 
 type ExistingKnowledgeItem = Awaited<ReturnType<typeof findExistingKnowledgeItem>>;
+
+function qaText(input: { question: string; answer: string }) {
+  return `问题：${input.question}\n答案：${input.answer}`;
+}
+
+function qaDocumentTitle(input: { question: string; sourceTicketId?: string }) {
+  if (input.sourceTicketId) return `工单知识：${input.question}`.slice(0, 120);
+  return `QA：${input.question}`.slice(0, 120);
+}
 
 function buildTagsJson(tags: string[]) {
   return JSON.stringify(Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))));
@@ -393,6 +413,239 @@ export async function upsertKnowledgeItem(input: UpsertKnowledgeInput) {
   });
 
   return persistKnowledgeItem(input, existing);
+}
+
+async function ensureQaDocumentShell(input: {
+  existing?: ExistingKnowledgeItem;
+  sourceType: KnowledgeSourceType;
+  sourceTicketId?: string;
+  sourceFile?: string;
+  uploadedByUserId?: string;
+  categoryL1: string;
+  categoryL2: string;
+  question: string;
+  answer: string;
+  businessCategory?: string;
+  answerPolicy?: "allow_llm_fallback" | "kb_only";
+  scopeLevel?: "national" | "province" | "city" | "district" | "store";
+  provinceCode?: string | null;
+  provinceName?: string | null;
+  cityCode?: string | null;
+  cityName?: string | null;
+  districtCode?: string | null;
+  districtName?: string | null;
+  storeId?: string | null;
+  effectiveFrom?: Date | null;
+  effectiveTo?: Date | null;
+  imagePaths?: string[];
+}) {
+  const activeChunkSet = input.existing?.documentId
+    ? await prisma.knowledgeChunkSet.findFirst({
+        where: { documentId: input.existing.documentId, isActive: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
+
+  if (input.existing?.documentId && activeChunkSet) {
+    const businessCategory =
+      input.businessCategory ??
+      inferBusinessCategory({
+        categoryL1: input.categoryL1,
+        categoryL2: input.categoryL2,
+        text: qaText(input),
+      });
+    await prisma.knowledgeDocument.update({
+      where: { id: input.existing.documentId },
+      data: {
+        title: qaDocumentTitle(input),
+        businessCategory,
+        answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
+        scopeLevel: input.scopeLevel ?? "national",
+        provinceCode: input.provinceCode ?? null,
+        provinceName: input.provinceName ?? null,
+        cityCode: input.cityCode ?? null,
+        cityName: input.cityName ?? null,
+        districtCode: input.districtCode ?? null,
+        districtName: input.districtName ?? null,
+        storeId: input.storeId ?? null,
+        effectiveFrom: input.effectiveFrom ?? null,
+        effectiveTo: input.effectiveTo ?? null,
+        status: "published",
+      },
+    });
+    return { documentId: input.existing.documentId, chunkSetId: activeChunkSet.id };
+  }
+
+  const documentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const parseRunId = crypto.randomUUID();
+  const chunkSetId = crypto.randomUUID();
+  const text = qaText(input);
+  const businessCategory =
+    input.businessCategory ??
+    inferBusinessCategory({
+      categoryL1: input.categoryL1,
+      categoryL2: input.categoryL2,
+      text,
+    });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.knowledgeDocument.create({
+      data: {
+        id: documentId,
+        title: qaDocumentTitle(input),
+        sourceType: input.sourceType,
+        sourceFile: input.sourceFile ?? null,
+        mimeType: "qa",
+        businessCategory,
+        answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
+        scopeLevel: input.scopeLevel ?? "national",
+        provinceCode: input.provinceCode ?? null,
+        provinceName: input.provinceName ?? null,
+        cityCode: input.cityCode ?? null,
+        cityName: input.cityName ?? null,
+        districtCode: input.districtCode ?? null,
+        districtName: input.districtName ?? null,
+        storeId: input.storeId ?? null,
+        effectiveFrom: input.effectiveFrom ?? null,
+        effectiveTo: input.effectiveTo ?? null,
+        status: "published",
+      },
+    });
+    await tx.knowledgeDocumentVersion.create({
+      data: {
+        id: versionId,
+        documentId,
+        originalFilePath: null,
+        sourceFileName: input.sourceFile ?? qaDocumentTitle(input),
+        contentHash: hashText(text),
+        uploadedByUserId: input.uploadedByUserId ?? null,
+      },
+    });
+    await tx.knowledgeParseRun.create({
+      data: {
+        id: parseRunId,
+        documentId,
+        documentVersionId: versionId,
+        parserType: "legacy_qa",
+        status: "success",
+        extractedText: text,
+        structuredJson: JSON.stringify({
+          question: input.question,
+          answer: input.answer,
+          imagePaths: input.imagePaths ?? [],
+        }),
+      },
+    });
+    await tx.knowledgeChunkSet.create({
+      data: {
+        id: chunkSetId,
+        documentId,
+        parseRunId,
+        chunkStrategy: "qa",
+        configJson: JSON.stringify(DEFAULT_QA_CHUNKING_CONFIG),
+        isActive: true,
+      },
+    });
+  });
+
+  return { documentId, chunkSetId };
+}
+
+export async function upsertQaKnowledgeDocument(input: UpsertQaKnowledgeDocumentInput) {
+  const sourceType = input.sourceType ?? "manual_qa";
+  const originalText = input.originalText ?? qaText(input);
+  const normalizedText = input.normalizedText ?? originalText;
+  const existing = await findExistingKnowledgeItem({
+    question: input.question,
+    sourceFile: input.sourceFile,
+    sourceTicketId: input.sourceTicketId,
+    sourceType,
+  });
+  const shell = await ensureQaDocumentShell({
+    existing,
+    sourceType,
+    ...input,
+  });
+
+  return persistKnowledgeItem(
+    {
+      ...input,
+      sourceType,
+      docType: input.docType ?? "qa",
+      documentId: shell.documentId,
+      chunkSetId: shell.chunkSetId,
+      originalText,
+      normalizedText,
+      chunkTexts: [qaText(input)],
+      chunkPlans: chunkQaItems(
+        [
+          {
+            question: input.question,
+            answer: input.answer,
+            categoryL1: input.categoryL1,
+            categoryL2: input.categoryL2,
+            tags: input.tags,
+          },
+        ],
+        DEFAULT_QA_CHUNKING_CONFIG
+      ),
+    },
+    existing
+  );
+}
+
+export async function ensureKnowledgeItemsHaveDocuments(limit = 500) {
+  const items = await prisma.knowledgeItem.findMany({
+    where: { documentId: null },
+    include: { chunks: { orderBy: { chunkIndex: "asc" } } },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+  });
+
+  const touchedChunkIds: string[] = [];
+  for (const item of items) {
+    const shell = await ensureQaDocumentShell({
+      existing: item,
+      sourceType: item.sourceType === "manual" ? "manual_qa" : item.sourceType,
+      sourceTicketId: item.sourceTicketId ?? undefined,
+      sourceFile: item.sourceFile ?? undefined,
+      categoryL1: item.categoryL1,
+      categoryL2: item.categoryL2,
+      question: item.question,
+      answer: item.answer,
+      imagePaths: item.imagePathsJson
+        ? JSON.parse(item.imagePathsJson)
+        : item.imagePath
+          ? [item.imagePath]
+          : [],
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.knowledgeItem.update({
+        where: { id: item.id },
+        data: {
+          documentId: shell.documentId,
+          sourceType: item.sourceType === "manual" ? "manual_qa" : item.sourceType,
+        },
+      });
+      await tx.knowledgeChunk.updateMany({
+        where: { knowledgeItemId: item.id },
+        data: {
+          documentId: shell.documentId,
+          chunkSetId: shell.chunkSetId,
+          sectionPath: [item.categoryL1, item.categoryL2].filter(Boolean).join(" / ") || "QA",
+        },
+      });
+    });
+    touchedChunkIds.push(...item.chunks.map((chunk) => chunk.id));
+  }
+
+  if (touchedChunkIds.length) {
+    await enqueueUpsertTasksForChunkIds(touchedChunkIds);
+  }
+
+  return { documentsCreated: items.length, chunksTouched: touchedChunkIds.length };
 }
 
 export async function listKnowledgeItems(params: KnowledgeListParams = {}) {

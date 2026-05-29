@@ -5,7 +5,7 @@ import {
   collectKnowledgeSourceFiles,
   importKnowledgeFromFiles,
   listKnowledgeItems,
-  upsertKnowledgeItem,
+  upsertQaKnowledgeDocument,
 } from "@/lib/services/knowledge";
 
 export async function GET(request: NextRequest) {
@@ -54,19 +54,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "问题和答案不能为空" }, { status: 400 });
     }
 
-    const item = await upsertKnowledgeItem({
+    const item = await upsertQaKnowledgeDocument({
       categoryL1: categoryL1 || "手动录入",
       categoryL2: categoryL2 || "手动新增",
       question: question.trim(),
       answer: answer.trim(),
       status: status ?? "published",
       tags: Array.from(new Set(question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5),
-      sourceType: "manual",
-      docType: "manual",
+      sourceType: "manual_qa",
+      docType: "manual_qa",
       imagePaths: imagePaths ?? [],
-      originalText: `${question}\n${answer}`,
-      normalizedText: `${question}\n${answer}`,
-      chunkTexts: [`问题：${question}\n答案：${answer}`],
     });
 
     return NextResponse.json({ ok: true, item: { id: item.id } });
