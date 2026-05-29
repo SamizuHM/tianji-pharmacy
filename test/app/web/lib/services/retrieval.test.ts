@@ -323,4 +323,92 @@ describe("retrieval service", () => {
       expect(result.retrievalDebug[0].sources).toContain("keyword");
     }
   });
+
+  it("BM25 使用标准长度归一化，同等词频下短文档优先", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("地西泮");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.8, 0.8] });
+    const longNoise = Array.from({ length: 80 }, (_, index) => `无关词${index}`).join(" ");
+    prisma.knowledgeChunk.findMany.mockResolvedValue([
+      {
+        id: "chunk-long",
+        qdrantPointId: "point-long",
+        knowledgeItemId: "ki-long",
+        chunkText: `地西泮 ${longNoise}`,
+        bm25SearchText: `地西泮 ${longNoise}`,
+        sourceFile: "长文档.md",
+        scopeLevel: "national",
+        cityCode: null,
+        cityName: null,
+        overrideScope: false,
+        knowledgeItem: {
+          id: "ki-long",
+          status: "published",
+          question: "地西泮说明",
+          answer: "长文档",
+          imagePathsJson: null,
+          imagePath: null,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+        },
+      },
+      {
+        id: "chunk-short",
+        qdrantPointId: "point-short",
+        knowledgeItemId: "ki-short",
+        chunkText: "地西泮凭处方销售。",
+        bm25SearchText: "地西泮凭处方销售。",
+        sourceFile: "短文档.md",
+        scopeLevel: "national",
+        cityCode: null,
+        cityName: null,
+        overrideScope: false,
+        knowledgeItem: {
+          id: "ki-short",
+          status: "published",
+          question: "地西泮销售规定",
+          answer: "短文档",
+          imagePathsJson: null,
+          imagePath: null,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+        },
+      },
+    ]);
+    prisma.knowledgeChunk.findUnique.mockImplementation(({ where }: { where: { id?: string } }) => {
+      const isShort = where.id === "chunk-short";
+      return Promise.resolve({
+        id: where.id,
+        qdrantPointId: isShort ? "point-short" : "point-long",
+        knowledgeItemId: isShort ? "ki-short" : "ki-long",
+        chunkText: isShort ? "地西泮凭处方销售。" : `地西泮 ${longNoise}`,
+        sourceFile: isShort ? "短文档.md" : "长文档.md",
+        scopeLevel: "national",
+        cityCode: null,
+        cityName: null,
+        document: null,
+        knowledgeItem: {
+          id: isShort ? "ki-short" : "ki-long",
+          status: "published",
+          question: isShort ? "地西泮销售规定" : "地西泮说明",
+          answer: isShort ? "短文档" : "长文档",
+          imagePathsJson: null,
+          imagePath: null,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+        },
+      });
+    });
+    prisma.knowledgeItem.update.mockResolvedValue({});
+
+    const result = await retrieveAnswer({ question: "地西泮", imagePaths: [] });
+
+    expect(result.sourceType).toBe("kb");
+    if (result.sourceType === "kb") {
+      expect(result.knowledgeItem.id).toBe("ki-short");
+      expect(result.retrievalDebug[0].keywordScore ?? 0).toBeGreaterThan(
+        result.retrievalDebug[1].keywordScore ?? 0
+      );
+    }
+  });
 });

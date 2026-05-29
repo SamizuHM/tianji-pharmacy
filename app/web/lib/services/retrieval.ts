@@ -228,26 +228,75 @@ function mergeCandidates(
   return Array.from(merged.values()).sort((a, b) => b.finalScore - a.finalScore);
 }
 
-function tokenizeForBm25(text: string) {
-  return Array.from(
-    new Set(
-      text
-        .toLowerCase()
-        .split(/[，。；、\s,.!?！？:：()（）【】[\]<>《》"'“”‘’]+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2)
-    )
-  );
+function uniqueTerms(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
-function scoreBm25Like(text: string, queryTerms: string[]) {
-  if (!queryTerms.length) return 0;
-  const normalizedText = text.toLowerCase();
-  return queryTerms.reduce((score, term) => {
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const tf = normalizedText.match(new RegExp(escaped, "g"))?.length ?? 0;
-    if (!tf) return score;
-    return score + ((tf * 2.2) / (tf + 1.2)) * Math.log(1 + 1000 / (1 + term.length));
+function tokenizeForBm25(text: string, options?: { unique?: boolean }) {
+  const normalized = text.toLowerCase();
+  const tokens: string[] = [];
+  const policyNumbers =
+    normalized.match(/[鄂国市药医保][^，。\s]{0,20}(?:〔\d{4}〕\d+号|第\d+号)/g) ?? [];
+  tokens.push(...policyNumbers);
+
+  for (const part of normalized.split(/[，。；、\s,.!?！？:：()（）【】[\]<>《》"'“”‘’]+/)) {
+    const term = part.trim();
+    if (term.length < 2) {
+      continue;
+    }
+    tokens.push(term);
+
+    const cjkSegments = term.match(/[\u4e00-\u9fa5]{2,}/g) ?? [];
+    for (const segment of cjkSegments) {
+      const maxGram = Math.min(6, segment.length);
+      for (let gramSize = 2; gramSize <= maxGram; gramSize += 1) {
+        for (let index = 0; index <= segment.length - gramSize; index += 1) {
+          tokens.push(segment.slice(index, index + gramSize));
+        }
+      }
+    }
+  }
+
+  return options?.unique ? uniqueTerms(tokens) : tokens;
+}
+
+function countTerms(tokens: string[]) {
+  const counts = new Map<string, number>();
+  for (const token of tokens) {
+    counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function scoreBm25(input: {
+  queryTerms: string[];
+  termFrequency: Map<string, number>;
+  documentFrequency: Map<string, number>;
+  documentLength: number;
+  averageDocumentLength: number;
+  documentCount: number;
+}) {
+  if (!input.queryTerms.length || input.documentCount <= 0 || input.averageDocumentLength <= 0) {
+    return 0;
+  }
+
+  const k1 = 1.5;
+  const b = 0.75;
+
+  return input.queryTerms.reduce((score, term) => {
+    const tf = input.termFrequency.get(term) ?? 0;
+    if (tf <= 0) {
+      return score;
+    }
+
+    const df = input.documentFrequency.get(term) ?? 0;
+    if (df <= 0) {
+      return score;
+    }
+
+    const idf = Math.log(1 + (input.documentCount - df + 0.5) / (df + 0.5));
+    const lengthNorm = 1 - b + b * (input.documentLength / input.averageDocumentLength);
+    return score + idf * ((tf * (k1 + 1)) / (tf + k1 * lengthNorm));
   }, 0);
 }
 
@@ -259,7 +308,7 @@ async function keywordRecall(
   const terms = Array.from(
     new Set([
       ...plan.mustTerms,
-      ...plan.bm25Queries.flatMap(tokenizeForBm25),
+      ...plan.bm25Queries.flatMap((query) => tokenizeForBm25(query, { unique: true })),
       plan.businessCategory,
     ])
   ).filter(Boolean);
@@ -277,19 +326,12 @@ async function keywordRecall(
             OR: [{ documentId: null }, { document: { is: documentVisibilityWhere(region) } }],
           },
         ],
-        OR: terms.flatMap((term) => [
-          { bm25SearchText: { contains: term } },
-          { chunkText: { contains: term } },
-          { knowledgeItem: { question: { contains: term } } },
-          { knowledgeItem: { answer: { contains: term } } },
-        ]),
       },
       include: { knowledgeItem: true },
       orderBy: [{ createdAt: "desc" }],
-      take: limit,
     })) ?? [];
 
-  return chunks
+  const documents = chunks
     .filter((chunk) => chunk.knowledgeItem)
     .map((chunk) => {
       const searchText = [
@@ -300,6 +342,38 @@ async function keywordRecall(
       ]
         .filter(Boolean)
         .join("\n");
+      const tokens = tokenizeForBm25(searchText);
+      return {
+        chunk,
+        tokens,
+        termFrequency: countTerms(tokens),
+      };
+    });
+
+  if (!documents.length) {
+    return [];
+  }
+
+  const documentFrequency = new Map<string, number>();
+  for (const document of documents) {
+    for (const term of new Set(document.tokens)) {
+      documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    }
+  }
+  const averageDocumentLength =
+    documents.reduce((sum, document) => sum + document.tokens.length, 0) / documents.length;
+  const queryTerms = uniqueTerms(terms);
+
+  return documents
+    .map(({ chunk, termFrequency, tokens }) => {
+      const keywordScore = scoreBm25({
+        queryTerms,
+        termFrequency,
+        documentFrequency,
+        documentLength: tokens.length,
+        averageDocumentLength,
+        documentCount: documents.length,
+      });
       return {
         pointId: chunk.qdrantPointId,
         chunkId: chunk.id,
@@ -321,12 +395,13 @@ async function keywordRecall(
               : [],
         },
         vectorScore: 0,
-        keywordScore: scoreBm25Like(searchText, terms),
+        keywordScore,
         rrfScore: 0,
         finalScore: 0,
         sources: new Set<"vector" | "keyword">(["keyword"]),
       };
     })
+    .filter((candidate) => candidate.keywordScore > 0)
     .sort((a, b) => b.keywordScore - a.keywordScore)
     .slice(0, limit);
 }
