@@ -76,7 +76,7 @@ import {
   type ProgressStepKey,
   type ProgressSummaryItem,
 } from "@/lib/chat-progress";
-import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
+import { cn, getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
   id: string;
@@ -87,7 +87,7 @@ type Conversation = {
 type Message = {
   id: string;
   role: "user" | "assistant" | "agent" | "system";
-  sourceType: "kb" | "llm" | "manual" | "system";
+  sourceType: "kb" | "llm" | "manual" | "system" | "sensitive";
   contentText: string;
   attachmentsJson: string | null;
   retrievalDebugJson: string | null;
@@ -143,7 +143,7 @@ export function ChatClient(props: {
   const [finalProgressByAssistantId, setFinalProgressByAssistantId] = useState<
     Record<string, MessageProgressState>
   >({});
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(0);
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -200,6 +200,11 @@ export function ChatClient(props: {
     const timer = window.setInterval(() => setNowMs(Date.now()), 200);
     return () => window.clearInterval(timer);
   }, [progressByMessageId]);
+
+  // 初始化客户端时间戳，避免 SSR/hydration 不匹配
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, []);
   useEffect(() => {
     if (previousConversationIdRef.current === currentConversationId) {
       return;
@@ -1316,7 +1321,7 @@ export function ChatClient(props: {
               <div className="truncate font-medium text-slate-900 dark:text-foreground">
                 {item.title}
               </div>
-              <div className="mt-1 text-xs text-muted">
+              <div className="mt-1 text-xs text-muted" suppressHydrationWarning>
                 {new Date(item.updatedAt).toLocaleDateString("zh-CN")}
               </div>
             </button>
@@ -1588,7 +1593,7 @@ export function ChatClient(props: {
                           <Badge className={sourceBadgeClass(message.sourceType)}>
                             {sourceLabel(message.sourceType, message.role)}
                           </Badge>
-                          <span className="text-xs text-muted">
+                          <span className="text-xs text-muted" suppressHydrationWarning>
                             {new Date(message.createdAt).toLocaleTimeString("zh-CN", {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -1622,7 +1627,7 @@ export function ChatClient(props: {
                           <>
                             <MarkdownMessage content={messageText} />
                             {showAssistantFixedSuffix ? (
-                              <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
+                              <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-orange-600">
                                 {FIXED_ASSISTANT_SUFFIX}
                               </p>
                             ) : null}
@@ -1768,9 +1773,17 @@ export function ChatClient(props: {
                   );
                 })}
                 {messages.length ? (
-                  <div className="flex items-center justify-center pb-6 pt-2 text-xs text-muted">
-                    <CircleAlert className="size-4" />
-                    每次回答后都可点击人工服务；仍不明确时请拨打 {props.serviceHotline} 电话咨询。
+                  <div className="flex items-center justify-center gap-1.5 pb-6 pt-2 text-xs">
+                    <CircleAlert className="size-4 text-orange-500" />
+                    <span className="text-slate-600">
+                      每次回答后都可点击
+                      <span className="font-semibold text-orange-600">人工服务</span>
+                      ；仍不明确时请拨打{" "}
+                      <span className="font-semibold text-slate-800">
+                        {props.serviceHotline}
+                      </span>{" "}
+                      电话咨询。
+                    </span>
                   </div>
                 ) : null}
               </div>
@@ -1983,6 +1996,8 @@ function sourceLabel(sourceType: Message["sourceType"], role: Message["role"]) {
       return "大模型";
     case "manual":
       return "人工处理";
+    case "sensitive":
+      return "敏感词命中，仅限知识库";
     default:
       return "系统";
   }
@@ -1993,10 +2008,13 @@ function sourceBadgeClass(sourceType: Message["sourceType"]) {
     return "bg-primary/10 text-primary";
   }
   if (sourceType === "llm") {
-    return "bg-accent/30 text-foreground";
+    return "border-orange-200 bg-orange-50 text-orange-700";
   }
   if (sourceType === "manual") {
     return "bg-secondary text-foreground";
+  }
+  if (sourceType === "sensitive") {
+    return "bg-destructive/10 text-destructive";
   }
   return "";
 }
@@ -2134,14 +2152,16 @@ function AssistantMessageFooter(props: {
 }) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
 
+  const isLlmAnswer = props.message.sourceType === "llm";
+
   const actionRow = (
     <div className="flex shrink-0 items-center gap-2">
       <Button
         size="sm"
-        variant="outline"
+        variant={isLlmAnswer ? "default" : "outline"}
         onClick={props.onCreateTicket}
         disabled={props.sending}
-        className="shrink-0"
+        className={cn("shrink-0", isLlmAnswer && "font-bold shadow-md ring-2 ring-orange-300")}
       >
         <LifeBuoy className="size-4" />
         人工服务
@@ -2218,7 +2238,7 @@ function KnowledgeSourceSummary(props: {
         >
           ▸
         </span>
-        <span className="min-w-0 truncate">
+        <span className="min-w-0 truncate" suppressHydrationWarning>
           命中知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
           {primary.updatedAt
             ? ` · 更新于 ${new Date(primary.updatedAt).toLocaleDateString("zh-CN")}`
@@ -2238,7 +2258,7 @@ function KnowledgeSourceSummary(props: {
                 <div className="mt-1">来源：{item.sourceFile || "未知来源"}</div>
                 <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
                 {item.updatedAt ? (
-                  <div className="mt-1">
+                  <div className="mt-1" suppressHydrationWarning>
                     更新于：{new Date(item.updatedAt).toLocaleDateString("zh-CN")}
                   </div>
                 ) : null}

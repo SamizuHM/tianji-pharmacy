@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     role: user.role,
     userId: user.id,
     userDepartmentName: (user as { department?: { name: string } | null }).department?.name ?? null,
+    userRegionId: user.regionId ?? null,
     status: status ?? "all",
     statusGroup: statusGroup ?? "all",
     q: searchParams.get("q") ?? undefined,

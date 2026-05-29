@@ -14,6 +14,7 @@ export async function GET() {
     userId: user.id,
     role: user.role,
     userDepartmentName: user.department?.name ?? null,
+    userRegionId: user.regionId ?? null,
   });
 
   return new Response(stream, {

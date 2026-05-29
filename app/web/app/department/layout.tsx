@@ -8,6 +8,7 @@ export default async function DepartmentLayout({ children }: { children: React.R
     role: user.role,
     userId: user.id,
     userDepartmentName: user.department?.name ?? null,
+    userRegionId: user.regionId,
   });
   const title = user.department ? `${user.department.name}工单台` : "部门工单台";
   const description = user.department

@@ -352,7 +352,12 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           enqueueChunk("meta", {
             conversationId: input.conversationId,
             sourceType: retrieval.sourceType,
-            sourceLabel: retrieval.sourceType === "kb" ? "知识库" : "大模型",
+            sourceLabel:
+              retrieval.sourceType === "kb"
+                ? "知识库"
+                : retrieval.sourceType === "sensitive"
+                  ? "敏感词命中，仅限知识库"
+                  : "大模型",
             knowledgeUpdatedAt:
               retrieval.sourceType === "kb" ? retrieval.knowledgeItem.updatedAt : null,
           });
@@ -382,6 +387,41 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             });
           }
           registerStream(assistantMessageId);
+
+          if (retrieval.sourceType === "sensitive") {
+            const sensitiveAnswer =
+              "您咨询的问题涉及医保政策，为确保信息准确性，仅支持通过知识库检索回答。\n\n" +
+              "当前知识库中暂未收录该问题的准确答案，建议您：\n" +
+              "1. 联系人工客服获取准确解答\n" +
+              "2. 咨询当地医保部门或拨打 12393 医保服务热线\n\n" +
+              "涉及医保政策的问题不容许任何偏差，感谢您的理解。";
+
+            progress.startStep("stream_answer");
+            emitFirstDelta(sensitiveAnswer);
+
+            await prisma.chatMessage.update({
+              where: { id: assistantMessageId },
+              data: { contentText: assistantText, status: "completed" },
+            });
+            completeStream(assistantMessageId);
+
+            progress.completeStep("stream_answer");
+
+            const donePayload = progress.getDonePayload();
+            enqueueChunk("done", {
+              assistantMessageId,
+              answer: assistantText,
+              totalDurationMs: donePayload.totalDurationMs,
+              stepsSummary: donePayload.stepsSummary,
+              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
+              firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
+              reasoningAnswerMs: donePayload.reasoningAnswerMs,
+              waitFirstTokenMs: donePayload.waitFirstTokenMs,
+              streamAnswerMs: donePayload.streamAnswerMs,
+            });
+            closeStream();
+            return;
+          }
 
           progress.startStep("await_first_token");
 

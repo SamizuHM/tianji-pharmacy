@@ -9,6 +9,7 @@ export type UserInput = {
   password?: string;
   role: UserRole;
   departmentId?: string | null;
+  regionId: string;
   enabled?: boolean;
 };
 
@@ -24,7 +25,7 @@ function normalizeDepartmentId(input: Pick<UserInput, "role" | "departmentId">) 
 
 export async function listManagedUsers() {
   return prisma.user.findMany({
-    include: { department: true },
+    include: { department: { include: { region: true } }, region: true },
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
 }
@@ -41,9 +42,10 @@ export async function createManagedUser(input: UserInput) {
       passwordHash: await bcrypt.hash(input.password, 10),
       role: input.role,
       departmentId: normalizeDepartmentId(input),
+      regionId: input.regionId,
       enabled: input.enabled ?? true,
     },
-    include: { department: true },
+    include: { department: true, region: true },
   });
 }
 
@@ -56,9 +58,10 @@ export async function updateManagedUser(userId: string, input: UserInput) {
       ...(input.password?.trim() ? { passwordHash: await bcrypt.hash(input.password, 10) } : {}),
       role: input.role,
       departmentId: normalizeDepartmentId(input),
+      regionId: input.regionId,
       enabled: input.enabled ?? true,
     },
-    include: { department: true },
+    include: { department: true, region: true },
   });
 }
 

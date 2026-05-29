@@ -56,7 +56,7 @@ export async function getCurrentUser() {
 
   const session = await prisma.session.findUnique({
     where: { token },
-    include: { user: { include: { department: true } } },
+    include: { user: { include: { department: true, region: true } } },
   });
 
   if (!session || session.expiresAt.getTime() < Date.now() || session.user.enabled === false) {

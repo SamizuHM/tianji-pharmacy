@@ -7,6 +7,7 @@ import {
   enqueueDeletePointTask,
   tryDrainKnowledgeIndexTasks,
 } from "@/lib/services/knowledge-index";
+import { isSensitiveQuery, matchSensitiveTerms } from "@/lib/services/sensitive-words";
 import { getRuntimeSettings } from "@/lib/services/settings";
 
 type RetrievalDebugRecord = {
@@ -40,6 +41,12 @@ export type RetrievalDecision =
       sourceType: "llm";
       queryText: string;
       retrievalDebug: RetrievalDebugRecord[];
+    }
+  | {
+      sourceType: "sensitive";
+      queryText: string;
+      retrievalDebug: RetrievalDebugRecord[];
+      matchedTerms: string[];
     };
 
 type RetrievalProgressHooks = {
@@ -205,6 +212,16 @@ export async function retrieveAnswer(
         } satisfies RetrievalDecision;
       }
 
+      const questionText = input.question || queryText;
+      if (isSensitiveQuery(questionText)) {
+        return {
+          sourceType: "sensitive",
+          queryText,
+          retrievalDebug,
+          matchedTerms: matchSensitiveTerms(questionText),
+        } satisfies RetrievalDecision;
+      }
+
       return {
         sourceType: "llm",
         queryText,
@@ -212,6 +229,10 @@ export async function retrieveAnswer(
       } satisfies RetrievalDecision;
     },
     (result) =>
-      result.sourceType === "kb" ? "知识库命中，进入答案整理" : "未命中知识库，转入通用药店问答"
+      result.sourceType === "kb"
+        ? "知识库命中，进入答案整理"
+        : result.sourceType === "sensitive"
+          ? "敏感词命中，仅限知识库回答"
+          : "未命中知识库，转入通用药店问答"
   );
 }

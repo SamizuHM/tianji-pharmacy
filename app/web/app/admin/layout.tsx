@@ -15,6 +15,10 @@ const TITLES: Record<string, { title: string; description: string }> = {
   },
   "/admin/stats": { title: "统计分析", description: "查看问答命中、工单闭环和最近 7 天趋势。" },
   "/admin/settings": { title: "系统设置", description: "调整知识检索、重排和命中阈值等运行参数。" },
+  "/admin/regions": {
+    title: "区域管理",
+    description: "维护门店所属区域（地级市），用于工单按区域分发。",
+  },
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

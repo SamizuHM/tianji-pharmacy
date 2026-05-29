@@ -41,6 +41,7 @@ type ClientMeta = {
   userId: string;
   role: UserRole;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
   controller: ReadableStreamDefaultController<Uint8Array>;
 };
 
@@ -71,14 +72,28 @@ function pushEvent(client: ClientMeta, event: string, data: StreamEvent) {
   }
 }
 
+const FALLBACK_DEPARTMENT_NAME = "其他部门";
+
 export async function getPendingTicketCounts(input?: {
   role?: UserRole;
   userId?: string;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
 }) {
+  // "其他部门"不受区域限制
+  const isFallbackDept = input?.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
+  const regionFilter =
+    input?.role === "department" && input.userRegionId && !isFallbackDept
+      ? { regionId: input.userRegionId }
+      : {};
+
   const pendingClaimWhere =
     input?.role === "department" && input.userDepartmentName
-      ? { status: "pending_claim" as const, escalatedToDept: input.userDepartmentName }
+      ? {
+          status: "pending_claim" as const,
+          escalatedToDept: input.userDepartmentName,
+          ...regionFilter,
+        }
       : input?.role === "staff" && input.userId
         ? { createdByUserId: input.userId, status: "pending_claim" as const }
         : { status: "pending_claim" as const };
@@ -87,6 +102,7 @@ export async function getPendingTicketCounts(input?: {
       ? {
           status: "escalated" as const,
           escalatedToDept: input.userDepartmentName,
+          ...regionFilter,
         }
       : input?.role === "staff" && input.userId
         ? { createdByUserId: input.userId, status: "escalated" as const }
@@ -108,6 +124,7 @@ export async function createNotificationStream(input: {
   userId: string;
   role: UserRole;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
 }) {
   const clientId = crypto.randomUUID();
   const clientStore = getClientStore();
@@ -120,6 +137,7 @@ export async function createNotificationStream(input: {
         userId: input.userId,
         role: input.role,
         userDepartmentName: input.userDepartmentName,
+        userRegionId: input.userRegionId,
         controller,
       };
       clientStore.set(clientId, client);
@@ -157,7 +175,9 @@ export async function createNotificationStream(input: {
 }
 
 export async function broadcastTicketNotification(
-  event: Omit<TicketNotificationEvent, "pendingCounts" | "createdAt">
+  event: Omit<TicketNotificationEvent, "pendingCounts" | "createdAt"> & {
+    targetRegionId?: string | null;
+  }
 ) {
   const clientStore = getClientStore();
   if (!clientStore.size) {
@@ -177,10 +197,18 @@ export async function broadcastTicketNotification(
     ) {
       continue;
     }
+    if (
+      event.targetRegionId &&
+      client.userRegionId &&
+      client.userRegionId !== event.targetRegionId
+    ) {
+      continue;
+    }
     const pendingCounts = await getPendingTicketCounts({
       role: client.role,
       userId: client.userId,
       userDepartmentName: client.userDepartmentName,
+      userRegionId: client.userRegionId,
     });
     const payload: TicketNotificationEvent = {
       ...event,

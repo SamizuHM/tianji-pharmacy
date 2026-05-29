@@ -10,6 +10,7 @@ const userSchema = z.object({
   password: z.string().optional(),
   role: z.enum(["staff", "department", "admin"]),
   departmentId: z.string().nullable().optional(),
+  regionId: z.string().min(1, "区域不能为空"),
   enabled: z.boolean().optional(),
 });
 

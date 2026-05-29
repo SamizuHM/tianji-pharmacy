@@ -18,6 +18,7 @@ export default async function DepartmentTicketsPage(props: {
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId,
       status:
         (searchParams.status as
           | "pending_claim"
@@ -44,6 +45,7 @@ export default async function DepartmentTicketsPage(props: {
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId,
     }),
   ]);
 
