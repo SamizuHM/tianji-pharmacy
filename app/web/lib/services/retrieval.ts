@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import type { ProgressStepKey } from "@/lib/chat-progress";
 import { buildMultimodalQueryText } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
-import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
+import { COLLECTION_NAME, ensureFullTextPayloadIndex, qdrant } from "@/lib/retrieval/qdrant";
 import {
   enqueueDeletePointTask,
   tryDrainKnowledgeIndexTasks,
@@ -228,45 +228,45 @@ function mergeCandidates(
   return Array.from(merged.values()).sort((a, b) => b.finalScore - a.finalScore);
 }
 
-function tokenizeForBm25(text: string) {
+function splitFullTextKeywords(text: string) {
   return Array.from(
     new Set(
       text
-        .toLowerCase()
-        .split(/[，。；、\s,.!?！？:：()（）【】[\]<>《》"'“”‘’]+/)
+        .split(/\s+/)
         .map((term) => term.trim())
         .filter((term) => term.length >= 2)
     )
-  );
+  ).slice(0, 10);
 }
 
-function scoreBm25Like(text: string, queryTerms: string[]) {
-  if (!queryTerms.length) return 0;
-  const normalizedText = text.toLowerCase();
-  return queryTerms.reduce((score, term) => {
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const tf = normalizedText.match(new RegExp(escaped, "g"))?.length ?? 0;
-    if (!tf) return score;
-    return score + ((tf * 2.2) / (tf + 1.2)) * Math.log(1 + 1000 / (1 + term.length));
-  }, 0);
+function buildFullTextQuery(plan: QueryPlan) {
+  return Array.from(new Set([...plan.bm25Queries, ...plan.mustTerms, plan.businessCategory]))
+    .filter(Boolean)
+    .join(" ");
 }
 
-async function keywordRecall(
-  plan: QueryPlan,
+function candidateFromPayload(input: {
+  pointId: string;
+  payload: Record<string, unknown>;
+  rank: number;
+}): RetrievalCandidate {
+  return {
+    pointId: input.pointId,
+    chunkId: String(input.payload.chunkId ?? input.pointId),
+    payload: input.payload,
+    vectorScore: 0,
+    keywordScore: 1 / (input.rank + 1),
+    rrfScore: 0,
+    finalScore: 0,
+    sources: new Set<"vector" | "keyword">(["keyword"]),
+  };
+}
+
+async function prismaFullTextFallback(
+  keywords: string[],
   limit: number,
   region: RegionContext | undefined
-): Promise<RetrievalCandidate[]> {
-  const terms = Array.from(
-    new Set([
-      ...plan.mustTerms,
-      ...plan.bm25Queries.flatMap(tokenizeForBm25),
-      plan.businessCategory,
-    ])
-  ).filter(Boolean);
-  if (!terms.length) {
-    return [];
-  }
-
+) {
   const chunks =
     (await prisma.knowledgeChunk.findMany({
       where: {
@@ -277,11 +277,9 @@ async function keywordRecall(
             OR: [{ documentId: null }, { document: { is: documentVisibilityWhere(region) } }],
           },
         ],
-        OR: terms.flatMap((term) => [
-          { bm25SearchText: { contains: term } },
-          { chunkText: { contains: term } },
-          { knowledgeItem: { question: { contains: term } } },
-          { knowledgeItem: { answer: { contains: term } } },
+        OR: keywords.flatMap((keyword) => [
+          { bm25SearchText: { contains: keyword } },
+          { chunkText: { contains: keyword } },
         ]),
       },
       include: { knowledgeItem: true },
@@ -291,18 +289,10 @@ async function keywordRecall(
 
   return chunks
     .filter((chunk) => chunk.knowledgeItem)
-    .map((chunk) => {
-      const searchText = [
-        chunk.bm25SearchText,
-        chunk.chunkText,
-        chunk.knowledgeItem.question,
-        chunk.knowledgeItem.answer,
-      ]
-        .filter(Boolean)
-        .join("\n");
-      return {
+    .map((chunk, rank) =>
+      candidateFromPayload({
         pointId: chunk.qdrantPointId,
-        chunkId: chunk.id,
+        rank,
         payload: {
           knowledgeItemId: chunk.knowledgeItemId,
           chunkId: chunk.id,
@@ -320,15 +310,69 @@ async function keywordRecall(
               ? [chunk.knowledgeItem.imagePath]
               : [],
         },
-        vectorScore: 0,
-        keywordScore: scoreBm25Like(searchText, terms),
-        rrfScore: 0,
-        finalScore: 0,
-        sources: new Set<"vector" | "keyword">(["keyword"]),
-      };
-    })
-    .sort((a, b) => b.keywordScore - a.keywordScore)
+      })
+    )
     .slice(0, limit);
+}
+
+async function keywordRecall(
+  plan: QueryPlan,
+  limit: number,
+  region: RegionContext | undefined
+): Promise<RetrievalCandidate[]> {
+  const keywords = splitFullTextKeywords(buildFullTextQuery(plan));
+  if (!keywords.length) {
+    return [];
+  }
+
+  const qdrantWithScroll = qdrant as unknown as {
+    scroll?: (
+      collectionName: string,
+      params: Record<string, unknown>
+    ) => Promise<{
+      points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
+    }>;
+  };
+
+  if (!qdrantWithScroll.scroll) {
+    return prismaFullTextFallback(keywords, limit, region);
+  }
+
+  try {
+    await ensureFullTextPayloadIndex();
+    const seenPointIds = new Set<string>();
+    const candidates: RetrievalCandidate[] = [];
+
+    for (const keyword of keywords) {
+      const response = await qdrantWithScroll.scroll(COLLECTION_NAME, {
+        with_payload: true,
+        with_vector: false,
+        limit,
+        filter: {
+          must: [{ key: "chunkText", match: { text: keyword } }],
+          ...qdrantScopeFilter(region),
+        },
+      });
+
+      for (const point of response.points ?? []) {
+        const pointId = String(point.id);
+        const payload = point.payload ?? {};
+        if (seenPointIds.has(pointId) || !payloadScopeVisible(payload, region)) {
+          continue;
+        }
+        seenPointIds.add(pointId);
+        candidates.push(candidateFromPayload({ pointId, payload, rank: candidates.length }));
+        if (candidates.length >= limit) {
+          return candidates;
+        }
+      }
+    }
+
+    return candidates;
+  } catch (error) {
+    console.warn("[retrieval] qdrant full-text recall failed, fallback to prisma", error);
+    return prismaFullTextFallback(keywords, limit, region);
+  }
 }
 
 function documentVisibilityWhere(

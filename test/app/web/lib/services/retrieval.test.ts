@@ -14,7 +14,9 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
   COLLECTION_NAME: "test_collection",
   qdrant: {
     search: vi.fn().mockResolvedValue([]),
+    scroll: vi.fn().mockResolvedValue({ points: [] }),
   },
+  ensureFullTextPayloadIndex: vi.fn(),
 }));
 
 vi.mock("@/lib/services/settings", () => ({
@@ -268,31 +270,24 @@ describe("retrieval service", () => {
   it("BM25 通道可在向量为空时召回精确实体", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("鄂医保〔2026〕12号");
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.86] });
-    prisma.knowledgeChunk.findMany.mockResolvedValue([
-      {
-        id: "chunk-policy",
-        qdrantPointId: "point-policy",
-        knowledgeItemId: "ki-policy",
-        chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
-        bm25SearchText: "鄂医保〔2026〕12号 门店 医保结算",
-        sourceFile: "医保政策.md",
-        scopeLevel: "national",
-        cityCode: null,
-        cityName: null,
-        overrideScope: false,
-        knowledgeItem: {
-          id: "ki-policy",
-          status: "published",
-          question: "鄂医保〔2026〕12号是什么？",
-          answer: "按政策执行。",
-          imagePathsJson: null,
-          imagePath: null,
-          createdAt: new Date("2026-01-01"),
-          updatedAt: new Date("2026-01-02"),
+    (qdrant.scroll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      points: [
+        {
+          id: "point-policy",
+          payload: {
+            knowledgeItemId: "ki-policy",
+            chunkId: "chunk-policy",
+            chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
+            question: "鄂医保〔2026〕12号是什么？",
+            answer: "按政策执行。",
+            sourceFile: "医保政策.md",
+            scopeLevel: "national",
+            imagePaths: [],
+          },
         },
-      },
-    ]);
+      ],
+    });
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.86] });
     prisma.knowledgeChunk.findUnique.mockResolvedValue({
       id: "chunk-policy",
       qdrantPointId: "point-policy",
@@ -318,6 +313,19 @@ describe("retrieval service", () => {
 
     const result = await retrieveAnswer({ question: "鄂医保〔2026〕12号", imagePaths: [] });
 
+    expect(qdrant.scroll).toHaveBeenCalledWith(
+      "test_collection",
+      expect.objectContaining({
+        filter: expect.objectContaining({
+          must: expect.arrayContaining([
+            expect.objectContaining({
+              key: "chunkText",
+              match: expect.objectContaining({ text: "鄂医保〔2026〕12号" }),
+            }),
+          ]),
+        }),
+      })
+    );
     expect(result.sourceType).toBe("kb");
     if (result.sourceType === "kb") {
       expect(result.retrievalDebug[0].sources).toContain("keyword");

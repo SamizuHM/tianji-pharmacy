@@ -15,6 +15,7 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
     search: vi.fn().mockResolvedValue([]),
     getCollections: vi.fn().mockResolvedValue({ collections: [] }),
     createCollection: vi.fn(),
+    createPayloadIndex: vi.fn(),
   },
   ensureQdrantWriteReady: vi.fn(),
   ensureCollection: vi.fn(),
