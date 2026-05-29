@@ -24,22 +24,26 @@ export function LoginForm() {
     setError("");
 
     startTransition(async () => {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-      });
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }),
+        });
 
-      const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || "登录失败");
-        return;
+        const data = await safeReadJson(response);
+        if (!response.ok) {
+          setError(data.error || "登录失败，请稍后重试");
+          return;
+        }
+
+        router.push(data.redirectTo || "/staff/chat");
+        router.refresh();
+      } catch {
+        setError("登录服务暂时不可用，请检查本地服务是否已启动");
       }
-
-      router.push(data.redirectTo);
-      router.refresh();
     });
   }
 
@@ -156,6 +160,19 @@ export function LoginForm() {
       </div>
     </div>
   );
+}
+
+async function safeReadJson(response: Response): Promise<{ error?: string; redirectTo?: string }> {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as { error?: string; redirectTo?: string };
+  } catch {
+    return {};
+  }
 }
 
 /** 内置角色选择区 —— 横向滚动，首次 hover 自动滚动提示 */

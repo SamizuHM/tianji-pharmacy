@@ -17,9 +17,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "用户名和密码不能为空" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { username: body.username },
-  });
+  let user;
+  try {
+    user = await prisma.user.findUnique({
+      where: { username: body.username },
+    });
+  } catch (error) {
+    console.error("[auth] login database unavailable", error);
+    return NextResponse.json({ error: "登录服务暂时不可用，请确认数据库已启动" }, { status: 503 });
+  }
 
   if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
     return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 });
@@ -29,7 +35,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "账号已被禁用，请联系管理员" }, { status: 403 });
   }
 
-  await createSession(user.id);
+  try {
+    await createSession(user.id);
+  } catch (error) {
+    console.error("[auth] create session failed", error);
+    return NextResponse.json({ error: "登录会话创建失败，请稍后重试" }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,
