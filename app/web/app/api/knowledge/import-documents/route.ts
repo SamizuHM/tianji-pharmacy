@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { uploadDirAbsolute } from "@/lib/env";
+import { normalizeScopeInput } from "@/lib/knowledge-scope";
 import { sanitizeChunkingConfig } from "@/lib/services/document-chunking";
 import { importKnowledgeFromFiles } from "@/lib/services/knowledge";
 import { saveUploadedFile } from "@/lib/uploads";
@@ -35,9 +36,8 @@ export async function POST(request: Request) {
   const businessCategory = String(formData.get("businessCategory") ?? "").trim();
   const scopeTarget = String(formData.get("scopeTarget") ?? "").trim();
   const scopeLevel = String(formData.get("scopeLevel") ?? "").trim();
-  const cityCode = String(formData.get("cityCode") ?? "").trim();
   const cityName = String(formData.get("cityName") ?? "").trim();
-  const isCityScope = Boolean(scopeTarget && scopeTarget !== "common") || scopeLevel === "city";
+  const scope = normalizeScopeInput({ scopeTarget, scopeLevel, cityName });
 
   let chunkingConfig;
   try {
@@ -63,8 +63,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (isCityScope && !cityCode) {
-    return NextResponse.json({ error: "城市专属知识必须选择城市" }, { status: 400 });
+  if (!scope.ok) {
+    return NextResponse.json({ error: scope.error }, { status: 400 });
   }
 
   const filePaths: string[] = [];
@@ -82,11 +82,8 @@ export async function POST(request: Request) {
     uploadedByUserId: user.id,
     chunkingConfig,
     businessCategory: businessCategory || undefined,
-    scopeLevel: isCityScope ? "city" : "national",
-    provinceCode: isCityScope ? "420000" : undefined,
-    provinceName: isCityScope ? "湖北省" : undefined,
-    cityCode: isCityScope ? cityCode : undefined,
-    cityName: isCityScope ? cityName || cityCode : undefined,
+    scopeLevel: scope.scopeLevel,
+    cityName: scope.cityName,
   });
   return NextResponse.json(result);
 }

@@ -197,6 +197,36 @@ export async function rewriteRetrievalQueriesWithModel(input: {
   };
 }
 
+export async function generateHypotheticalQuestionsWithModel(input: {
+  question: string;
+  answer: string;
+  chunkText: string;
+  categoryL1: string;
+  categoryL2: string;
+  sourceFile?: string | null;
+}) {
+  const output = await completeText({
+    system:
+      "你是药店 RAG 知识库 HQ（假设问题）生成器，只输出 JSON。你必须只基于给定 chunk 内容生成检索用问题，不得编造未出现的政策编号、适用范围、剂量、禁忌或结论。问题要覆盖口语化门店问法和半专业化政策/药品术语问法。",
+    userContent:
+      "知识分类：" +
+      input.categoryL1 +
+      " / " +
+      input.categoryL2 +
+      "\n来源文件：" +
+      (input.sourceFile || "无") +
+      "\n标准问题：" +
+      input.question +
+      "\n标准答案：" +
+      input.answer +
+      "\nChunk 原文：\n" +
+      input.chunkText +
+      '\n\n请输出 JSON，字段固定为：{"questions":["5-8 条中文假设问题"]}',
+  });
+  const parsed = JSON.parse(extractJsonObject(output)) as { questions?: unknown };
+  return uniqueLimitedStrings(parsed.questions, 8).slice(0, 8);
+}
+
 function extractJsonObject(text: string) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = fenced ?? text;

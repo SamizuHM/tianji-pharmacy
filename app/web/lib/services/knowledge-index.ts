@@ -8,6 +8,7 @@ import {
 import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { generateHypotheticalQuestionsWithModel } from "@/lib/openai";
 import { embedMultimodal } from "@/lib/retrieval/ml-service";
 import {
   COLLECTION_NAME,
@@ -42,10 +43,7 @@ export type KnowledgeChunkProjectionSource = {
   docType?: string | null;
   businessCategory?: string | null;
   scopeLevel?: string | null;
-  provinceCode?: string | null;
-  cityCode?: string | null;
-  districtCode?: string | null;
-  storeId?: string | null;
+  cityName?: string | null;
   effectiveFrom?: string | null;
   effectiveTo?: string | null;
   knowledgeItem: {
@@ -65,10 +63,6 @@ type ChunkMetadata = {
   chunkSetId?: string | null;
   businessCategory?: string | null;
   scopeLevel?: string | null;
-  provinceCode?: string | null;
-  cityCode?: string | null;
-  districtCode?: string | null;
-  storeId?: string | null;
   cityName?: string | null;
   overrideScope?: boolean | null;
   effectiveFrom?: string | null;
@@ -90,11 +84,7 @@ type QdrantUpsertPayload = {
   categoryL2: string;
   businessCategory: string;
   scopeLevel: string;
-  provinceCode: string | null;
-  cityCode: string | null;
   cityName: string | null;
-  districtCode: string | null;
-  storeId: string | null;
   overrideScope: boolean;
   effectiveFrom: string | null;
   effectiveTo: string | null;
@@ -111,6 +101,7 @@ type KnowledgeIndexTaskPayload =
     }
   | {
       reason?: string;
+      chunkId?: string | null;
     };
 
 function getRetryDelayMs(retryCount: number) {
@@ -173,12 +164,8 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     categoryL1: chunk.knowledgeItem.categoryL1,
     categoryL2: chunk.knowledgeItem.categoryL2,
     businessCategory: metadata.businessCategory ?? chunk.knowledgeItem.categoryL1,
-    scopeLevel: metadata.scopeLevel ?? "national",
-    provinceCode: metadata.provinceCode ?? null,
-    cityCode: chunk.cityCode ?? metadata.cityCode ?? null,
+    scopeLevel: metadata.scopeLevel ?? "common",
     cityName: chunk.cityName ?? metadata.cityName ?? null,
-    districtCode: metadata.districtCode ?? null,
-    storeId: metadata.storeId ?? null,
     overrideScope: chunk.overrideScope || Boolean(metadata.overrideScope),
     effectiveFrom: metadata.effectiveFrom ?? null,
     effectiveTo: metadata.effectiveTo ?? null,
@@ -204,12 +191,8 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     categoryL1: source.knowledgeItem.categoryL1,
     categoryL2: source.knowledgeItem.categoryL2,
     businessCategory: source.businessCategory ?? source.knowledgeItem.categoryL1,
-    scopeLevel: source.scopeLevel ?? "national",
-    provinceCode: source.provinceCode ?? null,
-    cityCode: source.cityCode ?? null,
-    cityName: null,
-    districtCode: source.districtCode ?? null,
-    storeId: source.storeId ?? null,
+    scopeLevel: source.scopeLevel ?? "common",
+    cityName: source.cityName ?? null,
     overrideScope: false,
     effectiveFrom: source.effectiveFrom ?? null,
     effectiveTo: source.effectiveTo ?? null,
@@ -237,15 +220,7 @@ function uniqueTexts(values: string[], limit: number) {
   return results;
 }
 
-function extractQuestionLikeLines(text: string) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => /^(问题|问|Q|q)[:：]/.test(line) || /[？?]$/.test(line))
-    .map((line) => line.replace(/^(问题|问|Q|q)[:：]\s*/, ""));
-}
-
-function buildHypotheticalQuestions(input: {
+async function buildHypotheticalQuestions(input: {
   question: string;
   answer: string;
   chunkText: string;
@@ -253,29 +228,12 @@ function buildHypotheticalQuestions(input: {
   categoryL2: string;
   sourceFile?: string | null;
 }) {
-  const text = [input.question, input.answer, input.chunkText].join("\n");
-  const policyNo = text.match(/[鄂|国|市|药|医保][^，。\s]{0,20}(?:〔\d{4}〕\d+号|第\d+号)/g) ?? [];
-  const drugLikeTerms =
-    text.match(
-      /[\u4e00-\u9fa5A-Za-z0-9]+(?:片|胶囊|颗粒|口服液|注射液|处方药|非处方药|医保|统筹|管控药品|精神药品|麻醉药品|苯二氮䓬类|地西泮|安定)/g
-    ) ?? [];
-  const keywords = uniqueTexts([...policyNo, ...drugLikeTerms], 5);
-  const subject = keywords[0] ?? input.categoryL2 ?? input.categoryL1;
-
-  return uniqueTexts(
-    [
-      input.question,
-      ...extractQuestionLikeLines(input.chunkText),
-      `门店问：${subject}应该怎么处理？`,
-      `${subject}有什么规定？`,
-      `${subject}能不能办理？需要什么条件？`,
-      `${input.categoryL1}${input.categoryL2}相关政策怎么执行？`,
-      keywords.length ? `${keywords.join(" ")} 适用规则` : "",
-      input.sourceFile ? `${input.sourceFile} ${subject} 政策依据` : "",
-      input.chunkText.slice(0, 260),
-    ],
-    8
-  );
+  const generated = await generateHypotheticalQuestionsWithModel(input);
+  const questions = uniqueTexts([input.question, ...generated], 9);
+  if (questions.length < 2) {
+    throw new Error(`chunk HQ 生成不足：${input.question}`);
+  }
+  return questions;
 }
 
 function buildPointId(chunkId: string, basis: string, index: number) {
@@ -288,8 +246,7 @@ function buildPointId(chunkId: string, basis: string, index: number) {
 }
 
 function buildProjectionPayload(payload: QdrantUpsertPayload, basis: string, index: number) {
-  const basisType: QdrantUpsertPayload["retrievalBasisType"] =
-    index === 0 ? "question" : index === 1 ? "chunk" : "hq";
+  const basisType: QdrantUpsertPayload["retrievalBasisType"] = index === 0 ? "question" : "hq";
   return {
     ...payload,
     retrievalBasis: basis,
@@ -304,16 +261,21 @@ async function buildUpsertTaskInputs(
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
-    const expanded = batch.flatMap((chunk) =>
-      buildHypotheticalQuestions({
-        question: chunk.knowledgeItem.question,
-        answer: chunk.knowledgeItem.answer,
-        chunkText: chunk.chunkText,
-        categoryL1: chunk.knowledgeItem.categoryL1,
-        categoryL2: chunk.knowledgeItem.categoryL2,
-        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
-      }).map((basis, index) => ({ chunk, basis, index }))
-    );
+    const expanded = (
+      await Promise.all(
+        batch.map(async (chunk) => ({
+          chunk,
+          bases: await buildHypotheticalQuestions({
+            question: chunk.knowledgeItem.question,
+            answer: chunk.knowledgeItem.answer,
+            chunkText: chunk.chunkText,
+            categoryL1: chunk.knowledgeItem.categoryL1,
+            categoryL2: chunk.knowledgeItem.categoryL2,
+            sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+          }),
+        }))
+      )
+    ).flatMap(({ chunk, bases }) => bases.map((basis, index) => ({ chunk, basis, index })));
     const embedInputs = expanded.map(({ chunk, basis }) => {
       const imagePaths = parseImagePaths(chunk.knowledgeItem);
       return {
@@ -360,16 +322,21 @@ export async function prepareKnowledgeChunkUpsertTasks(
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
-    const expanded = batch.flatMap((chunk) =>
-      buildHypotheticalQuestions({
-        question: chunk.knowledgeItem.question,
-        answer: chunk.knowledgeItem.answer,
-        chunkText: chunk.chunkText,
-        categoryL1: chunk.knowledgeItem.categoryL1,
-        categoryL2: chunk.knowledgeItem.categoryL2,
-        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
-      }).map((basis, index) => ({ chunk, basis, index }))
-    );
+    const expanded = (
+      await Promise.all(
+        batch.map(async (chunk) => ({
+          chunk,
+          bases: await buildHypotheticalQuestions({
+            question: chunk.knowledgeItem.question,
+            answer: chunk.knowledgeItem.answer,
+            chunkText: chunk.chunkText,
+            categoryL1: chunk.knowledgeItem.categoryL1,
+            categoryL2: chunk.knowledgeItem.categoryL2,
+            sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+          }),
+        }))
+      )
+    ).flatMap(({ chunk, bases }) => bases.map((basis, index) => ({ chunk, basis, index })));
     const embedInputs = expanded.map(({ chunk, basis }) => {
       const imagePaths = parseImagePathsFromSource(chunk);
       return {
@@ -411,19 +378,26 @@ async function processTask(task: {
 }) {
   await ensureQdrantWriteReady();
 
+  const payload = task.payloadJson
+    ? (JSON.parse(task.payloadJson) as KnowledgeIndexTaskPayload)
+    : null;
+
   if (task.taskType === "delete") {
-    await qdrant.delete(COLLECTION_NAME, {
-      wait: true,
-      points: [task.pointId],
-    });
+    if (payload && "chunkId" in payload && payload.chunkId) {
+      await qdrant.delete(COLLECTION_NAME, {
+        wait: true,
+        filter: { must: [{ key: "chunkId", match: { value: payload.chunkId } }] },
+      });
+      return;
+    }
+    await qdrant.delete(COLLECTION_NAME, { wait: true, points: [task.pointId] });
     return;
   }
 
-  if (!task.payloadJson) {
+  if (!payload) {
     throw new Error(`索引任务 ${task.id} 缺少 payload`);
   }
 
-  const payload = JSON.parse(task.payloadJson) as KnowledgeIndexTaskPayload;
   if (!("vector" in payload) || !payload.vector.length) {
     throw new Error(`索引任务 ${task.id} 的向量数据无效`);
   }
@@ -567,6 +541,7 @@ export async function enqueueDeletePointTask(input: {
       pointId: input.pointId,
       payloadJson: JSON.stringify({
         reason: input.reason ?? "delete",
+        chunkId: input.chunkId ?? null,
       } satisfies KnowledgeIndexTaskPayload),
     },
   });

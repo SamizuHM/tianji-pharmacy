@@ -95,7 +95,7 @@ describe("createAssistantGenerationStream", () => {
     expect(completeStream).toHaveBeenCalledWith("asst-msg-1");
   });
 
-  it("从会话账号绑定门店读取 cityCode 并注入检索作用域", async () => {
+  it("从会话账号绑定门店读取城市名并注入检索作用域", async () => {
     (appendConversationMessage as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ id: "user-msg-1", createdAt: new Date() })
       .mockResolvedValueOnce({ id: "asst-msg-1" });
@@ -105,9 +105,7 @@ describe("createAssistantGenerationStream", () => {
       user: {
         storeId: "store-1",
         store: {
-          provinceCode: "420000",
-          cityCode: "420100",
-          districtCode: "420102",
+          cityName: "武汉",
         },
       },
     });
@@ -131,10 +129,7 @@ describe("createAssistantGenerationStream", () => {
     expect(retrieveAnswer).toHaveBeenCalledWith(
       expect.objectContaining({
         region: expect.objectContaining({
-          storeId: "store-1",
-          provinceCode: "420000",
-          cityCode: "420100",
-          districtCode: "420102",
+          cityName: "武汉",
         }),
       }),
       expect.any(Object)
@@ -165,7 +160,7 @@ describe("createAssistantGenerationStream", () => {
       attachments: [],
     });
 
-    const text = await consumeStream(response);
+    await consumeStream(response);
 
     expect(streamKbStyledAnswer).toHaveBeenCalledWith(
       expect.objectContaining({

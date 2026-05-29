@@ -9,47 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { RichEditor } from "@/components/knowledge/rich-editor";
+import { HUBEI_CITY_NAMES } from "@/lib/knowledge-scope";
 import { getFileUrl } from "@/lib/utils";
 
-const HUBEI_CITIES = [
-  { code: "420100", name: "武汉" },
-  { code: "420200", name: "黄石" },
-  { code: "420300", name: "十堰" },
-  { code: "420500", name: "宜昌" },
-  { code: "420600", name: "襄阳" },
-  { code: "420700", name: "鄂州" },
-  { code: "420800", name: "荆门" },
-  { code: "420900", name: "孝感" },
-  { code: "421000", name: "荆州" },
-  { code: "421100", name: "黄冈" },
-  { code: "421200", name: "咸宁" },
-  { code: "421300", name: "随州" },
-  { code: "422800", name: "恩施" },
-  { code: "429004", name: "仙桃" },
-  { code: "429005", name: "潜江" },
-  { code: "429006", name: "天门" },
-  { code: "429021", name: "神农架" },
-];
-
-function cityNameByCode(code: string) {
-  return HUBEI_CITIES.find((city) => city.code === code)?.name ?? "";
-}
-
-type KnowledgeScopeOption = "common" | (typeof HUBEI_CITIES)[number]["code"];
+type KnowledgeScopeOption = "common" | (typeof HUBEI_CITY_NAMES)[number];
 
 function scopePayload(scope: KnowledgeScopeOption) {
   if (scope === "common") {
     return {
-      scopeLevel: "national" as const,
-      cityCode: null,
+      scopeLevel: "common" as const,
       cityName: null,
     };
   }
 
   return {
     scopeLevel: "city" as const,
-    cityCode: scope,
-    cityName: cityNameByCode(scope),
+    cityName: scope,
   };
 }
 
@@ -150,7 +125,6 @@ export function KnowledgeDocumentUpload() {
     const resolvedScope = scopePayload(scope);
     formData.append("scopeLevel", resolvedScope.scopeLevel);
     if (resolvedScope.scopeLevel === "city") {
-      formData.append("cityCode", resolvedScope.cityCode);
       formData.append("cityName", resolvedScope.cityName);
     }
 
@@ -251,9 +225,9 @@ export function KnowledgeDocumentUpload() {
             onChange={(event) => setScope(event.target.value as KnowledgeScopeOption)}
           >
             <option value="common">通用</option>
-            {HUBEI_CITIES.map((city) => (
-              <option key={city.code} value={city.code}>
-                {city.name} {city.code}
+            {HUBEI_CITY_NAMES.map((cityName) => (
+              <option key={cityName} value={cityName}>
+                {cityName}
               </option>
             ))}
           </Select>
@@ -440,9 +414,9 @@ export function KnowledgeCreateForm() {
           onChange={(event) => setScope(event.target.value as KnowledgeScopeOption)}
         >
           <option value="common">通用</option>
-          {HUBEI_CITIES.map((city) => (
-            <option key={city.code} value={city.code}>
-              {city.name} {city.code}
+          {HUBEI_CITY_NAMES.map((cityName) => (
+            <option key={cityName} value={cityName}>
+              {cityName}
             </option>
           ))}
         </Select>

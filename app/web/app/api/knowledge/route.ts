@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { normalizeScopeInput } from "@/lib/knowledge-scope";
 import {
   collectKnowledgeSourceFiles,
   importKnowledgeFromFiles,
@@ -50,7 +51,6 @@ export async function POST(request: NextRequest) {
       status,
       scopeTarget,
       scopeLevel,
-      cityCode,
       cityName,
     } = body as {
       categoryL1?: string;
@@ -60,17 +60,16 @@ export async function POST(request: NextRequest) {
       imagePaths?: string[];
       status?: "draft" | "published";
       scopeTarget?: string;
-      scopeLevel?: "national" | "city";
-      cityCode?: string | null;
+      scopeLevel?: "common" | "city";
       cityName?: string | null;
     };
 
     if (!question?.trim() || !answer?.trim()) {
       return NextResponse.json({ error: "问题和答案不能为空" }, { status: 400 });
     }
-    const isCityScope = Boolean(scopeTarget && scopeTarget !== "common") || scopeLevel === "city";
-    if (isCityScope && !cityCode) {
-      return NextResponse.json({ error: "城市专属知识必须选择城市" }, { status: 400 });
+    const scope = normalizeScopeInput({ scopeTarget, scopeLevel, cityName });
+    if (!scope.ok) {
+      return NextResponse.json({ error: scope.error }, { status: 400 });
     }
 
     const item = await upsertQaKnowledgeDocument({
@@ -83,11 +82,8 @@ export async function POST(request: NextRequest) {
       sourceType: "manual_qa",
       docType: "manual_qa",
       imagePaths: imagePaths ?? [],
-      scopeLevel: isCityScope ? "city" : "national",
-      provinceCode: isCityScope ? "420000" : null,
-      provinceName: isCityScope ? "湖北省" : null,
-      cityCode: isCityScope ? cityCode : null,
-      cityName: isCityScope ? cityName || cityCode : null,
+      scopeLevel: scope.scopeLevel,
+      cityName: scope.cityName,
     });
 
     return NextResponse.json({ ok: true, item: { id: item.id } });

@@ -109,17 +109,9 @@ enum KnowledgeChunkStrategy {
   parent_child
 }
 
-enum KnowledgeAnswerPolicy {
-  allow_llm_fallback
-  kb_only
-}
-
 enum KnowledgeScopeLevel {
-  national
-  province
+  common
   city
-  district
-  store
 }
 
 enum ImportJobStatus {
@@ -153,7 +145,6 @@ model Store {
   name         String
   provinceCode String?
   provinceName String?
-  cityCode     String?
   cityName     String?
   districtCode String?
   districtName String?
@@ -161,7 +152,7 @@ model Store {
   updatedAt    DateTime @updatedAt
   users        User[]
 
-  @@index([provinceCode, cityCode, districtCode])
+  @@index([cityName])
 }
 
 model User {
@@ -354,8 +345,7 @@ model KnowledgeChunk {
   docType                   String?
   qdrantPointId             String              @unique
   metadataJson              String
-  scopeLevel                KnowledgeScopeLevel @default(national)
-  cityCode                  String?
+  scopeLevel                KnowledgeScopeLevel @default(common)
   cityName                  String?
   overrideScope             Boolean             @default(false)
   bm25SearchText            String?
@@ -376,7 +366,7 @@ model KnowledgeChunk {
   @@index([documentId, chunkIndex])
   @@index([chunkSetId, chunkIndex])
   @@index([enabled])
-  @@index([scopeLevel, cityCode])
+  @@index([scopeLevel, cityName])
   @@index([overrideScope])
 }
 
@@ -387,15 +377,8 @@ model KnowledgeDocument {
   sourceFile       String?
   mimeType         String?
   businessCategory String                     @default("通用")
-  answerPolicy     KnowledgeAnswerPolicy      @default(allow_llm_fallback)
-  scopeLevel       KnowledgeScopeLevel        @default(national)
-  provinceCode     String?
-  provinceName     String?
-  cityCode         String?
+  scopeLevel       KnowledgeScopeLevel        @default(common)
   cityName         String?
-  districtCode     String?
-  districtName     String?
-  storeId          String?
   effectiveFrom    DateTime?
   effectiveTo      DateTime?
   status           KnowledgeDocumentStatus    @default(draft)
@@ -411,7 +394,7 @@ model KnowledgeDocument {
 
   @@index([status, updatedAt])
   @@index([businessCategory, status])
-  @@index([scopeLevel, provinceCode, cityCode, districtCode, storeId])
+  @@index([scopeLevel, cityName])
 }
 
 model KnowledgeDocumentVersion {
@@ -463,21 +446,6 @@ model KnowledgeChunkSet {
 
   @@index([documentId, isActive])
   @@index([parseRunId])
-}
-
-model AnswerPolicyRule {
-  id               String                @id @default(cuid())
-  name             String
-  businessCategory String
-  matchTermsJson   String?
-  answerPolicy     KnowledgeAnswerPolicy @default(allow_llm_fallback)
-  minRerankScore   Float?
-  minEvidenceCount Int                   @default(1)
-  enabled          Boolean               @default(true)
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-
-  @@index([businessCategory, enabled])
 }
 
 model KnowledgeIndexTask {

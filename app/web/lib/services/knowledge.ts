@@ -44,14 +44,8 @@ type UpsertKnowledgeInput = {
   documentId?: string | null;
   chunkSetId?: string | null;
   businessCategory?: string;
-  scopeLevel?: "national" | "city";
-  provinceCode?: string | null;
-  provinceName?: string | null;
-  cityCode?: string | null;
+  scopeLevel?: "common" | "city";
   cityName?: string | null;
-  districtCode?: string | null;
-  districtName?: string | null;
-  storeId?: string | null;
   effectiveFrom?: Date | null;
   effectiveTo?: Date | null;
   imagePath?: string | null;
@@ -66,14 +60,8 @@ export type DocumentImportOptions = {
   sourceFileNameByPath?: Record<string, string>;
   uploadedByUserId?: string;
   businessCategory?: string;
-  scopeLevel?: "national" | "city";
-  provinceCode?: string | null;
-  provinceName?: string | null;
-  cityCode?: string | null;
+  scopeLevel?: "common" | "city";
   cityName?: string | null;
-  districtCode?: string | null;
-  districtName?: string | null;
-  storeId?: string | null;
   chunkingConfig?: Partial<DocumentChunkingConfig>;
 };
 
@@ -188,14 +176,8 @@ function buildChunkMetadata(
     categoryL1: input.categoryL1,
     categoryL2: input.categoryL2,
     businessCategory: input.businessCategory ?? inferBusinessCategory(input),
-    scopeLevel: input.scopeLevel ?? "national",
-    provinceCode: input.provinceCode ?? null,
-    provinceName: input.provinceName ?? null,
-    cityCode: input.cityCode ?? null,
+    scopeLevel: input.scopeLevel ?? "common",
     cityName: input.cityName ?? null,
-    districtCode: input.districtCode ?? null,
-    districtName: input.districtName ?? null,
-    storeId: input.storeId ?? null,
     effectiveFrom: toNullableIso(input.effectiveFrom),
     effectiveTo: toNullableIso(input.effectiveTo),
     imagePath: input.imagePath ?? null,
@@ -252,8 +234,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       tokenCount: chunkText.length,
       enabled: true,
       qdrantPointId: buildStablePointId(chunkId),
-      scopeLevel: input.scopeLevel ?? "national",
-      cityCode: input.cityCode ?? null,
+      scopeLevel: input.scopeLevel ?? "common",
       cityName: input.cityName ?? null,
       overrideScope: Boolean(plan.metadata?.overrideScope),
       bm25SearchText: [
@@ -289,11 +270,8 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     sourceFile: chunk.sourceFile ?? null,
     docType: chunk.docType ?? null,
     businessCategory: input.businessCategory ?? inferBusinessCategory(input),
-    scopeLevel: input.scopeLevel ?? "national",
-    provinceCode: input.provinceCode ?? null,
-    cityCode: input.cityCode ?? null,
-    districtCode: input.districtCode ?? null,
-    storeId: input.storeId ?? null,
+    scopeLevel: input.scopeLevel ?? "common",
+    cityName: input.cityName ?? null,
     effectiveFrom: toNullableIso(input.effectiveFrom),
     effectiveTo: toNullableIso(input.effectiveTo),
     knowledgeItem: {
@@ -357,7 +335,6 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           enabled: chunk.enabled,
           qdrantPointId: chunk.qdrantPointId,
           scopeLevel: chunk.scopeLevel,
-          cityCode: chunk.cityCode,
           cityName: chunk.cityName,
           overrideScope: chunk.overrideScope,
           bm25SearchText: chunk.bm25SearchText,
@@ -391,7 +368,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
         knowledgeItemId: existing?.id ?? itemId,
         chunkId: chunk.id,
         pointId: chunk.qdrantPointId,
-        payloadJson: JSON.stringify({ reason: "stale_chunk_delete" }),
+        payloadJson: JSON.stringify({ reason: "stale_chunk_delete", chunkId: chunk.id }),
       })),
     ];
 
@@ -435,14 +412,8 @@ async function ensureQaDocumentShell(input: {
   question: string;
   answer: string;
   businessCategory?: string;
-  scopeLevel?: "national" | "city";
-  provinceCode?: string | null;
-  provinceName?: string | null;
-  cityCode?: string | null;
+  scopeLevel?: "common" | "city";
   cityName?: string | null;
-  districtCode?: string | null;
-  districtName?: string | null;
-  storeId?: string | null;
   effectiveFrom?: Date | null;
   effectiveTo?: Date | null;
   imagePaths?: string[];
@@ -467,14 +438,8 @@ async function ensureQaDocumentShell(input: {
       data: {
         title: qaDocumentTitle(input),
         businessCategory,
-        scopeLevel: input.scopeLevel ?? "national",
-        provinceCode: input.provinceCode ?? null,
-        provinceName: input.provinceName ?? null,
-        cityCode: input.cityCode ?? null,
+        scopeLevel: input.scopeLevel ?? "common",
         cityName: input.cityName ?? null,
-        districtCode: input.districtCode ?? null,
-        districtName: input.districtName ?? null,
-        storeId: input.storeId ?? null,
         effectiveFrom: input.effectiveFrom ?? null,
         effectiveTo: input.effectiveTo ?? null,
         status: "published",
@@ -505,14 +470,8 @@ async function ensureQaDocumentShell(input: {
         sourceFile: input.sourceFile ?? null,
         mimeType: "qa",
         businessCategory,
-        scopeLevel: input.scopeLevel ?? "national",
-        provinceCode: input.provinceCode ?? null,
-        provinceName: input.provinceName ?? null,
-        cityCode: input.cityCode ?? null,
+        scopeLevel: input.scopeLevel ?? "common",
         cityName: input.cityName ?? null,
-        districtCode: input.districtCode ?? null,
-        districtName: input.districtName ?? null,
-        storeId: input.storeId ?? null,
         effectiveFrom: input.effectiveFrom ?? null,
         effectiveTo: input.effectiveTo ?? null,
         status: "published",
@@ -852,7 +811,7 @@ export async function deleteKnowledgeItem(id: string) {
           knowledgeItemId: existing.id,
           chunkId: chunk.id,
           pointId: chunk.qdrantPointId,
-          payloadJson: JSON.stringify({ reason: "knowledge_item_delete" }),
+          payloadJson: JSON.stringify({ reason: "knowledge_item_delete", chunkId: chunk.id }),
         })),
       });
     }
@@ -935,7 +894,7 @@ async function createDocumentIngestion(input: {
           knowledgeItemId: chunk.knowledgeItemId,
           chunkId: chunk.id,
           pointId: chunk.qdrantPointId,
-          payloadJson: JSON.stringify({ reason: "document_replace" }),
+          payloadJson: JSON.stringify({ reason: "document_replace", chunkId: chunk.id }),
         })),
       });
     }
@@ -954,14 +913,8 @@ async function createDocumentIngestion(input: {
         sourceFile: input.sourceFile,
         mimeType: path.extname(input.sourceFile).toLowerCase().replace(".", "") || null,
         businessCategory,
-        scopeLevel: input.options?.scopeLevel ?? "national",
-        provinceCode: input.options?.provinceCode ?? null,
-        provinceName: input.options?.provinceName ?? null,
-        cityCode: input.options?.cityCode ?? null,
+        scopeLevel: input.options?.scopeLevel ?? "common",
         cityName: input.options?.cityName ?? null,
-        districtCode: input.options?.districtCode ?? null,
-        districtName: input.options?.districtName ?? null,
-        storeId: input.options?.storeId ?? null,
         status: "published",
       },
     });
@@ -1127,14 +1080,8 @@ export async function importKnowledgeFromFiles(
           documentId: ingestion.documentId,
           chunkSetId: ingestion.chunkSetId,
           businessCategory: ingestion.businessCategory,
-          scopeLevel: options?.scopeLevel ?? "national",
-          provinceCode: options?.provinceCode ?? null,
-          provinceName: options?.provinceName ?? null,
-          cityCode: options?.cityCode ?? null,
+          scopeLevel: options?.scopeLevel ?? "common",
           cityName: options?.cityName ?? null,
-          districtCode: options?.districtCode ?? null,
-          districtName: options?.districtName ?? null,
-          storeId: options?.storeId ?? null,
           imagePath: item.imagePath,
           imagePaths: item.imagePaths,
           originalText: item.originalText,

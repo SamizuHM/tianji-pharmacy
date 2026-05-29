@@ -19,10 +19,8 @@ type KnowledgeDocumentRow = {
   title: string;
   sourceFile: string | null;
   businessCategory: string;
-  scopeLevel: "national" | "province" | "city" | "district" | "store";
-  provinceName: string | null;
+  scopeLevel: "common" | "city";
   cityName: string | null;
-  districtName: string | null;
   status: "draft" | "published" | "archived";
   hitCount: number;
   updatedAt: string | Date;

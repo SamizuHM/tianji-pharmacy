@@ -33,7 +33,6 @@ export function createMockPrisma() {
     knowledgeChunkSet: createMockModel(),
     knowledgeChunk: createMockModel(),
     knowledgeIndexTask: createMockModel(),
-    answerPolicyRule: createMockModel(),
     appSetting: createMockModel(),
     session: createMockModel(),
     user: createMockModel(),

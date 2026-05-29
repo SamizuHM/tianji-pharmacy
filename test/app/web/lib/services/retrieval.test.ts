@@ -15,9 +15,7 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
   COLLECTION_NAME: "test_collection",
   qdrant: {
     search: vi.fn().mockResolvedValue([]),
-    scroll: vi.fn().mockResolvedValue({ points: [] }),
   },
-  ensureFullTextPayloadIndex: vi.fn(),
 }));
 
 vi.mock("@/lib/services/settings", () => ({
@@ -123,7 +121,7 @@ describe("retrieval service", () => {
     expect(result.queryText).toBe("查询文本");
   });
 
-  it("文档历史回答策略不决定兜底，普通问题低分仍可走大模型", async () => {
+  it("普通问题低分仍可走大模型兜底", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("打印机卡纸怎么办");
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
@@ -134,7 +132,6 @@ describe("retrieval service", () => {
           chunkText: "低分旧知识",
           question: "问题",
           answer: "答案",
-          answerPolicy: "kb_only",
         },
       },
     ]);
@@ -254,7 +251,9 @@ describe("retrieval service", () => {
       id: "chunk-region",
       qdrantPointId: "point-region",
       knowledgeItemId: "ki-region",
-      document: { scopeLevel: "city", cityCode: "other-city" },
+      scopeLevel: "city",
+      cityName: "宜昌",
+      document: { scopeLevel: "city", cityName: "宜昌" },
       knowledgeItem: {
         id: "ki-region",
         status: "published",
@@ -268,7 +267,7 @@ describe("retrieval service", () => {
     const result = await retrieveAnswer({
       question: "小票打印不了",
       imagePaths: [],
-      region: { cityCode: "local-city" },
+      region: { cityName: "武汉" },
     });
 
     expect(result.sourceType).toBe("llm");
@@ -286,7 +285,7 @@ describe("retrieval service", () => {
           chunkText: "通用政策",
           question: "Q",
           answer: "A",
-          scopeLevel: "national",
+          scopeLevel: "common",
         },
       },
       {
@@ -299,7 +298,6 @@ describe("retrieval service", () => {
           question: "Q",
           answer: "A",
           scopeLevel: "city",
-          cityCode: "420100",
           cityName: "武汉",
         },
       },
@@ -314,10 +312,9 @@ describe("retrieval service", () => {
         knowledgeItemId: id === "chunk-city" ? "ki-city" : "ki-common",
         chunkText: id === "chunk-city" ? "武汉政策" : "通用政策",
         sourceFile: id === "chunk-city" ? "武汉政策.md" : "通用政策.md",
-        scopeLevel: id === "chunk-city" ? "city" : "national",
-        cityCode: id === "chunk-city" ? "420100" : null,
+        scopeLevel: id === "chunk-city" ? "city" : "common",
         cityName: id === "chunk-city" ? "武汉" : null,
-        document: id === "chunk-city" ? { scopeLevel: "city", cityCode: "420100" } : null,
+        document: id === "chunk-city" ? { scopeLevel: "city", cityName: "武汉" } : null,
         knowledgeItem: {
           id: id === "chunk-city" ? "ki-city" : "ki-common",
           status: "published",
@@ -335,7 +332,7 @@ describe("retrieval service", () => {
     const result = await retrieveAnswer({
       question: "安定能不能卖",
       imagePaths: [],
-      region: { cityCode: "420100" },
+      region: { cityName: "武汉" },
     });
 
     expect(qdrant.search).toHaveBeenCalledWith(
@@ -354,32 +351,38 @@ describe("retrieval service", () => {
   it("BM25 通道可在向量为空时召回精确实体", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("鄂医保〔2026〕12号");
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (qdrant.scroll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      points: [
-        {
-          id: "point-policy",
-          payload: {
-            knowledgeItemId: "ki-policy",
-            chunkId: "chunk-policy",
-            chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
-            question: "鄂医保〔2026〕12号是什么？",
-            answer: "按政策执行。",
-            sourceFile: "医保政策.md",
-            scopeLevel: "national",
-            imagePaths: [],
-          },
-        },
-      ],
-    });
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.86] });
+    const policyChunk = {
+      id: "chunk-policy",
+      qdrantPointId: "point-policy",
+      knowledgeItemId: "ki-policy",
+      chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
+      bm25SearchText: "鄂医保〔2026〕12号 医保结算 流程",
+      sourceFile: "医保政策.md",
+      scopeLevel: "common",
+      cityName: null,
+      overrideScope: false,
+      document: null,
+      knowledgeItem: {
+        id: "ki-policy",
+        status: "published",
+        question: "鄂医保〔2026〕12号是什么？",
+        answer: "按政策执行。",
+        imagePathsJson: null,
+        imagePath: null,
+        sourceFile: "医保政策.md",
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-02"),
+      },
+    };
+    prisma.knowledgeChunk.findMany.mockResolvedValue([policyChunk]);
     prisma.knowledgeChunk.findUnique.mockResolvedValue({
       id: "chunk-policy",
       qdrantPointId: "point-policy",
       knowledgeItemId: "ki-policy",
       chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
       sourceFile: "医保政策.md",
-      scopeLevel: "national",
-      cityCode: null,
+      scopeLevel: "common",
       cityName: null,
       document: null,
       knowledgeItem: {
@@ -397,16 +400,10 @@ describe("retrieval service", () => {
 
     const result = await retrieveAnswer({ question: "鄂医保〔2026〕12号", imagePaths: [] });
 
-    expect(qdrant.scroll).toHaveBeenCalledWith(
-      "test_collection",
+    expect(prisma.knowledgeChunk.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        filter: expect.objectContaining({
-          must: expect.arrayContaining([
-            expect.objectContaining({
-              key: "chunkText",
-              match: expect.objectContaining({ text: "鄂医保〔2026〕12号" }),
-            }),
-          ]),
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([expect.objectContaining({ scopeLevel: "common" })]),
         }),
       })
     );

@@ -1,5 +1,3 @@
-import type { Prisma } from "@prisma/client";
-
 import { prisma } from "@/lib/db";
 import type { ProgressStepKey } from "@/lib/chat-progress";
 import {
@@ -8,7 +6,8 @@ import {
   type RetrievalQueryRewrite,
 } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
-import { COLLECTION_NAME, ensureFullTextPayloadIndex, qdrant } from "@/lib/retrieval/qdrant";
+import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
+import { scoreBm25Documents } from "@/lib/services/bm25";
 import {
   enqueueDeletePointTask,
   tryDrainKnowledgeIndexTasks,
@@ -27,7 +26,7 @@ type RetrievalDebugRecord = {
   rrfScore?: number;
   finalScore?: number;
   scopeLevel?: string | null;
-  cityCode?: string | null;
+  cityName?: string | null;
   sources?: string[];
   createdAt: string | null;
   updatedAt: string | null;
@@ -44,10 +43,7 @@ type QueryPlan = {
 const KNOWLEDGE_ONLY_REFUSAL_TEXT = "当前知识库中未找到相关政策，建议咨询上级主管部门。";
 
 type RegionContext = {
-  storeId?: string | null;
-  provinceCode?: string | null;
-  cityCode?: string | null;
-  districtCode?: string | null;
+  cityName?: string | null;
 };
 
 type RetrievalCandidate = {
@@ -113,7 +109,7 @@ function inferBusinessCategory(text: string) {
   return "通用";
 }
 
-function resolveQuestionAnswerPolicy(plan: QueryPlan): "allow_llm_fallback" | "kb_only" {
+function resolveFallbackPolicy(plan: QueryPlan): "allow_llm_fallback" | "kb_only" {
   return ["医保", "用药"].includes(plan.businessCategory) ? "kb_only" : "allow_llm_fallback";
 }
 
@@ -203,7 +199,14 @@ async function buildQueryPlan(queryText: string, historyText = ""): Promise<Quer
 
 function queryPlanFromRewrite(rewritten: RetrievalQueryRewrite, fallback: QueryPlan): QueryPlan {
   const normalizedQuery = rewritten.normalizedQuery.trim() || fallback.normalizedQuery;
-  const businessCategory = rewritten.businessCategory.trim() || fallback.businessCategory;
+  const rewrittenCategory = rewritten.businessCategory.trim() || fallback.businessCategory;
+  const businessCategory =
+    ["医保", "用药"].includes(rewrittenCategory) ||
+    ["医保", "用药"].includes(fallback.businessCategory)
+      ? ["医保", "用药"].includes(fallback.businessCategory)
+        ? fallback.businessCategory
+        : rewrittenCategory
+      : rewrittenCategory;
   const mustTerms = Array.from(new Set([...rewritten.mustTerms, ...fallback.mustTerms]))
     .filter(Boolean)
     .slice(0, 8);
@@ -229,12 +232,12 @@ function queryPlanFromRewrite(rewritten: RetrievalQueryRewrite, fallback: QueryP
 
 function scopeWeight(
   candidate: RetrievalCandidate,
-  currentCityCode?: string | null,
+  currentCityName?: string | null,
   cityWeight = 1.3
 ) {
   const scopeLevel = String(candidate.payload.scopeLevel ?? "");
-  const cityCode = candidate.payload.cityCode ? String(candidate.payload.cityCode) : null;
-  if (scopeLevel === "city" && cityCode && cityCode === currentCityCode) {
+  const cityName = candidate.payload.cityName ? String(candidate.payload.cityName) : null;
+  if (scopeLevel === "city" && cityName && cityName === currentCityName) {
     return cityWeight;
   }
   return 1;
@@ -257,31 +260,20 @@ function mergeCandidates(
         existing.keywordScore = Math.max(existing.keywordScore, candidate.keywordScore);
         existing.rrfScore += rrfScore;
         existing.finalScore =
-          existing.rrfScore * scopeWeight(existing, region?.cityCode, cityWeight);
+          existing.rrfScore * scopeWeight(existing, region?.cityName, cityWeight);
         candidate.sources.forEach((source) => existing.sources.add(source));
         return;
       }
       merged.set(candidate.chunkId, {
         ...candidate,
         rrfScore,
-        finalScore: rrfScore * scopeWeight(candidate, region?.cityCode, cityWeight),
+        finalScore: rrfScore * scopeWeight(candidate, region?.cityName, cityWeight),
         sources: new Set(candidate.sources),
       });
     });
   }
 
   return Array.from(merged.values()).sort((a, b) => b.finalScore - a.finalScore);
-}
-
-function splitFullTextKeywords(text: string) {
-  return Array.from(
-    new Set(
-      text
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2)
-    )
-  ).slice(0, 10);
 }
 
 function buildFullTextQuery(plan: QueryPlan) {
@@ -294,70 +286,18 @@ function candidateFromPayload(input: {
   pointId: string;
   payload: Record<string, unknown>;
   rank: number;
+  keywordScore?: number;
 }): RetrievalCandidate {
   return {
     pointId: input.pointId,
     chunkId: String(input.payload.chunkId ?? input.pointId),
     payload: input.payload,
     vectorScore: 0,
-    keywordScore: 1 / (input.rank + 1),
+    keywordScore: input.keywordScore ?? 1 / (input.rank + 1),
     rrfScore: 0,
     finalScore: 0,
     sources: new Set<"vector" | "keyword">(["keyword"]),
   };
-}
-
-async function prismaFullTextFallback(
-  keywords: string[],
-  limit: number,
-  region: RegionContext | undefined
-) {
-  const chunks =
-    (await prisma.knowledgeChunk.findMany({
-      where: {
-        enabled: true,
-        knowledgeItem: { status: "published" },
-        AND: [
-          {
-            OR: [{ documentId: null }, { document: { is: documentVisibilityWhere(region) } }],
-          },
-        ],
-        OR: keywords.flatMap((keyword) => [
-          { bm25SearchText: { contains: keyword } },
-          { chunkText: { contains: keyword } },
-        ]),
-      },
-      include: { knowledgeItem: true },
-      orderBy: [{ createdAt: "desc" }],
-      take: limit,
-    })) ?? [];
-
-  return chunks
-    .filter((chunk) => chunk.knowledgeItem)
-    .map((chunk, rank) =>
-      candidateFromPayload({
-        pointId: chunk.qdrantPointId,
-        rank,
-        payload: {
-          knowledgeItemId: chunk.knowledgeItemId,
-          chunkId: chunk.id,
-          chunkText: chunk.chunkText,
-          question: chunk.knowledgeItem.question,
-          answer: chunk.knowledgeItem.answer,
-          sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
-          scopeLevel: chunk.scopeLevel,
-          cityCode: chunk.cityCode,
-          cityName: chunk.cityName,
-          overrideScope: chunk.overrideScope,
-          imagePaths: chunk.knowledgeItem.imagePathsJson
-            ? JSON.parse(chunk.knowledgeItem.imagePathsJson)
-            : chunk.knowledgeItem.imagePath
-              ? [chunk.knowledgeItem.imagePath]
-              : [],
-        },
-      })
-    )
-    .slice(0, limit);
 }
 
 async function keywordRecall(
@@ -365,122 +305,112 @@ async function keywordRecall(
   limit: number,
   region: RegionContext | undefined
 ): Promise<RetrievalCandidate[]> {
-  const keywords = splitFullTextKeywords(buildFullTextQuery(plan));
-  if (!keywords.length) {
+  const query = buildFullTextQuery(plan);
+  if (!query.trim()) {
     return [];
   }
 
-  const qdrantWithScroll = qdrant as unknown as {
-    scroll?: (
-      collectionName: string,
-      params: Record<string, unknown>
-    ) => Promise<{
-      points?: Array<{ id: string | number; payload?: Record<string, unknown> | null }>;
-    }>;
-  };
+  const chunks =
+    (await prisma.knowledgeChunk.findMany({
+      where: {
+        enabled: true,
+        knowledgeItem: { status: "published" },
+        OR: [
+          { scopeLevel: "common" },
+          { scopeLevel: "city", cityName: region?.cityName ?? "__none__" },
+        ],
+      },
+      include: { knowledgeItem: true },
+      orderBy: [{ chunkIndex: "asc" }],
+    })) ?? [];
 
-  if (!qdrantWithScroll.scroll) {
-    return prismaFullTextFallback(keywords, limit, region);
-  }
-
-  try {
-    await ensureFullTextPayloadIndex();
-    const seenPointIds = new Set<string>();
-    const candidates: RetrievalCandidate[] = [];
-
-    for (const keyword of keywords) {
-      const response = await qdrantWithScroll.scroll(COLLECTION_NAME, {
-        with_payload: true,
-        with_vector: false,
-        limit,
-        filter: {
-          must: [{ key: "chunkText", match: { text: keyword } }],
-          ...qdrantScopeFilter(region),
-        },
-      });
-
-      for (const point of response.points ?? []) {
-        const pointId = String(point.id);
-        const payload = point.payload ?? {};
-        if (seenPointIds.has(pointId) || !payloadScopeVisible(payload, region)) {
-          continue;
-        }
-        seenPointIds.add(pointId);
-        candidates.push(candidateFromPayload({ pointId, payload, rank: candidates.length }));
-        if (candidates.length >= limit) {
-          return candidates;
-        }
-      }
-    }
-
-    return candidates;
-  } catch (error) {
-    console.warn("[retrieval] qdrant full-text recall failed, fallback to prisma", error);
-    return prismaFullTextFallback(keywords, limit, region);
-  }
+  return scoreBm25Documents(
+    query,
+    chunks
+      .filter((chunk) => chunk.knowledgeItem)
+      .map((chunk) => ({
+        id: chunk.id,
+        text: [
+          chunk.bm25SearchText,
+          chunk.chunkText,
+          chunk.knowledgeItem.question,
+          chunk.knowledgeItem.answer,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        payload: chunk,
+      })),
+    { limit }
+  ).map((scored, rank) => {
+    const chunk = scored.payload;
+    return candidateFromPayload({
+      pointId: chunk.qdrantPointId,
+      rank,
+      keywordScore: scored.score,
+      payload: {
+        knowledgeItemId: chunk.knowledgeItemId,
+        chunkId: chunk.id,
+        chunkText: chunk.chunkText,
+        question: chunk.knowledgeItem.question,
+        answer: chunk.knowledgeItem.answer,
+        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+        scopeLevel: chunk.scopeLevel,
+        cityName: chunk.cityName,
+        overrideScope: chunk.overrideScope,
+        imagePaths: chunk.knowledgeItem.imagePathsJson
+          ? JSON.parse(chunk.knowledgeItem.imagePathsJson)
+          : chunk.knowledgeItem.imagePath
+            ? [chunk.knowledgeItem.imagePath]
+            : [],
+      },
+    });
+  });
 }
 
-function documentVisibilityWhere(
-  region: RegionContext | undefined
-): Prisma.KnowledgeDocumentWhereInput {
-  if (!region) {
-    return { scopeLevel: "national" };
-  }
-
-  return {
-    OR: [
-      { scopeLevel: "national" },
-      { scopeLevel: "city", cityCode: region.cityCode ?? "__none__" },
-    ],
-  };
-}
-
-function isDocumentVisible(
-  document:
+function isChunkVisible(
+  chunk:
     | {
-        scopeLevel: string;
-        provinceCode?: string | null;
-        cityCode?: string | null;
-        districtCode?: string | null;
-        storeId?: string | null;
+        scopeLevel?: string | null;
+        cityName?: string | null;
+        document?: { scopeLevel: string; cityName?: string | null } | null;
       }
     | null
     | undefined,
   region: RegionContext | undefined
 ) {
-  if (!document || document.scopeLevel === "national") {
+  const scopeLevel = chunk?.scopeLevel ?? chunk?.document?.scopeLevel ?? "common";
+  if (scopeLevel === "common") {
     return true;
   }
-  if (!region) {
+  if (!region?.cityName) {
     return false;
   }
-  if (document.scopeLevel === "city") return document.cityCode === region.cityCode;
-  return false;
+  return (
+    scopeLevel === "city" && (chunk?.cityName ?? chunk?.document?.cityName) === region.cityName
+  );
 }
 
 function payloadScopeVisible(payload: Record<string, unknown>, region: RegionContext | undefined) {
-  const scopeLevel = String(payload.scopeLevel ?? "national");
-  if (scopeLevel === "national" || scopeLevel === "common") {
+  const scopeLevel = String(payload.scopeLevel ?? "common");
+  if (scopeLevel === "common") {
     return true;
   }
-  if (!region) {
+  if (!region?.cityName) {
     return false;
   }
-  if (scopeLevel === "city") return String(payload.cityCode ?? "") === region.cityCode;
-  return false;
+  return scopeLevel === "city" && String(payload.cityName ?? "") === region.cityName;
 }
 
 function qdrantScopeFilter(region: RegionContext | undefined) {
   const should: Array<Record<string, unknown>> = [
-    { key: "scopeLevel", match: { value: "national" } },
     { key: "scopeLevel", match: { value: "common" } },
   ];
 
-  if (region?.cityCode) {
+  if (region?.cityName) {
     should.push({
       must: [
         { key: "scopeLevel", match: { value: "city" } },
-        { key: "cityCode", match: { value: region.cityCode } },
+        { key: "cityName", match: { value: region.cityName } },
       ],
     });
   }
@@ -511,7 +441,7 @@ export async function retrieveAnswer(
       .map((message) => `${message.role === "user" ? "用户" : "助手"}：${message.content}`)
       .join("\n") ?? "";
   const queryPlan = await buildQueryPlan(queryText, historyText);
-  const answerPolicy = resolveQuestionAnswerPolicy(queryPlan);
+  const fallbackPolicy = resolveFallbackPolicy(queryPlan);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
     embedMultimodal(
       queryPlan.queryVariants.map((text) => ({
@@ -600,7 +530,7 @@ export async function retrieveAnswer(
     rrfScore: item.rrfScore,
     finalScore: item.finalScore,
     scopeLevel: item.payload.scopeLevel ? String(item.payload.scopeLevel) : null,
-    cityCode: item.payload.cityCode ? String(item.payload.cityCode) : null,
+    cityName: item.payload.cityName ? String(item.payload.cityName) : null,
     sources: item.sources,
     createdAt: null,
     updatedAt: null,
@@ -625,14 +555,10 @@ export async function retrieveAnswer(
         };
         sourceFile?: string | null;
         scopeLevel?: string | null;
-        cityCode?: string | null;
         cityName?: string | null;
         document?: {
           scopeLevel: string;
-          provinceCode?: string | null;
-          cityCode?: string | null;
-          districtCode?: string | null;
-          storeId?: string | null;
+          cityName?: string | null;
         } | null;
       }> = [];
 
@@ -666,7 +592,7 @@ export async function retrieveAnswer(
         if (knowledgeItem.status !== "published") {
           continue;
         }
-        if (!isDocumentVisible(chunk.document, input.region)) {
+        if (!isChunkVisible(chunk, input.region)) {
           continue;
         }
 
@@ -718,7 +644,7 @@ export async function retrieveAnswer(
           referenceSnippets: evidenceChunks.slice(0, 5).map((chunk, index) => {
             const scopeLabel =
               chunk.scopeLevel === "city" || chunk.document?.scopeLevel === "city"
-                ? `仅限${chunk.cityName || chunk.cityCode || chunk.document?.cityCode || "本市"}`
+                ? `仅限${chunk.cityName || chunk.document?.cityName || "本市"}`
                 : "通用";
             const sourceFile = chunk.sourceFile || `证据 ${index + 1}`;
             return `[来源：${sourceFile}][适用范围：${scopeLabel}]\n${chunk.chunkText ?? ""}`;
@@ -727,10 +653,10 @@ export async function retrieveAnswer(
       }
 
       return {
-        sourceType: answerPolicy === "kb_only" ? "refusal" : "llm",
+        sourceType: fallbackPolicy === "kb_only" ? "refusal" : "llm",
         queryText,
         retrievalDebug,
-        refusalReason: answerPolicy === "kb_only" ? KNOWLEDGE_ONLY_REFUSAL_TEXT : "",
+        refusalReason: fallbackPolicy === "kb_only" ? KNOWLEDGE_ONLY_REFUSAL_TEXT : "",
       } satisfies RetrievalDecision;
     },
     (result) =>

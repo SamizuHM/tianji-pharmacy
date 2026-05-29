@@ -32,7 +32,6 @@ const prisma = {
   knowledgeChunkSet: createMockModel(),
   knowledgeChunk: createMockModel(),
   knowledgeIndexTask: createMockModel(),
-  answerPolicyRule: createMockModel(),
   appSetting: createMockModel(),
   department: createMockModel(),
   session: createMockModel(),

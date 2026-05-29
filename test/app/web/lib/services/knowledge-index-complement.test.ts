@@ -16,7 +16,6 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
     scroll: vi.fn().mockResolvedValue({ points: [], next_page_offset: null }),
     getCollections: vi.fn().mockResolvedValue({ collections: [] }),
     createCollection: vi.fn(),
-    createPayloadIndex: vi.fn(),
   },
   ensureQdrantWriteReady: vi.fn(),
   ensureCollection: vi.fn(),

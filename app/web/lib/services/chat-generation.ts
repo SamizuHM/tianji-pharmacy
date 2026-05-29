@@ -344,10 +344,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               question: input.text,
               imagePaths: attachmentImagePaths,
               region: {
-                storeId: conversationScope?.user.storeId,
-                provinceCode: conversationScope?.user.store?.provinceCode,
-                cityCode: conversationScope?.user.store?.cityCode,
-                districtCode: conversationScope?.user.store?.districtCode,
+                cityName: conversationScope?.user.store?.cityName,
               },
               historyMessages,
             },

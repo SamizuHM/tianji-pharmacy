@@ -7,6 +7,16 @@ vi.mock("@/lib/retrieval/ml-service", () => ({
   }),
 }));
 
+vi.mock("@/lib/openai", () => ({
+  generateHypotheticalQuestionsWithModel: vi
+    .fn()
+    .mockResolvedValue([
+      "没带处方能买安定吗",
+      "地西泮无处方销售规定是什么",
+      "苯二氮䓬类管控药品怎么销售",
+    ]),
+}));
+
 vi.mock("@/lib/retrieval/qdrant", () => ({
   COLLECTION_NAME: "test_collection",
   qdrant: {
@@ -15,7 +25,6 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
     search: vi.fn().mockResolvedValue([]),
     getCollections: vi.fn().mockResolvedValue({ collections: [] }),
     createCollection: vi.fn(),
-    createPayloadIndex: vi.fn(),
   },
   ensureQdrantWriteReady: vi.fn(),
   ensureCollection: vi.fn(),
@@ -98,7 +107,7 @@ describe("knowledge-index service", () => {
           sourceFile: "管控政策.md",
           businessCategory: "用药",
           scopeLevel: "city",
-          cityCode: "420100",
+          cityName: "武汉",
           knowledgeItem: {
             question: "安定无处方能销售吗？",
             answer: "不能无处方销售。",

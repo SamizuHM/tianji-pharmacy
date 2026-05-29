@@ -10,7 +10,6 @@ export const qdrant = new QdrantClient({
 });
 
 let qdrantWriteReadyPromise: Promise<void> | null = null;
-let qdrantFullTextIndexReadyPromise: Promise<void> | null = null;
 
 export async function ensureQdrantWriteReady() {
   if (!qdrantWriteReadyPromise) {
@@ -41,35 +40,4 @@ export async function ensureCollection(vectorSize: number) {
       },
     });
   }
-
-  await ensureFullTextPayloadIndex();
-}
-
-export async function ensureFullTextPayloadIndex() {
-  await ensureQdrantWriteReady();
-  if (!qdrantFullTextIndexReadyPromise) {
-    qdrantFullTextIndexReadyPromise = qdrant
-      .createPayloadIndex(COLLECTION_NAME, {
-        wait: true,
-        field_name: "chunkText",
-        field_schema: {
-          type: "text",
-          tokenizer: "multilingual",
-          lowercase: true,
-        },
-      })
-      .then(
-        () => undefined,
-        (error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          if (/already exists|Conflict|409|same params/i.test(message)) {
-            return undefined;
-          }
-          qdrantFullTextIndexReadyPromise = null;
-          throw error;
-        }
-      );
-  }
-
-  return qdrantFullTextIndexReadyPromise;
 }
