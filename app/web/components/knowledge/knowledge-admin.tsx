@@ -7,6 +7,7 @@ import { FileText, RefreshCw, UploadCloud } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { ImageLightbox } from "@/components/knowledge/image-lightbox";
 import { RichEditor } from "@/components/knowledge/rich-editor";
 import { getFileUrl } from "@/lib/utils";
@@ -52,9 +53,57 @@ function buildEditorHtml(answer: string, imagePaths: string[]): string {
 export function KnowledgeDocumentUpload() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [previewPending, startPreviewTransition] = useTransition();
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"general" | "parent_child" | "qa">("general");
+  const [businessCategory, setBusinessCategory] = useState("通用");
+  const [answerPolicy, setAnswerPolicy] = useState<"allow_llm_fallback" | "kb_only">(
+    "allow_llm_fallback"
+  );
+  const [scopeLevel, setScopeLevel] = useState<
+    "national" | "province" | "city" | "district" | "store"
+  >("national");
+  const [preview, setPreview] = useState<
+    Array<{
+      fileName: string;
+      totalChunks: number;
+      chunks: Array<{ index: number; text: string; sectionPath: string | null }>;
+    }>
+  >([]);
+
+  function buildChunkingConfig() {
+    if (mode === "qa") {
+      return {
+        preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+        rule: { mode: "qa" },
+      };
+    }
+    if (mode === "parent_child") {
+      return {
+        preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+        rule: {
+          mode: "parent_child",
+          parentMode: "paragraph",
+          parentSeparator: "\\n\\n",
+          parentMaxLength: 1024,
+          childSeparator: "\\n",
+          childMaxLength: 512,
+          childOverlap: 50,
+        },
+      };
+    }
+    return {
+      preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+      rule: {
+        mode: "general",
+        separator: "\\n\\n",
+        maxLength: 1024,
+        overlap: 50,
+      },
+    };
+  }
 
   function selectFiles(fileList: FileList | null) {
     setMessage("");
@@ -70,6 +119,10 @@ export function KnowledgeDocumentUpload() {
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    formData.append("chunkingConfig", JSON.stringify(buildChunkingConfig()));
+    formData.append("businessCategory", businessCategory);
+    formData.append("answerPolicy", answerPolicy);
+    formData.append("scopeLevel", scopeLevel);
 
     startTransition(async () => {
       setMessage("");
@@ -85,10 +138,37 @@ export function KnowledgeDocumentUpload() {
       }
 
       setFiles([]);
+      setPreview([]);
       setMessage(
         `导入完成：成功文件 ${data.importedFiles}，切片 ${data.importedChunks}，跳过 ${data.skippedFiles}`
       );
       router.refresh();
+    });
+  }
+
+  function previewChunks() {
+    if (!files.length) {
+      setError("请选择要预览的文档");
+      return;
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    formData.append("chunkingConfig", JSON.stringify(buildChunkingConfig()));
+
+    startPreviewTransition(async () => {
+      setMessage("");
+      setError("");
+      const response = await fetch("/api/knowledge/preview-chunks", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "预览失败");
+        return;
+      }
+      setPreview(data.previews ?? []);
     });
   }
 
@@ -104,28 +184,66 @@ export function KnowledgeDocumentUpload() {
       >
         <UploadCloud className="size-9 text-primary" />
         <span className="mt-3 text-sm font-medium text-slate-900 dark:text-foreground">
-          上传 Word 文档并解析入库
+          上传文档并解析入库
         </span>
-        <span className="mt-1 text-xs text-muted">支持 .doc/.docx，可拖拽或点击选择多个文件</span>
+        <span className="mt-1 text-xs text-muted">
+          支持 Word、PDF、Markdown、TXT 和图片，可拖拽或点击选择多个文件
+        </span>
         <input
           type="file"
-          accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".doc,.docx,.pdf,.md,.txt,.png,.jpg,.jpeg,.webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           multiple
           className="sr-only"
           onChange={(event) => selectFiles(event.target.files)}
         />
       </label>
 
+      <div className="grid gap-3 md:grid-cols-4">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-muted">切片模式</span>
+          <Select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
+            <option value="general">通用文档</option>
+            <option value="parent_child">父子切片</option>
+            <option value="qa">QA 文档</option>
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-muted">业务分类</span>
+          <Input
+            value={businessCategory}
+            onChange={(event) => setBusinessCategory(event.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-muted">回答策略</span>
+          <Select
+            value={answerPolicy}
+            onChange={(event) => setAnswerPolicy(event.target.value as typeof answerPolicy)}
+          >
+            <option value="allow_llm_fallback">允许大模型兜底</option>
+            <option value="kb_only">仅知识库命中</option>
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-muted">适用地域</span>
+          <Select
+            value={scopeLevel}
+            onChange={(event) => setScopeLevel(event.target.value as typeof scopeLevel)}
+          >
+            <option value="national">全国</option>
+            <option value="province">省级</option>
+            <option value="city">市级</option>
+            <option value="district">区县</option>
+            <option value="store">门店</option>
+          </Select>
+        </label>
+      </div>
+
       <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800 dark:border-border dark:bg-secondary/60 dark:text-muted">
-        <div className="font-medium text-amber-900 dark:text-foreground">
-          导入文档需符合固定模板
-        </div>
+        <div className="font-medium text-amber-900 dark:text-foreground">Dify 风格导入流程</div>
         <div className="mt-1">
-          推荐格式：每条知识包含“一级分类、二级分类、具体问题、简要标准答案、标签”。
-        </div>
-        <div>
-          也支持三列表格：序号 / 具体问题 /
-          简要标准答案。复杂排版、扫描图片、无明确问题答案结构的文档只会兜底切片，效果不可控。
+          通用文档按段落优先切分，父子切片先保留父段上下文再切子段，QA
+          文档会把每个问答作为独立知识片段。
         </div>
       </div>
 
@@ -157,11 +275,46 @@ export function KnowledgeDocumentUpload() {
         </Alert>
       ) : null}
 
+      {preview.length ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+          {preview.map((file) => (
+            <div key={file.fileName} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium">{file.fileName}</span>
+                <span className="text-xs text-muted">共 {file.totalChunks} 个 chunk</span>
+              </div>
+              <div className="grid gap-2">
+                {file.chunks.map((chunk) => (
+                  <div
+                    key={chunk.index}
+                    className="rounded border border-border bg-secondary/40 p-2 text-xs"
+                  >
+                    <div className="mb-1 text-muted">
+                      #{chunk.index + 1} {chunk.sectionPath || ""}
+                    </div>
+                    <div className="line-clamp-4 whitespace-pre-wrap leading-5">{chunk.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted">解析成功后会自动写入知识库并创建检索索引。</span>
-        <Button onClick={upload} disabled={pending || !files.length}>
-          {pending ? "解析中..." : "解析入库"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={previewChunks}
+            disabled={previewPending || !files.length}
+          >
+            {previewPending ? "预览中..." : "预览切片"}
+          </Button>
+          <Button onClick={upload} disabled={pending || !files.length}>
+            {pending ? "解析中..." : "解析入库"}
+          </Button>
+        </div>
       </div>
     </div>
   );

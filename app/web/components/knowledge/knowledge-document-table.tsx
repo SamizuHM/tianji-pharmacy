@@ -42,6 +42,7 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
     id: string;
     isActive: boolean;
     chunkStrategy: string;
+    configJson: string | null;
     chunks: Array<{
       id: string;
       chunkIndex: number;
@@ -115,6 +116,7 @@ export function KnowledgeDocumentTable({
   const visibleDetail = detail ?? selectedDocument ?? null;
   const activeChunks =
     detail?.chunkSets.find((item) => item.isActive)?.chunks ?? detail?.chunks ?? [];
+  const activeChunkSet = detail?.chunkSets.find((item) => item.isActive);
 
   function update(next: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -269,6 +271,10 @@ export function KnowledgeDocumentTable({
                   <div>
                     <div className="text-xs text-muted">更新时间</div>
                     <div className="font-medium">{formatDateTime(visibleDetail.updatedAt)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted">切片策略</div>
+                    <div className="font-medium">{activeChunkSet?.chunkStrategy ?? "未设置"}</div>
                   </div>
                 </div>
                 <div className="rounded-lg border border-border">
