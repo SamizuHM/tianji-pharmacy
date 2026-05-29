@@ -71,6 +71,8 @@ type ChunkMetadata = {
   cityCode?: string | null;
   districtCode?: string | null;
   storeId?: string | null;
+  cityName?: string | null;
+  overrideScope?: boolean | null;
   effectiveFrom?: string | null;
   effectiveTo?: string | null;
 };
@@ -93,12 +95,16 @@ type QdrantUpsertPayload = {
   scopeLevel: string;
   provinceCode: string | null;
   cityCode: string | null;
+  cityName: string | null;
   districtCode: string | null;
   storeId: string | null;
+  overrideScope: boolean;
   effectiveFrom: string | null;
   effectiveTo: string | null;
   imagePath: string | null;
   imagePaths: string[];
+  retrievalBasis: string;
+  retrievalBasisType: "question" | "chunk" | "hq";
 };
 
 type KnowledgeIndexTaskPayload =
@@ -173,13 +179,17 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     answerPolicy: metadata.answerPolicy ?? "allow_llm_fallback",
     scopeLevel: metadata.scopeLevel ?? "national",
     provinceCode: metadata.provinceCode ?? null,
-    cityCode: metadata.cityCode ?? null,
+    cityCode: chunk.cityCode ?? metadata.cityCode ?? null,
+    cityName: chunk.cityName ?? metadata.cityName ?? null,
     districtCode: metadata.districtCode ?? null,
     storeId: metadata.storeId ?? null,
+    overrideScope: chunk.overrideScope || Boolean(metadata.overrideScope),
     effectiveFrom: metadata.effectiveFrom ?? null,
     effectiveTo: metadata.effectiveTo ?? null,
     imagePath: chunk.knowledgeItem.imagePath ?? null,
     imagePaths: parseImagePaths(chunk.knowledgeItem),
+    retrievalBasis: chunk.chunkText,
+    retrievalBasisType: "chunk",
   };
 }
 
@@ -202,12 +212,93 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     scopeLevel: source.scopeLevel ?? "national",
     provinceCode: source.provinceCode ?? null,
     cityCode: source.cityCode ?? null,
+    cityName: null,
     districtCode: source.districtCode ?? null,
     storeId: source.storeId ?? null,
+    overrideScope: false,
     effectiveFrom: source.effectiveFrom ?? null,
     effectiveTo: source.effectiveTo ?? null,
     imagePath: source.knowledgeItem.imagePath ?? null,
     imagePaths: parseImagePathsFromSource(source),
+    retrievalBasis: source.chunkText,
+    retrievalBasisType: "chunk",
+  };
+}
+
+function uniqueTexts(values: string[], limit: number) {
+  const seen = new Set<string>();
+  const results: string[] = [];
+  for (const value of values) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    results.push(normalized);
+    if (results.length >= limit) {
+      break;
+    }
+  }
+  return results;
+}
+
+function extractQuestionLikeLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^(问题|问|Q|q)[:：]/.test(line) || /[？?]$/.test(line))
+    .map((line) => line.replace(/^(问题|问|Q|q)[:：]\s*/, ""));
+}
+
+function buildHypotheticalQuestions(input: {
+  question: string;
+  answer: string;
+  chunkText: string;
+  categoryL1: string;
+  categoryL2: string;
+  sourceFile?: string | null;
+}) {
+  const text = [input.question, input.answer, input.chunkText].join("\n");
+  const policyNo = text.match(/[鄂|国|市|药|医保][^，。\s]{0,20}(?:〔\d{4}〕\d+号|第\d+号)/g) ?? [];
+  const drugLikeTerms =
+    text.match(
+      /[\u4e00-\u9fa5A-Za-z0-9]+(?:片|胶囊|颗粒|口服液|注射液|处方药|非处方药|医保|统筹|管控药品|精神药品|麻醉药品|苯二氮䓬类|地西泮|安定)/g
+    ) ?? [];
+  const keywords = uniqueTexts([...policyNo, ...drugLikeTerms], 5);
+  const subject = keywords[0] ?? input.categoryL2 ?? input.categoryL1;
+
+  return uniqueTexts(
+    [
+      input.question,
+      ...extractQuestionLikeLines(input.chunkText),
+      `门店问：${subject}应该怎么处理？`,
+      `${subject}有什么规定？`,
+      `${subject}能不能办理？需要什么条件？`,
+      `${input.categoryL1}${input.categoryL2}相关政策怎么执行？`,
+      keywords.length ? `${keywords.join(" ")} 适用规则` : "",
+      input.sourceFile ? `${input.sourceFile} ${subject} 政策依据` : "",
+      input.chunkText.slice(0, 260),
+    ],
+    8
+  );
+}
+
+function buildPointId(chunkId: string, basis: string, index: number) {
+  if (index === 0) {
+    return buildStablePointId(chunkId);
+  }
+  return buildStablePointId(
+    `${chunkId}:hq:${index}:${createHash("sha256").update(basis).digest("hex")}`
+  );
+}
+
+function buildProjectionPayload(payload: QdrantUpsertPayload, basis: string, index: number) {
+  const basisType: QdrantUpsertPayload["retrievalBasisType"] =
+    index === 0 ? "question" : index === 1 ? "chunk" : "hq";
+  return {
+    ...payload,
+    retrievalBasis: basis,
+    retrievalBasisType: basisType,
   };
 }
 
@@ -218,30 +309,40 @@ async function buildUpsertTaskInputs(
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
-    const embedInputs = batch.map((chunk) => {
+    const expanded = batch.flatMap((chunk) =>
+      buildHypotheticalQuestions({
+        question: chunk.knowledgeItem.question,
+        answer: chunk.knowledgeItem.answer,
+        chunkText: chunk.chunkText,
+        categoryL1: chunk.knowledgeItem.categoryL1,
+        categoryL2: chunk.knowledgeItem.categoryL2,
+        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+      }).map((basis, index) => ({ chunk, basis, index }))
+    );
+    const embedInputs = expanded.map(({ chunk, basis }) => {
       const imagePaths = parseImagePaths(chunk.knowledgeItem);
       return {
-        text: chunk.chunkText,
+        text: basis,
         image_path: imagePaths[0] ?? undefined,
         image_paths: imagePaths,
       };
     });
     const embedResult = await embedMultimodal(embedInputs);
 
-    batch.forEach((chunk, index) => {
-      const vector = embedResult.vectors[index];
+    expanded.forEach(({ chunk, basis, index }, vectorIndex) => {
+      const vector = embedResult.vectors[vectorIndex] ?? embedResult.vectors[0];
       if (!vector?.length) {
         throw new Error(`chunk ${chunk.id} embedding 结果为空`);
       }
 
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildQdrantPayload(chunk),
+        payload: buildProjectionPayload(buildQdrantPayload(chunk), basis, index),
       };
 
       results.push({
         chunk,
-        pointId: buildStablePointId(chunk.id),
+        pointId: buildPointId(chunk.id, basis, index),
         payloadJson: JSON.stringify(payload),
       });
     });
@@ -264,31 +365,41 @@ export async function prepareKnowledgeChunkUpsertTasks(
 
   for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
     const batch = chunks.slice(start, start + EMBED_BATCH_SIZE);
-    const embedInputs = batch.map((chunk) => {
+    const expanded = batch.flatMap((chunk) =>
+      buildHypotheticalQuestions({
+        question: chunk.knowledgeItem.question,
+        answer: chunk.knowledgeItem.answer,
+        chunkText: chunk.chunkText,
+        categoryL1: chunk.knowledgeItem.categoryL1,
+        categoryL2: chunk.knowledgeItem.categoryL2,
+        sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
+      }).map((basis, index) => ({ chunk, basis, index }))
+    );
+    const embedInputs = expanded.map(({ chunk, basis }) => {
       const imagePaths = parseImagePathsFromSource(chunk);
       return {
-        text: chunk.chunkText,
+        text: basis,
         image_path: imagePaths[0] ?? undefined,
         image_paths: imagePaths,
       };
     });
     const embedResult = await embedMultimodal(embedInputs);
 
-    batch.forEach((chunk, index) => {
-      const vector = embedResult.vectors[index];
+    expanded.forEach(({ chunk, basis, index }, vectorIndex) => {
+      const vector = embedResult.vectors[vectorIndex] ?? embedResult.vectors[0];
       if (!vector?.length) {
         throw new Error(`chunk ${chunk.chunkId} embedding 结果为空`);
       }
 
       const payload: KnowledgeIndexTaskPayload = {
         vector,
-        payload: buildQdrantPayloadFromSource(chunk),
+        payload: buildProjectionPayload(buildQdrantPayloadFromSource(chunk), basis, index),
       };
 
       results.push({
         chunkId: chunk.chunkId,
         knowledgeItemId: chunk.knowledgeItemId,
-        pointId: buildStablePointId(chunk.chunkId),
+        pointId: buildPointId(chunk.chunkId, basis, index),
         payloadJson: JSON.stringify(payload),
       });
     });
@@ -566,11 +677,18 @@ export async function reconcileKnowledgeIndex() {
     },
   });
   const dbPointIds = new Set(dbChunks.map((chunk) => chunk.qdrantPointId));
+  const dbChunkIds = new Set(dbChunks.map((chunk) => chunk.id));
   const qdrantPoints = await scrollAllQdrantPoints();
   const qdrantPointIds = new Set(qdrantPoints.map((point) => point.id));
 
   const orphanPointIds = qdrantPoints
-    .filter((point) => !dbPointIds.has(point.id))
+    .filter((point) => {
+      if (dbPointIds.has(point.id)) {
+        return false;
+      }
+      const chunkId = point.payload?.chunkId ? String(point.payload.chunkId) : null;
+      return !chunkId || !dbChunkIds.has(chunkId);
+    })
     .map((point) => point.id);
   const missingPointIds = dbChunks
     .filter((chunk) => !qdrantPointIds.has(chunk.qdrantPointId))

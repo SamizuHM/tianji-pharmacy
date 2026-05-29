@@ -260,6 +260,21 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       tokenCount: chunkText.length,
       enabled: true,
       qdrantPointId: buildStablePointId(chunkId),
+      scopeLevel: input.scopeLevel ?? "national",
+      cityCode: input.cityCode ?? null,
+      cityName: input.cityName ?? null,
+      overrideScope: Boolean(plan.metadata?.overrideScope),
+      bm25SearchText: [
+        chunkText,
+        input.question,
+        input.answer,
+        input.categoryL1,
+        input.categoryL2,
+        input.sourceFile,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      hypotheticalQuestionsJson: null,
       metadataJson: JSON.stringify({
         ...buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
           ...input,
@@ -353,6 +368,12 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           tokenCount: chunk.tokenCount,
           enabled: chunk.enabled,
           qdrantPointId: chunk.qdrantPointId,
+          scopeLevel: chunk.scopeLevel,
+          cityCode: chunk.cityCode,
+          cityName: chunk.cityName,
+          overrideScope: chunk.overrideScope,
+          bm25SearchText: chunk.bm25SearchText,
+          hypotheticalQuestionsJson: chunk.hypotheticalQuestionsJson,
           metadataJson: chunk.metadataJson,
         },
         create: chunk,

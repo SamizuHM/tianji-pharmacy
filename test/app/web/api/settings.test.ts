@@ -33,6 +33,7 @@ describe("GET /api/settings", () => {
       rerankTopN: 3,
       kbHitThreshold: 0.7,
       maxContextTurns: 4,
+      cityScopeWeight: 1.3,
     });
 
     const response = await GET();
@@ -106,6 +107,7 @@ describe("PUT /api/settings", () => {
       rerankTopN: 5,
       kbHitThreshold: 0.8,
       maxContextTurns: 6,
+      cityScopeWeight: 1.4,
     });
 
     const request = new Request("http://localhost/api/settings", {
@@ -115,6 +117,7 @@ describe("PUT /api/settings", () => {
         rerankTopN: 5,
         kbHitThreshold: 0.8,
         maxContextTurns: 6,
+        cityScopeWeight: 1.4,
       }),
       headers: { "Content-Type": "application/json" },
     });

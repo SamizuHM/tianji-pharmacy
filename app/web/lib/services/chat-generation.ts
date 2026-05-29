@@ -349,6 +349,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                 cityCode: conversationScope?.user.store?.cityCode,
                 districtCode: conversationScope?.user.store?.districtCode,
               },
+              historyMessages,
             },
             {
               startStep: (stepKey, detail) => progress.startStep(stepKey, detail),

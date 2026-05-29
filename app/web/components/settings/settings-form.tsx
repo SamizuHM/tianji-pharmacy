@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import type { RuntimeSettingsInput } from "@/lib/services/settings";
 
 export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSettingsInput }) {
-  const [settings, setSettings] = useState(initialSettings);
+  const [settings, setSettings] = useState({
+    ...initialSettings,
+    cityScopeWeight: initialSettings.cityScopeWeight ?? 1.3,
+  });
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
 
@@ -73,9 +76,16 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
             value={settings.maxContextTurns}
             onChange={(value) => update("maxContextTurns", value)}
           />
+          <Field
+            label="城市政策权重"
+            description="同类证据同时命中时，城市专属政策的排序加权。"
+            value={settings.cityScopeWeight ?? 1.3}
+            step="0.1"
+            onChange={(value) => update("cityScopeWeight", value)}
+          />
           <div className="md:col-span-2">
             <Button onClick={submit} disabled={pending}>
-              <Save className="size-4" />
+              <Save data-icon="inline-start" />
               {pending ? "保存中..." : "保存设置"}
             </Button>
             {message ? (

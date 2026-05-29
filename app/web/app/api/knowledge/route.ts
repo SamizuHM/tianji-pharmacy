@@ -41,13 +41,26 @@ export async function POST(request: NextRequest) {
   // 手动新增知识条目
   if (contentType.includes("application/json")) {
     const body = await request.json();
-    const { categoryL1, categoryL2, question, answer, imagePaths, status } = body as {
+    const {
+      categoryL1,
+      categoryL2,
+      question,
+      answer,
+      imagePaths,
+      status,
+      scopeLevel,
+      cityCode,
+      cityName,
+    } = body as {
       categoryL1?: string;
       categoryL2?: string;
       question?: string;
       answer?: string;
       imagePaths?: string[];
       status?: "draft" | "published";
+      scopeLevel?: "national" | "city";
+      cityCode?: string | null;
+      cityName?: string | null;
     };
 
     if (!question?.trim() || !answer?.trim()) {
@@ -64,6 +77,11 @@ export async function POST(request: NextRequest) {
       sourceType: "manual_qa",
       docType: "manual_qa",
       imagePaths: imagePaths ?? [],
+      scopeLevel: scopeLevel === "city" ? "city" : "national",
+      provinceCode: scopeLevel === "city" ? "420000" : null,
+      provinceName: scopeLevel === "city" ? "湖北省" : null,
+      cityCode: scopeLevel === "city" ? cityCode : null,
+      cityName: scopeLevel === "city" ? cityName : null,
     });
 
     return NextResponse.json({ ok: true, item: { id: item.id } });

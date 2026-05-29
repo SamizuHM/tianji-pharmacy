@@ -23,6 +23,7 @@ vi.mock("@/lib/services/settings", () => ({
     rerankTopN: 3,
     kbHitThreshold: 0.7,
     maxContextTurns: 4,
+    cityScopeWeight: 1.3,
   }),
 }));
 
@@ -78,7 +79,7 @@ describe("retrieval service", () => {
     expect(result.sourceType).toBe("kb");
     if (result.sourceType === "kb") {
       expect(result.knowledgeItem.id).toBe("ki-1");
-      expect(result.referenceSnippets).toEqual(["答案内容"]);
+      expect(result.referenceSnippets[0]).toContain("[适用范围：通用]");
     }
   });
 
@@ -185,5 +186,141 @@ describe("retrieval service", () => {
     });
 
     expect(result.sourceType).toBe("llm");
+  });
+
+  it("向量检索传入作用域过滤，城市专属证据在融合排序中优先", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("安定能不能卖");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "point-common",
+        score: 0.92,
+        payload: {
+          knowledgeItemId: "ki-common",
+          chunkId: "chunk-common",
+          chunkText: "通用政策",
+          question: "Q",
+          answer: "A",
+          scopeLevel: "national",
+        },
+      },
+      {
+        id: "point-city",
+        score: 0.91,
+        payload: {
+          knowledgeItemId: "ki-city",
+          chunkId: "chunk-city",
+          chunkText: "武汉政策",
+          question: "Q",
+          answer: "A",
+          scopeLevel: "city",
+          cityCode: "420100",
+          cityName: "武汉",
+        },
+      },
+    ]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.8, 0.8] });
+    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
+    prisma.knowledgeChunk.findUnique.mockImplementation(({ where }: { where: { id?: string } }) => {
+      const id = where.id;
+      return Promise.resolve({
+        id,
+        qdrantPointId: id === "chunk-city" ? "point-city" : "point-common",
+        knowledgeItemId: id === "chunk-city" ? "ki-city" : "ki-common",
+        chunkText: id === "chunk-city" ? "武汉政策" : "通用政策",
+        sourceFile: id === "chunk-city" ? "武汉政策.md" : "通用政策.md",
+        scopeLevel: id === "chunk-city" ? "city" : "national",
+        cityCode: id === "chunk-city" ? "420100" : null,
+        cityName: id === "chunk-city" ? "武汉" : null,
+        document: id === "chunk-city" ? { scopeLevel: "city", cityCode: "420100" } : null,
+        knowledgeItem: {
+          id: id === "chunk-city" ? "ki-city" : "ki-common",
+          status: "published",
+          question: "Q",
+          answer: "A",
+          imagePathsJson: null,
+          imagePath: null,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+        },
+      });
+    });
+    prisma.knowledgeItem.update.mockResolvedValue({});
+
+    const result = await retrieveAnswer({
+      question: "安定能不能卖",
+      imagePaths: [],
+      region: { cityCode: "420100" },
+    });
+
+    expect(qdrant.search).toHaveBeenCalledWith(
+      "test_collection",
+      expect.objectContaining({
+        filter: expect.objectContaining({ should: expect.any(Array) }),
+      })
+    );
+    expect(result.sourceType).toBe("kb");
+    if (result.sourceType === "kb") {
+      expect(result.knowledgeItem.id).toBe("ki-city");
+      expect(result.referenceSnippets[0]).toContain("仅限武汉");
+    }
+  });
+
+  it("BM25 通道可在向量为空时召回精确实体", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("鄂医保〔2026〕12号");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.86] });
+    prisma.knowledgeChunk.findMany.mockResolvedValue([
+      {
+        id: "chunk-policy",
+        qdrantPointId: "point-policy",
+        knowledgeItemId: "ki-policy",
+        chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
+        bm25SearchText: "鄂医保〔2026〕12号 门店 医保结算",
+        sourceFile: "医保政策.md",
+        scopeLevel: "national",
+        cityCode: null,
+        cityName: null,
+        overrideScope: false,
+        knowledgeItem: {
+          id: "ki-policy",
+          status: "published",
+          question: "鄂医保〔2026〕12号是什么？",
+          answer: "按政策执行。",
+          imagePathsJson: null,
+          imagePath: null,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+        },
+      },
+    ]);
+    prisma.knowledgeChunk.findUnique.mockResolvedValue({
+      id: "chunk-policy",
+      qdrantPointId: "point-policy",
+      knowledgeItemId: "ki-policy",
+      chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
+      sourceFile: "医保政策.md",
+      scopeLevel: "national",
+      cityCode: null,
+      cityName: null,
+      document: null,
+      knowledgeItem: {
+        id: "ki-policy",
+        status: "published",
+        question: "鄂医保〔2026〕12号是什么？",
+        answer: "按政策执行。",
+        imagePathsJson: null,
+        imagePath: null,
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-02"),
+      },
+    });
+    prisma.knowledgeItem.update.mockResolvedValue({});
+
+    const result = await retrieveAnswer({ question: "鄂医保〔2026〕12号", imagePaths: [] });
+
+    expect(result.sourceType).toBe("kb");
+    if (result.sourceType === "kb") {
+      expect(result.retrievalDebug[0].sources).toContain("keyword");
+    }
   });
 });

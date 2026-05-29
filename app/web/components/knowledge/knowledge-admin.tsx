@@ -11,6 +11,30 @@ import { Select } from "@/components/ui/select";
 import { RichEditor } from "@/components/knowledge/rich-editor";
 import { getFileUrl } from "@/lib/utils";
 
+const HUBEI_CITIES = [
+  { code: "420100", name: "武汉" },
+  { code: "420200", name: "黄石" },
+  { code: "420300", name: "十堰" },
+  { code: "420500", name: "宜昌" },
+  { code: "420600", name: "襄阳" },
+  { code: "420700", name: "鄂州" },
+  { code: "420800", name: "荆门" },
+  { code: "420900", name: "孝感" },
+  { code: "421000", name: "荆州" },
+  { code: "421100", name: "黄冈" },
+  { code: "421200", name: "咸宁" },
+  { code: "421300", name: "随州" },
+  { code: "422800", name: "恩施" },
+  { code: "429004", name: "仙桃" },
+  { code: "429005", name: "潜江" },
+  { code: "429006", name: "天门" },
+  { code: "429021", name: "神农架" },
+];
+
+function cityNameByCode(code: string) {
+  return HUBEI_CITIES.find((city) => city.code === code)?.name ?? "";
+}
+
 /* ---------- 工具函数 ---------- */
 
 function extractTextFromHtml(html: string): string {
@@ -53,6 +77,7 @@ export function KnowledgeDocumentUpload() {
   const [scopeLevel, setScopeLevel] = useState<
     "national" | "province" | "city" | "district" | "store"
   >("national");
+  const [cityCode, setCityCode] = useState("420100");
   const [preview, setPreview] = useState<
     Array<{
       fileName: string;
@@ -111,6 +136,10 @@ export function KnowledgeDocumentUpload() {
     formData.append("businessCategory", businessCategory);
     formData.append("answerPolicy", answerPolicy);
     formData.append("scopeLevel", scopeLevel);
+    if (scopeLevel === "city") {
+      formData.append("cityCode", cityCode);
+      formData.append("cityName", cityNameByCode(cityCode));
+    }
 
     startTransition(async () => {
       setMessage("");
@@ -186,7 +215,7 @@ export function KnowledgeDocumentUpload() {
         />
       </label>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs text-muted">切片模式</span>
           <Select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
@@ -223,6 +252,20 @@ export function KnowledgeDocumentUpload() {
             <option value="city">市级</option>
             <option value="district">区县</option>
             <option value="store">门店</option>
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-muted">城市编码</span>
+          <Select
+            value={cityCode}
+            disabled={scopeLevel !== "city"}
+            onChange={(event) => setCityCode(event.target.value)}
+          >
+            {HUBEI_CITIES.map((city) => (
+              <option key={city.code} value={city.code}>
+                {city.name} {city.code}
+              </option>
+            ))}
           </Select>
         </label>
       </div>
@@ -324,6 +367,8 @@ export function KnowledgeCreateForm() {
   const [answerHtml, setAnswerHtml] = useState(
     initialAnswer ? buildEditorHtml(initialAnswer, []) : ""
   );
+  const [scopeLevel, setScopeLevel] = useState<"national" | "city">("national");
+  const [cityCode, setCityCode] = useState("420100");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -352,6 +397,9 @@ export function KnowledgeCreateForm() {
           question: question.trim(),
           answer: answerText,
           imagePaths,
+          scopeLevel,
+          cityCode: scopeLevel === "city" ? cityCode : null,
+          cityName: scopeLevel === "city" ? cityNameByCode(cityCode) : null,
         }),
       });
 
@@ -397,6 +445,32 @@ export function KnowledgeCreateForm() {
           placeholder="请输入问题"
         />
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium">适用范围</label>
+          <Select
+            value={scopeLevel}
+            onChange={(event) => setScopeLevel(event.target.value as typeof scopeLevel)}
+          >
+            <option value="national">通用</option>
+            <option value="city">城市专属</option>
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">城市编码</label>
+          <Select
+            value={cityCode}
+            disabled={scopeLevel !== "city"}
+            onChange={(event) => setCityCode(event.target.value)}
+          >
+            {HUBEI_CITIES.map((city) => (
+              <option key={city.code} value={city.code}>
+                {city.name} {city.code}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
       <div>
         <label className="mb-1 block text-sm font-medium">答案</label>
         <RichEditor content={answerHtml} onChange={setAnswerHtml} />
@@ -437,7 +511,7 @@ export function RebuildIndexButton() {
   return (
     <div className="flex flex-col items-end gap-1">
       <Button size="sm" variant="outline" onClick={rebuild} disabled={pending}>
-        <RefreshCw className={`mr-1 size-3.5 ${pending ? "animate-spin" : ""}`} />
+        <RefreshCw data-icon="inline-start" className={pending ? "animate-spin" : ""} />
         {pending ? "重建中..." : "重建索引"}
       </Button>
       {result ? <span className="text-xs text-muted">{result}</span> : null}

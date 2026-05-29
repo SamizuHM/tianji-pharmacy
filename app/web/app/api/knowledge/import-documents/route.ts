@@ -35,6 +35,8 @@ export async function POST(request: Request) {
   const businessCategory = String(formData.get("businessCategory") ?? "").trim();
   const answerPolicy = String(formData.get("answerPolicy") ?? "").trim();
   const scopeLevel = String(formData.get("scopeLevel") ?? "").trim();
+  const cityCode = String(formData.get("cityCode") ?? "").trim();
+  const cityName = String(formData.get("cityName") ?? "").trim();
 
   let chunkingConfig;
   try {
@@ -88,6 +90,10 @@ export async function POST(request: Request) {
       scopeLevel === "national"
         ? scopeLevel
         : undefined,
+    provinceCode: scopeLevel === "city" ? "420000" : undefined,
+    provinceName: scopeLevel === "city" ? "湖北省" : undefined,
+    cityCode: scopeLevel === "city" ? cityCode || undefined : undefined,
+    cityName: scopeLevel === "city" ? cityName || undefined : undefined,
   });
   return NextResponse.json(result);
 }

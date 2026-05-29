@@ -342,34 +342,42 @@ model KnowledgeItem {
 }
 
 model KnowledgeChunk {
-  id              String             @id @default(cuid())
-  knowledgeItemId String
-  documentId      String?
-  chunkSetId      String?
-  parentChunkId   String?
-  chunkIndex      Int
-  chunkText       String
-  originalText    String
-  sourceFile      String?
-  docType         String?
-  qdrantPointId   String             @unique
-  metadataJson    String
-  sectionPath     String?
-  pageStart       Int?
-  pageEnd         Int?
-  tokenCount      Int?
-  enabled         Boolean            @default(true)
-  createdAt       DateTime           @default(now())
-  knowledgeItem   KnowledgeItem      @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
-  document        KnowledgeDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  chunkSet        KnowledgeChunkSet? @relation(fields: [chunkSetId], references: [id], onDelete: Cascade)
-  parentChunk     KnowledgeChunk?    @relation("KnowledgeChunkParent", fields: [parentChunkId], references: [id], onDelete: SetNull)
-  childChunks     KnowledgeChunk[]   @relation("KnowledgeChunkParent")
+  id                        String              @id @default(cuid())
+  knowledgeItemId           String
+  documentId                String?
+  chunkSetId                String?
+  parentChunkId             String?
+  chunkIndex                Int
+  chunkText                 String
+  originalText              String
+  sourceFile                String?
+  docType                   String?
+  qdrantPointId             String              @unique
+  metadataJson              String
+  scopeLevel                KnowledgeScopeLevel @default(national)
+  cityCode                  String?
+  cityName                  String?
+  overrideScope             Boolean             @default(false)
+  bm25SearchText            String?
+  hypotheticalQuestionsJson String?
+  sectionPath               String?
+  pageStart                 Int?
+  pageEnd                   Int?
+  tokenCount                Int?
+  enabled                   Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+  knowledgeItem             KnowledgeItem       @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+  document                  KnowledgeDocument?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkSet                  KnowledgeChunkSet?  @relation(fields: [chunkSetId], references: [id], onDelete: Cascade)
+  parentChunk               KnowledgeChunk?     @relation("KnowledgeChunkParent", fields: [parentChunkId], references: [id], onDelete: SetNull)
+  childChunks               KnowledgeChunk[]    @relation("KnowledgeChunkParent")
 
   @@index([knowledgeItemId, chunkIndex])
   @@index([documentId, chunkIndex])
   @@index([chunkSetId, chunkIndex])
   @@index([enabled])
+  @@index([scopeLevel, cityCode])
+  @@index([overrideScope])
 }
 
 model KnowledgeDocument {

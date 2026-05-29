@@ -36,6 +36,7 @@ vi.mock("@/lib/services/settings", () => ({
     rerankTopN: 3,
     kbHitThreshold: 0.7,
     maxContextTurns: 4,
+    cityScopeWeight: 1.3,
   }),
 }));
 

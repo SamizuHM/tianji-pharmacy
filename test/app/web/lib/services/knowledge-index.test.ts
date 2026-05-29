@@ -20,7 +20,12 @@ vi.mock("@/lib/retrieval/qdrant", () => ({
   ensureCollection: vi.fn(),
 }));
 
-import { buildStablePointId, drainKnowledgeIndexTasks } from "@/lib/services/knowledge-index";
+import {
+  buildStablePointId,
+  drainKnowledgeIndexTasks,
+  prepareKnowledgeChunkUpsertTasks,
+} from "@/lib/services/knowledge-index";
+import { embedMultimodal } from "@/lib/retrieval/ml-service";
 
 describe("knowledge-index service", () => {
   beforeEach(() => {
@@ -78,6 +83,38 @@ describe("knowledge-index service", () => {
       const result = await drainKnowledgeIndexTasks({ limit: 10 });
 
       expect(result.completed).toBe(1);
+    });
+  });
+
+  describe("prepareKnowledgeChunkUpsertTasks", () => {
+    it("为 QA 原问题、chunk 原文和 HQ 变体生成多条向量写入任务", async () => {
+      const result = await prepareKnowledgeChunkUpsertTasks([
+        {
+          knowledgeItemId: "ki-1",
+          chunkId: "chunk-1",
+          chunkIndex: 0,
+          chunkText: "问题：没带处方能买安定吗？\n答案：安定即地西泮，属于苯二氮䓬类管控药品。",
+          sourceFile: "管控政策.md",
+          businessCategory: "用药",
+          scopeLevel: "city",
+          cityCode: "420100",
+          knowledgeItem: {
+            question: "安定无处方能销售吗？",
+            answer: "不能无处方销售。",
+            categoryL1: "用药",
+            categoryL2: "处方管控",
+          },
+        },
+      ]);
+
+      expect(result.length).toBeGreaterThan(2);
+      expect(result[0].pointId).toBe(buildStablePointId("chunk-1"));
+      expect(embedMultimodal).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining("安定无处方") }),
+          expect.objectContaining({ text: expect.stringContaining("地西泮") }),
+        ])
+      );
     });
   });
 });
