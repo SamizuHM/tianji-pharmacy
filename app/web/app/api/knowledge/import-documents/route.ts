@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { uploadDirAbsolute } from "@/lib/env";
+import { sanitizeChunkingConfig } from "@/lib/services/document-chunking";
 import { importKnowledgeFromFiles } from "@/lib/services/knowledge";
 import { saveUploadedFile } from "@/lib/uploads";
 
@@ -30,6 +31,19 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
+  const chunkingConfigRaw = String(formData.get("chunkingConfig") ?? "");
+  const businessCategory = String(formData.get("businessCategory") ?? "").trim();
+  const answerPolicy = String(formData.get("answerPolicy") ?? "").trim();
+  const scopeLevel = String(formData.get("scopeLevel") ?? "").trim();
+
+  let chunkingConfig;
+  try {
+    chunkingConfig = sanitizeChunkingConfig(
+      chunkingConfigRaw ? JSON.parse(chunkingConfigRaw) : undefined
+    );
+  } catch {
+    return NextResponse.json({ error: "切片配置格式不正确" }, { status: 400 });
+  }
 
   if (!files.length) {
     return NextResponse.json({ error: "请选择要导入的文档" }, { status: 400 });
@@ -60,6 +74,20 @@ export async function POST(request: Request) {
   const result = await importKnowledgeFromFiles(filePaths, {
     sourceFileNameByPath,
     uploadedByUserId: user.id,
+    chunkingConfig,
+    businessCategory: businessCategory || undefined,
+    answerPolicy:
+      answerPolicy === "kb_only" || answerPolicy === "allow_llm_fallback"
+        ? answerPolicy
+        : undefined,
+    scopeLevel:
+      scopeLevel === "province" ||
+      scopeLevel === "city" ||
+      scopeLevel === "district" ||
+      scopeLevel === "store" ||
+      scopeLevel === "national"
+        ? scopeLevel
+        : undefined,
   });
   return NextResponse.json(result);
 }

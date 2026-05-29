@@ -165,29 +165,29 @@ model Store {
 }
 
 model User {
-  id                       String                 @id @default(cuid())
-  username                 String                 @unique
-  displayName              String
-  passwordHash             String
-  role                     UserRole
-  enabled                  Boolean                @default(true)
-  sidebarTheme             String                 @default("blue")
-  colorMode                String                 @default("system")
-  departmentId             String?
-  storeId                  String?
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  department               Department?            @relation(fields: [departmentId], references: [id])
-  store                    Store?                 @relation(fields: [storeId], references: [id])
-  sessions                 Session[]
-  conversations            Conversation[]
-  createdTickets           Ticket[]               @relation("TicketCreatedBy")
-  closedTickets            Ticket[]               @relation("TicketClosedBy")
-  claimedTickets           Ticket[]               @relation("TicketClaimedBy")
-  escalatedTickets         Ticket[]               @relation("TicketEscalatedTo")
-  submittedResolutions     Ticket[]               @relation("TicketResolutionSubmittedBy")
-  ticketMessages           TicketMessage[]
-  generatedKnowledgeDrafts TicketKnowledgeDraft[]
+  id                        String                     @id @default(cuid())
+  username                  String                     @unique
+  displayName               String
+  passwordHash              String
+  role                      UserRole
+  enabled                   Boolean                    @default(true)
+  sidebarTheme              String                     @default("blue")
+  colorMode                 String                     @default("system")
+  departmentId              String?
+  storeId                   String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  department                Department?                @relation(fields: [departmentId], references: [id])
+  store                     Store?                     @relation(fields: [storeId], references: [id])
+  sessions                  Session[]
+  conversations             Conversation[]
+  createdTickets            Ticket[]                   @relation("TicketCreatedBy")
+  closedTickets             Ticket[]                   @relation("TicketClosedBy")
+  claimedTickets            Ticket[]                   @relation("TicketClaimedBy")
+  escalatedTickets          Ticket[]                   @relation("TicketEscalatedTo")
+  submittedResolutions      Ticket[]                   @relation("TicketResolutionSubmittedBy")
+  ticketMessages            TicketMessage[]
+  generatedKnowledgeDrafts  TicketKnowledgeDraft[]
   uploadedKnowledgeVersions KnowledgeDocumentVersion[]
 }
 
@@ -342,7 +342,7 @@ model KnowledgeItem {
 }
 
 model KnowledgeChunk {
-  id              String        @id @default(cuid())
+  id              String             @id @default(cuid())
   knowledgeItemId String
   documentId      String?
   chunkSetId      String?
@@ -352,15 +352,15 @@ model KnowledgeChunk {
   originalText    String
   sourceFile      String?
   docType         String?
-  qdrantPointId   String        @unique
+  qdrantPointId   String             @unique
   metadataJson    String
   sectionPath     String?
   pageStart       Int?
   pageEnd         Int?
   tokenCount      Int?
-  enabled         Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+  enabled         Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  knowledgeItem   KnowledgeItem      @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
   document        KnowledgeDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
   chunkSet        KnowledgeChunkSet? @relation(fields: [chunkSetId], references: [id], onDelete: Cascade)
   parentChunk     KnowledgeChunk?    @relation("KnowledgeChunkParent", fields: [parentChunkId], references: [id], onDelete: SetNull)
@@ -373,14 +373,14 @@ model KnowledgeChunk {
 }
 
 model KnowledgeDocument {
-  id               String                  @id @default(cuid())
+  id               String                     @id @default(cuid())
   title            String
   sourceType       KnowledgeSourceType
   sourceFile       String?
   mimeType         String?
-  businessCategory String                  @default("通用")
-  answerPolicy     KnowledgeAnswerPolicy   @default(allow_llm_fallback)
-  scopeLevel       KnowledgeScopeLevel     @default(national)
+  businessCategory String                     @default("通用")
+  answerPolicy     KnowledgeAnswerPolicy      @default(allow_llm_fallback)
+  scopeLevel       KnowledgeScopeLevel        @default(national)
   provinceCode     String?
   provinceName     String?
   cityCode         String?
@@ -390,11 +390,11 @@ model KnowledgeDocument {
   storeId          String?
   effectiveFrom    DateTime?
   effectiveTo      DateTime?
-  status           KnowledgeDocumentStatus @default(draft)
-  hitCount         Int                     @default(0)
+  status           KnowledgeDocumentStatus    @default(draft)
+  hitCount         Int                        @default(0)
   lastHitAt        DateTime?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
   versions         KnowledgeDocumentVersion[]
   parseRuns        KnowledgeParseRun[]
   chunkSets        KnowledgeChunkSet[]
@@ -407,66 +407,67 @@ model KnowledgeDocument {
 }
 
 model KnowledgeDocumentVersion {
-  id                String            @id @default(cuid())
-  documentId        String
-  originalFilePath  String?
-  sourceFileName    String?
-  contentHash       String
-  uploadedByUserId  String?
-  createdAt         DateTime          @default(now())
-  document          KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  uploadedBy        User?             @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
-  parseRuns         KnowledgeParseRun[]
+  id               String              @id @default(cuid())
+  documentId       String
+  originalFilePath String?
+  sourceFileName   String?
+  contentHash      String
+  uploadedByUserId String?
+  createdAt        DateTime            @default(now())
+  document         KnowledgeDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy       User?               @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  parseRuns        KnowledgeParseRun[]
 
   @@index([documentId, createdAt])
   @@index([contentHash])
 }
 
 model KnowledgeParseRun {
-  id                  String                  @id @default(cuid())
-  documentId          String
-  documentVersionId   String
-  parserType          KnowledgeParserType
-  status              KnowledgeParseRunStatus @default(pending)
-  extractedText       String?
-  structuredJson      String?
-  error               String?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  document            KnowledgeDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  documentVersion     KnowledgeDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
-  chunkSets           KnowledgeChunkSet[]
+  id                String                   @id @default(cuid())
+  documentId        String
+  documentVersionId String
+  parserType        KnowledgeParserType
+  status            KnowledgeParseRunStatus  @default(pending)
+  extractedText     String?
+  structuredJson    String?
+  error             String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  document          KnowledgeDocument        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion   KnowledgeDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  chunkSets         KnowledgeChunkSet[]
 
   @@index([documentId, createdAt])
   @@index([status, createdAt])
 }
 
 model KnowledgeChunkSet {
-  id              String                 @id @default(cuid())
-  documentId      String
-  parseRunId      String
-  chunkStrategy   KnowledgeChunkStrategy
-  isActive        Boolean                @default(false)
-  createdAt       DateTime               @default(now())
-  document        KnowledgeDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  parseRun        KnowledgeParseRun      @relation(fields: [parseRunId], references: [id], onDelete: Cascade)
-  chunks          KnowledgeChunk[]
+  id            String                 @id @default(cuid())
+  documentId    String
+  parseRunId    String
+  chunkStrategy KnowledgeChunkStrategy
+  configJson    String?
+  isActive      Boolean                @default(false)
+  createdAt     DateTime               @default(now())
+  document      KnowledgeDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parseRun      KnowledgeParseRun      @relation(fields: [parseRunId], references: [id], onDelete: Cascade)
+  chunks        KnowledgeChunk[]
 
   @@index([documentId, isActive])
   @@index([parseRunId])
 }
 
 model AnswerPolicyRule {
-  id                String                @id @default(cuid())
-  name              String
-  businessCategory  String
-  matchTermsJson    String?
-  answerPolicy      KnowledgeAnswerPolicy @default(allow_llm_fallback)
-  minRerankScore    Float?
-  minEvidenceCount  Int                   @default(1)
-  enabled           Boolean               @default(true)
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  id               String                @id @default(cuid())
+  name             String
+  businessCategory String
+  matchTermsJson   String?
+  answerPolicy     KnowledgeAnswerPolicy @default(allow_llm_fallback)
+  minRerankScore   Float?
+  minEvidenceCount Int                   @default(1)
+  enabled          Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([businessCategory, enabled])
 }

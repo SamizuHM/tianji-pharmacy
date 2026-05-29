@@ -14,6 +14,14 @@ import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
 import { parseDocument } from "@/lib/retrieval/ml-service";
 import {
+  DEFAULT_DOCUMENT_CHUNKING_CONFIG,
+  chunkPlainText,
+  chunkQaItems,
+  sanitizeChunkingConfig,
+  type ChunkPlan,
+  type DocumentChunkingConfig,
+} from "@/lib/services/document-chunking";
+import {
   buildStablePointId,
   prepareKnowledgeChunkUpsertTasks,
   tryDrainKnowledgeIndexTasks,
@@ -50,6 +58,7 @@ type UpsertKnowledgeInput = {
   originalText: string;
   normalizedText: string;
   chunkTexts: string[];
+  chunkPlans?: ChunkPlan[];
 };
 
 export type DocumentImportOptions = {
@@ -65,6 +74,7 @@ export type DocumentImportOptions = {
   districtCode?: string | null;
   districtName?: string | null;
   storeId?: string | null;
+  chunkingConfig?: Partial<DocumentChunkingConfig>;
 };
 
 export type KnowledgeListParams = {
@@ -207,10 +217,15 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
   const existingChunks = existing?.chunks ?? [];
   const imagePaths = buildImagePaths(input);
 
-  const chunkPlans = input.chunkTexts.map((chunkText, chunkIndex) => {
+  const inputChunkPlans: ChunkPlan[] = input.chunkPlans?.length
+    ? input.chunkPlans
+    : input.chunkTexts.map((text) => ({ text }));
+
+  const chunkPlans = inputChunkPlans.map((plan, chunkIndex) => {
     const existingChunk = existingChunks[chunkIndex];
     const chunkId = existingChunk?.id ?? crypto.randomUUID();
     const businessCategory = input.businessCategory ?? inferBusinessCategory(input);
+    const chunkText = plan.text;
     return {
       id: chunkId,
       knowledgeItemId: itemId,
@@ -221,17 +236,18 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       originalText: input.originalText,
       sourceFile: input.sourceFile,
       docType: input.docType,
-      sectionPath: `${input.categoryL1} / ${input.categoryL2}`,
+      sectionPath: plan.sectionPath ?? `${input.categoryL1} / ${input.categoryL2}`,
       tokenCount: chunkText.length,
       enabled: true,
       qdrantPointId: buildStablePointId(chunkId),
-      metadataJson: JSON.stringify(
-        buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
+      metadataJson: JSON.stringify({
+        ...buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
           ...input,
           businessCategory,
           answerPolicy: input.answerPolicy ?? inferAnswerPolicy(businessCategory),
-        })
-      ),
+        }),
+        ...(plan.metadata ?? {}),
+      }),
     };
   });
   const staleChunks = existingChunks.filter(
@@ -626,7 +642,8 @@ async function createDocumentIngestion(input: {
   filePath: string;
   sourceFile: string;
   extractedText: string;
-  chunkStrategy?: "fixed_overlap" | "qa";
+  chunkStrategy?: "fixed_overlap" | "recursive" | "qa" | "parent_child";
+  chunkingConfig: DocumentChunkingConfig;
   options?: DocumentImportOptions;
 }) {
   const businessCategory =
@@ -640,6 +657,37 @@ async function createDocumentIngestion(input: {
   const chunkSetId = crypto.randomUUID();
 
   await prisma.$transaction(async (tx) => {
+    const existingDocuments =
+      (await tx.knowledgeDocument.findMany({
+        where: {
+          sourceType: "uploaded_doc",
+          sourceFile: input.sourceFile,
+        },
+        include: {
+          chunks: true,
+        },
+      })) ?? [];
+    const staleChunks = existingDocuments.flatMap((document) => document.chunks);
+
+    if (staleChunks.length) {
+      await tx.knowledgeIndexTask.createMany({
+        data: staleChunks.map((chunk) => ({
+          taskType: KnowledgeIndexTaskType.delete,
+          status: KnowledgeIndexTaskStatus.pending,
+          knowledgeItemId: chunk.knowledgeItemId,
+          chunkId: chunk.id,
+          pointId: chunk.qdrantPointId,
+          payloadJson: JSON.stringify({ reason: "document_replace" }),
+        })),
+      });
+    }
+
+    if (existingDocuments.length) {
+      await tx.knowledgeDocument.deleteMany({
+        where: { id: { in: existingDocuments.map((document) => document.id) } },
+      });
+    }
+
     await tx.knowledgeDocument.create({
       data: {
         id: documentId,
@@ -692,12 +740,71 @@ async function createDocumentIngestion(input: {
         documentId,
         parseRunId,
         chunkStrategy: input.chunkStrategy ?? "qa",
+        configJson: JSON.stringify(input.chunkingConfig),
         isActive: true,
       },
     });
   });
 
   return { documentId, chunkSetId, businessCategory, answerPolicy };
+}
+
+function resolveChunkStrategy(config: DocumentChunkingConfig) {
+  if (config.rule.mode === "qa") return "qa";
+  if (config.rule.mode === "parent_child") return "parent_child";
+  return "recursive";
+}
+
+function buildImportItemsFromParsed(input: {
+  parsedItems: Awaited<ReturnType<typeof parseDocument>>["items"];
+  sourceFile: string;
+  extractedText: string;
+  config: DocumentChunkingConfig;
+}) {
+  if (input.config.rule.mode === "qa" && input.parsedItems.length > 1) {
+    const qaChunks = chunkQaItems(input.parsedItems, input.config);
+    return input.parsedItems.map((item, index) => ({
+      ...item,
+      sourceFile: input.sourceFile,
+      chunkTexts: qaChunks[index] ? [qaChunks[index].text] : item.chunkTexts,
+      chunkPlans: qaChunks[index] ? [qaChunks[index]] : undefined,
+    }));
+  }
+
+  const representative = input.parsedItems[0];
+  const chunkPlans =
+    input.config.rule.mode === "qa" && input.parsedItems.length === 1
+      ? chunkQaItems(
+          [
+            {
+              question: representative.question,
+              answer: representative.answer || representative.normalizedText,
+              categoryL1: representative.categoryL1,
+              categoryL2: representative.categoryL2,
+              tags: representative.tags,
+            },
+          ],
+          input.config
+        )
+      : chunkPlainText(input.extractedText, input.config);
+
+  return [
+    {
+      categoryL1: representative.categoryL1 || "门店知识库",
+      categoryL2: representative.categoryL2 || "智能问答",
+      question: representative.question || input.sourceFile.replace(/\.[^.]+$/, ""),
+      answer: input.extractedText,
+      tags: representative.tags ?? [],
+      sourceFile: input.sourceFile,
+      docType: representative.docType,
+      imagePath: representative.imagePath,
+      imagePaths: representative.imagePaths ?? [],
+      originalText: representative.originalText || input.extractedText,
+      normalizedText: input.extractedText,
+      chunkTexts: chunkPlans.map((chunk) => chunk.text),
+      chunkPlans,
+    },
+  ];
 }
 
 export async function importKnowledgeFromFiles(
@@ -732,15 +839,25 @@ export async function importKnowledgeFromFiles(
       const extractedText = parsed.items
         .map((item) => item.normalizedText || item.originalText || item.chunkTexts.join("\n"))
         .join("\n\n");
+      const chunkingConfig = sanitizeChunkingConfig(
+        options?.chunkingConfig ?? DEFAULT_DOCUMENT_CHUNKING_CONFIG
+      );
+      const importItems = buildImportItemsFromParsed({
+        parsedItems: parsed.items,
+        sourceFile,
+        extractedText,
+        config: chunkingConfig,
+      });
       const ingestion = await createDocumentIngestion({
         filePath,
         sourceFile,
         extractedText,
-        chunkStrategy: parsed.items.length === 1 ? "fixed_overlap" : "qa",
+        chunkStrategy: resolveChunkStrategy(chunkingConfig),
+        chunkingConfig,
         options,
       });
 
-      for (const item of parsed.items) {
+      for (const item of importItems) {
         await upsertKnowledgeItem({
           categoryL1: item.categoryL1,
           categoryL2: item.categoryL2,
@@ -767,6 +884,7 @@ export async function importKnowledgeFromFiles(
           originalText: item.originalText,
           normalizedText: item.normalizedText,
           chunkTexts: item.chunkTexts,
+          chunkPlans: item.chunkPlans,
         });
         importedChunks += item.chunkTexts.length;
       }

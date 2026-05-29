@@ -612,6 +612,7 @@ export async function rebuildKnowledgeIndex() {
   const normalizedChunks = await normalizeKnowledgeChunkPointIds();
 
   const chunks = await prisma.knowledgeChunk.findMany({
+    where: { enabled: true, knowledgeItem: { status: "published" } },
     include: { knowledgeItem: true },
     orderBy: [{ knowledgeItemId: "asc" }, { chunkIndex: "asc" }],
   });
