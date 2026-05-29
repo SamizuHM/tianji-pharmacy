@@ -250,7 +250,7 @@ rewrite query
 ```text
 app/web/app/admin/knowledge/page.tsx
 app/web/components/knowledge/knowledge-admin.tsx
-app/web/components/knowledge/knowledge-table.tsx
+app/web/components/knowledge/knowledge-document-table.tsx
 app/web/components/knowledge/rich-editor.tsx
 ```
 
@@ -260,9 +260,15 @@ API：
 app/web/app/api/knowledge/route.ts
 app/web/app/api/knowledge/[id]/route.ts
 app/web/app/api/knowledge/bulk/route.ts
+app/web/app/api/knowledge/documents/route.ts
+app/web/app/api/knowledge/documents/[id]/route.ts
+app/web/app/api/knowledge/import-documents/route.ts
+app/web/app/api/knowledge/preview-chunks/route.ts
 app/web/app/api/knowledge/reindex/[id]/route.ts
 app/web/app/api/knowledge/rebuild-index/route.ts
 ```
+
+当前后台只维护知识文档视图。手动新增和工单写回都应走 QA 文档链路，不要重新引入独立 QA 表格。
 
 服务：
 
@@ -273,18 +279,17 @@ app/web/lib/services/knowledge-index.ts
 
 注意：
 
-- 改 KnowledgeItem 通常会影响 KnowledgeChunk。
+- 改 `KnowledgeDocument`、`KnowledgeChunkSet` 或 `KnowledgeItem` 投影通常会影响 `KnowledgeChunk`。
 - 改 KnowledgeChunk 通常会影响 Qdrant。
 - 删除/更新知识后要考虑索引任务。
 
 验证：
 
-1. 新增知识。
-2. 编辑知识。
-3. 删除知识。
-4. 单条重建索引。
-5. 全量重建索引。
-6. 回到聊天页验证可命中。
+1. 上传文档并预览切片。
+2. 手动新增 QA，确认生成 QA 文档。
+3. 点开文档查看 active chunk set。
+4. 全量重建索引。
+5. 回到聊天页验证可命中。
 
 ---
 
@@ -435,8 +440,9 @@ app/web/lib/services/tickets.ts
 4. agent 回复。
 5. agent 升级到部门或人员。
 6. agent 提交解决方案。
-7. 关闭工单。
-8. 可生成并写回知识库。
+7. staff 确认已解决。
+8. agent 生成待入库草稿。
+9. 关闭工单并写回知识库。
 
 注意：
 
@@ -723,11 +729,12 @@ docker compose logs -f ml-service
 
 检查：
 
-1. 是否有 `KnowledgeItem`。
-2. 是否有 `KnowledgeChunk`。
-3. Qdrant collection 是否有 points。
-4. rerank score 是否超过阈值。
-5. `KnowledgeItem.status` 是否是 `published`。
+1. 是否有 `KnowledgeDocument`，且 `status` 是 `published`。
+2. 是否有 active `KnowledgeChunkSet` 和 `KnowledgeChunk`。
+3. 是否有对应的 `KnowledgeItem` 检索投影，且 `status` 是 `published`。
+4. Qdrant collection 是否有 points。
+5. rerank score 是否超过阈值。
+6. 文档地域范围和回答策略是否允许命中或兜底。
 
 执行：
 

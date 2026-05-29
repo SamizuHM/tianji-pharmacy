@@ -35,6 +35,10 @@
   TicketKnowledgeDraft
 
 知识库域：
+  KnowledgeDocument
+  KnowledgeDocumentVersion
+  KnowledgeParseRun
+  KnowledgeChunkSet
   KnowledgeItem
   KnowledgeChunk
   KnowledgeIndexTask
@@ -59,7 +63,11 @@ Ticket
   ├─ TicketMessage
   └─ TicketKnowledgeDraft
 
-KnowledgeItem
+KnowledgeDocument
+  ├─ KnowledgeDocumentVersion
+  ├─ KnowledgeParseRun
+  ├─ KnowledgeChunkSet
+  ├─ KnowledgeItem
   └─ KnowledgeChunk
         └─ qdrantPointId -> Qdrant point
 
@@ -281,7 +289,7 @@ retrieveAnswer()
   +--> ML Service embed
   +--> Qdrant search
   +--> ML Service rerank
-  +--> PostgreSQL 校验 KnowledgeChunk / KnowledgeItem
+  +--> PostgreSQL 校验 KnowledgeDocument / KnowledgeChunk / KnowledgeItem 投影
   |
   +--> 命中知识库
   |      -> sourceType = kb
@@ -343,12 +351,13 @@ closedAt
 
 `status`：
 
-| 状态            | 含义   |
-| --------------- | ------ |
-| `pending_claim` | 待认领 |
-| `processing`    | 处理中 |
-| `escalated`     | 已升级 |
-| `closed`        | 已关闭 |
+| 状态            | 含义                           |
+| --------------- | ------------------------------ |
+| `pending_claim` | 待认领                         |
+| `processing`    | 处理中                         |
+| `escalated`     | 已升级                         |
+| `resolved`      | 已确认解决，等待生成待入库知识 |
+| `closed`        | 已关闭                         |
 
 `knowledgeStatus`：
 
@@ -357,6 +366,35 @@ closedAt
 | `not_ready`         | 暂不适合沉淀 |
 | `pending_writeback` | 待写回知识库 |
 | `written`           | 已写入知识库 |
+
+状态流转：
+
+```text
+pending_claim
+  -> processing
+  -> escalated
+  -> resolved
+  -> closed
+```
+
+写回链路：
+
+```text
+resolved
+  -> 选择材料生成 TicketKnowledgeDraft
+  -> knowledgeStatus = pending_writeback
+  -> 关闭工单
+  -> upsertQaKnowledgeDocument()
+  -> knowledgeStatus = written
+  -> closed
+```
+
+关闭前置条件：
+
+- 工单必须已进入 `resolved`。
+- 必须已生成 `TicketKnowledgeDraft`，且 `knowledgeStatus=pending_writeback`。
+- 关闭人必须是提交工单的员工、当前处理人或管理员。
+- 关闭后，草稿会写入 QA 知识文档，并同步生成检索投影与 chunk。
 
 ### TicketMessage
 
@@ -403,7 +441,11 @@ writtenKnowledgeItemId
 最终写回后才会生成或更新：
 
 ```text
-KnowledgeItem
+KnowledgeDocument
+KnowledgeDocumentVersion
+KnowledgeParseRun
+KnowledgeChunkSet
+KnowledgeItem 检索投影
 KnowledgeChunk
 KnowledgeIndexTask
 Qdrant point
@@ -479,7 +521,10 @@ Ticket + TicketMessage + Conversation Snapshot
 关闭工单
   |
   v
-upsertKnowledgeItem()
+upsertQaKnowledgeDocument()
+  |
+  v
+KnowledgeDocument + KnowledgeDocumentVersion + KnowledgeParseRun + KnowledgeChunkSet
   |
   v
 KnowledgeItem + KnowledgeChunk
@@ -495,11 +540,38 @@ Qdrant upsert
 
 ## 知识库域
 
+### KnowledgeDocument
+
+知识文档主表。
+
+后台知识库管理的唯一主入口。上传文档、手动 QA、工单写回和种子知识都会创建或归并为文档。
+
+关键字段：
+
+```text
+title
+sourceType
+sourceFile
+businessCategory
+answerPolicy
+scopeLevel
+provinceCode/cityCode/districtCode/storeId
+status
+```
+
+关联：
+
+- `KnowledgeDocumentVersion`：文档版本和原始文件/内容 hash。
+- `KnowledgeParseRun`：一次解析运行，保存提取文本和结构化结果。
+- `KnowledgeChunkSet`：一次切片结果，只有 active chunk set 进入当前管理视图。
+- `KnowledgeChunk`：实际索引分块。
+- `KnowledgeItem`：检索兼容投影。
+
 ### KnowledgeItem
 
-知识条目主表。
+检索兼容和索引投影表。
 
-表示一条标准问答知识。
+表示一条标准问答知识，但后台不再以它作为主要管理对象。
 
 关键字段：
 
@@ -530,12 +602,13 @@ lastHitAt
 
 `sourceType`：
 
-| 值              | 含义             |
-| --------------- | ---------------- |
-| `seed_doc`      | 种子文档导入     |
-| `image_doc`     | 图片/图文文档    |
-| `manual_ticket` | 工单人工经验沉淀 |
-| `manual`        | 后台手动维护     |
+| 值              | 含义                                       |
+| --------------- | ------------------------------------------ |
+| `seed_doc`      | 种子文档导入                               |
+| `image_doc`     | 图片/图文文档                              |
+| `manual_ticket` | 工单人工经验沉淀                           |
+| `manual_qa`     | 后台手动 QA 文档                           |
+| `manual`        | 旧手动维护来源，后台加载时会归并为 QA 文档 |
 
 ### KnowledgeChunk
 
@@ -547,6 +620,8 @@ RAG 检索的最小索引单位。
 
 ```text
 knowledgeItemId
+documentId
+chunkSetId
 chunkIndex
 chunkText
 originalText
@@ -559,6 +634,8 @@ metadataJson
 关系：
 
 ```text
+KnowledgeDocument 1 -> N KnowledgeChunk
+KnowledgeChunkSet 1 -> N KnowledgeChunk
 KnowledgeItem 1 -> N KnowledgeChunk
 KnowledgeChunk.qdrantPointId -> Qdrant point id
 ```
@@ -649,7 +726,7 @@ Qdrant 返回 point
   v
 用 point id 或 qdrantPointId 回查 PostgreSQL KnowledgeChunk
   |
-  +--> 找到 chunk 且 KnowledgeItem published
+  +--> 找到 chunk，KnowledgeDocument published，且 KnowledgeItem published
   |      -> 可以作为知识命中
   |
   +--> 找不到 chunk
@@ -737,6 +814,10 @@ app/ml-service/app/main.py
 ```text
 PostgreSQL 业务表数据
 prisma/migrations
+KnowledgeDocument
+KnowledgeDocumentVersion
+KnowledgeParseRun
+KnowledgeChunkSet
 KnowledgeItem
 KnowledgeChunk
 Ticket
@@ -767,12 +848,14 @@ KnowledgeIndexTask pending 状态
 
 优先查：
 
-1. `KnowledgeItem.status` 是否是 `published`。
-2. `KnowledgeChunk` 是否存在。
-3. Qdrant point 是否存在。
-4. rerank score 是否超过阈值。
-5. `retrievalDebugJson` 中召回了什么。
-6. 是否存在陈旧 Qdrant point。
+1. `KnowledgeDocument.status` 是否是 `published`。
+2. 是否有 active `KnowledgeChunkSet` 和 `KnowledgeChunk`。
+3. `KnowledgeItem` 检索投影的 `status` 是否是 `published`。
+4. Qdrant point 是否存在。
+5. rerank score 是否超过阈值。
+6. `retrievalDebugJson` 中召回了什么。
+7. 文档地域范围、业务分类和回答策略是否把候选过滤掉。
+8. 是否存在陈旧 Qdrant point。
 
 参考：
 
@@ -786,7 +869,7 @@ docs/POSTGRES_QDRANT_INDEX_CONSISTENCY.md
 
 - rerank 分数低于 `KB_HIT_THRESHOLD`。
 - Qdrant point 对应的 `KnowledgeChunk` 已不存在。
-- `KnowledgeItem.status` 不是 `published`。
+- `KnowledgeItem` 检索投影的 `status` 不是 `published`。
 - 查询被 rewrite 成了不合适的表达。
 
 ### 后台点击重建索引做了什么

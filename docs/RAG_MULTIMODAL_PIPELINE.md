@@ -2,21 +2,20 @@
 
 ## 版本基线
 
-本文档基于当前实现整理，代码基线为：
-
-- `8cb4e3d fix(openai): exclude contextSummary from multimodal query generation`
-
-该版本的关键约束是：
+本文档基于当前实现整理，关键约束是：
 
 - 检索阶段不使用完整会话上下文，避免上一轮助手回答污染当前轮召回。
 - 生成阶段继续使用会话上下文，用于承接多轮对话语义。
 - `enable_thinking` 只用于最终大模型生成链路，不用于 embedding / rerank。
+- 检索阶段会做 query planning、多 query 向量召回、关键词召回、RRF 合并、rerank、地域过滤和回答策略决策。
+- 医保、用药等强约束分类默认 `kb_only`，知识库未命中时拒答，不走大模型兜底。
 
 ## 总体原则
 
 当前系统采用 数据库 + Qdrant + ML Service 的 RAG 架构：
 
-- PostgreSQL 中的 `knowledgeItem` / `knowledgeChunk` 是知识库主数据。
+- PostgreSQL 中的 `KnowledgeDocument` / `KnowledgeChunkSet` / `KnowledgeChunk` 是知识库主数据。
+- `KnowledgeItem` 是检索兼容和索引投影载体。
 - Qdrant 是可重建的向量索引。
 - ML Service 负责多模态 embedding、rerank、图片理解和多模态最终回答。
 
@@ -88,23 +87,48 @@ queryText = 多模态模型基于“当前用户问题 + 当前轮全部图片�
 - 不传入历史上下文。
 - 不把上一轮助手答案、上一轮 retrievalHints 或知识库候选内容拼进 query。
 
-### 4. 向量召回
+### 4. Query planning
+
+位置：
+
+- `app/web/lib/services/retrieval.ts`
+- `buildQueryPlan(...)`
+
+系统会从 query text 中推断：
+
+- `businessCategory`
+- 默认 `answerPolicy`
+- `mustTerms`
+- `queryVariants`
+
+当前规则型分类：
+
+- 医保、统筹、报销、结算、刷卡、医保卡 → `医保`
+- 用药、药品、处方、剂量、不良反应、禁忌等 → `用药`
+- 小票、打印、收银、票据、打印机 → `收银打印`
+- 其他 → `通用`
+
+`医保`、`用药` 默认 `kb_only`。
+
+### 5. 混合召回
 
 位置：
 
 - Web: `app/web/lib/services/retrieval.ts`
 - ML Service: `app/ml-service/app/main.py`
 
-Web 侧调用：
+#### 向量召回
+
+Web 侧会对 `queryVariants` 逐个 embedding：
 
 ```ts
-embedMultimodal([
-  {
-    text: queryText,
+embedMultimodal(
+  queryPlan.queryVariants.map((text) => ({
+    text,
     image_path: input.imagePaths[0],
     image_paths: input.imagePaths,
-  },
-]);
+  }))
+);
 ```
 
 ML Service 侧使用：
@@ -120,7 +144,20 @@ ML Service 侧使用：
 
 - `RETRIEVAL_TOP_K`
 
-### 5. Rerank 重排
+#### 关键词召回
+
+同一轮会用 `mustTerms + businessCategory` 在 PostgreSQL `KnowledgeChunk.chunkText`、`KnowledgeItem.question`、`KnowledgeItem.answer` 中做关键词召回。
+
+关键词召回会同步应用文档地域过滤：
+
+- 无门店地域时只召回全国文档。
+- 有门店地域时召回全国、省、市、区县、门店匹配文档。
+
+#### RRF 合并
+
+向量召回和关键词召回用 RRF 合并，候选来源记录为 `vector` / `keyword`。
+
+### 6. Rerank 重排
 
 位置：
 
@@ -157,7 +194,7 @@ rerankScore >= KB_HIT_THRESHOLD
 
 - `KB_HIT_THRESHOLD=0.72`
 
-### 6. 命中决策
+### 7. 命中决策
 
 位置：
 
@@ -167,14 +204,16 @@ rerankScore >= KB_HIT_THRESHOLD
 如果存在超过阈值的候选：
 
 - 回表校验 `knowledgeChunk` / `knowledgeItem`
+- 校验 `KnowledgeDocument` 地域范围
 - 校验通过后走知识库答案整理
 - 校验失败则投递脏 point 清理任务
 
 如果没有超过阈值的候选：
 
-- 走大模型保守兜底回答
+- `answerPolicy=kb_only` 时返回 refusal，不调用通用大模型兜底
+- `answerPolicy=allow_llm_fallback` 时走大模型保守兜底回答
 
-### 7. 最终生成
+### 8. 最终生成
 
 无图场景：
 
@@ -198,8 +237,27 @@ rerankScore >= KB_HIT_THRESHOLD
 
 主数据位于 数据库：
 
-- `knowledgeItem`
-- `knowledgeChunk`
+- `KnowledgeDocument`
+- `KnowledgeDocumentVersion`
+- `KnowledgeParseRun`
+- `KnowledgeChunkSet`
+- `KnowledgeChunk`
+
+`KnowledgeItem` 仍存在，用于保存标准问答字段、统计命中和兼容索引 payload。后台管理以文档为准。
+
+入库来源：
+
+- 上传文档：`/api/knowledge/import-documents`
+- 导入前预览：`/api/knowledge/preview-chunks`
+- 手动 QA：`/api/knowledge` JSON POST
+- 工单写回：`closeTicketWithKnowledgeWriteback -> upsertQaKnowledgeDocument`
+
+切片实现：
+
+- `app/web/lib/services/document-chunking.ts`
+- 通用文档切片
+- 父子切片
+- QA 文档切片
 
 ### 2. 索引投影
 
@@ -278,7 +336,7 @@ query + candidates -> rerank model -> scores
 
 ### 2. 候选知识多图会放大开销
 
-如果 Qdrant 召回 topK=8，且多个候选知识条目都有多张图，则每个候选都可能触发补充图片摘要。
+如果 Qdrant 召回 topK=8，且多个候选知识文档或检索投影都有多张图，则每个候选都可能触发补充图片摘要。
 
 这会导致一次用户请求背后出现多次视觉摘要调用。
 

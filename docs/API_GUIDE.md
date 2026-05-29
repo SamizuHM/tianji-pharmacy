@@ -205,9 +205,14 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 | GET    | /api/settings                         | 获取检索与问答参数         | 已登录             |
 | PUT    | /api/settings                         | 更新检索与问答参数         | 已登录             |
 | PUT    | /api/settings/theme                   | 更新当前用户个人偏好       | 已登录             |
-| GET    | /api/knowledge                        | 知识库列表                 | 已登录             |
-| POST   | /api/knowledge                        | 全量导入知识               | 已登录             |
-| POST   | /api/knowledge/reindex/[id]           | 单条重建索引               | 已登录             |
+| GET    | /api/knowledge                        | 兼容知识条目查询           | 已登录             |
+| POST   | /api/knowledge                        | 手动新增 QA 文档或全量导入 | 管理员             |
+| GET    | /api/knowledge/documents              | 知识文档列表               | 管理员             |
+| GET    | /api/knowledge/documents/[id]         | 知识文档详情与 chunk       | 管理员             |
+| POST   | /api/knowledge/import-documents       | 上传文档导入               | 管理员             |
+| POST   | /api/knowledge/preview-chunks         | 上传文档切片预览           | 管理员             |
+| POST   | /api/knowledge/rebuild-index          | 全量重建索引               | 管理员             |
+| POST   | /api/knowledge/reindex/[id]           | 兼容单条重建入口（501）    | 管理员             |
 | GET    | /api/files/[...path]                  | 文件访问                   | 已登录             |
 
 ---
@@ -1047,7 +1052,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 - 工单状态为 `resolved`。
 - 已生成待入库知识草稿，且 `knowledgeStatus=pending_writeback`。
-- 当前用户是提交工单的员工或当前处理客服。
+- 当前用户是提交工单的员工、当前处理客服或管理员。
 
 **响应**：
 
@@ -1063,6 +1068,8 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 ```
 
 > 关闭工单时，系统会把已生成的待入库知识草稿写入知识库，后续相同问题将被 AI 直接命中。
+
+流程上应先由客服在 `resolved` 状态下选择材料生成知识草稿，再由允许的关闭人执行关闭写回。没有草稿时，关闭接口会拒绝执行。
 
 ### GET /api/stats/summary
 
@@ -1106,7 +1113,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### GET /api/knowledge
 
-获取知识库条目列表和导入任务记录。
+兼容接口，返回 `KnowledgeItem` 查询结果。后台管理页不再使用独立 QA 条目表，而是以 `/api/knowledge/documents` 的文档视图为准。
 
 **响应**：
 
@@ -1124,13 +1131,38 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
       "createdAt": "2026-04-23T17:54:47.000Z"
     }
   ],
-  "jobs": []
+  "total": 1,
+  "page": 1,
+  "pageSize": 10,
+  "pageCount": 1
 }
 ```
 
 ### POST /api/knowledge
 
-触发全量知识库导入（从 `seed_knowledge/` 目录和根目录知识文档）。
+`application/json` 时手动新增 QA 文档；非 JSON 时触发全量知识库导入。
+
+手动新增请求：
+
+```json
+{
+  "categoryL1": "医保政策",
+  "categoryL2": "刷卡结算",
+  "question": "医保卡消磁了怎么处理？",
+  "answer": "引导顾客到当地医保经办机构或发卡银行处理。",
+  "imagePaths": []
+}
+```
+
+手动新增响应：
+
+```json
+{ "ok": true, "item": { "id": "cm..." } }
+```
+
+这条知识会被创建为 QA 文档，而不是后台独立 QA 条目。
+
+全量导入响应：
 
 **响应**：
 
@@ -1143,9 +1175,31 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 }
 ```
 
+### GET /api/knowledge/documents
+
+获取后台知识文档列表。文档可能来自上传文件、手动 QA、工单写回或种子导入。
+
+### GET /api/knowledge/documents/[id]
+
+获取单个知识文档详情，包括版本、解析记录、chunk set 和 active chunks。
+
+### POST /api/knowledge/import-documents
+
+上传文档并入库。支持 `multipart/form-data`：
+
+- `files`：一个或多个文件。
+- `chunkingConfig`：切片配置 JSON。
+- `businessCategory`：业务分类。
+- `answerPolicy`：`allow_llm_fallback` 或 `kb_only`。
+- `scopeLevel`：`national/province/city/district/store`。
+
+### POST /api/knowledge/preview-chunks
+
+上传文件并返回前几个切片预览，不写入知识库。
+
 ### POST /api/knowledge/reindex/[id]
 
-单条知识重建索引。当前版本返回 501。
+兼容保留接口。当前版本返回 501，推荐使用全量 `kb:rebuild` 或后台「重建索引」。
 
 **响应**：
 
@@ -1253,7 +1307,7 @@ curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/close 
   -H "Content-Type: application/json" \
   -d '{}'
 # → {"ticket":{"status":"closed",...}}
-# 系统自动将此答案写入知识库！
+# 系统自动将此答案写成 QA 文档，并进入知识文档视图。
 ```
 
 ### 第四步：验证知识沉淀效果
@@ -1279,9 +1333,9 @@ curl -N -b staff.txt -X POST http://127.0.0.1:3000/api/conversations/conv-002/me
 curl -s -b staff.txt http://127.0.0.1:3000/api/stats/summary
 # → {"totalQuestions":2,"kbHits":1,"llmAnswers":1,...}
 
-# 12. 知识库列表
-curl -s -b staff.txt http://127.0.0.1:3000/api/knowledge
-# → {"items":[{"question":"药店收银系统怎么操作？","sourceType":"manual_ticket",...}]}
+# 12. 知识文档列表
+curl -s -b staff.txt http://127.0.0.1:3000/api/knowledge/documents
+# → {"items":[{"title":"工单知识：药店收银系统怎么操作？","sourceType":"manual_ticket",...}]}
 ```
 
 ---

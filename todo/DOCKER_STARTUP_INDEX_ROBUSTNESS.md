@@ -2,7 +2,7 @@
 
 ## 背景
 
-当前系统约定 SQLite 是知识库主数据源，Qdrant 是可重建的派生向量索引。这个方向是正确的，但当前 Docker 启动链路还没有完全体现这个约束：首次初始化、知识导入、Qdrant 对账和索引重建仍然缺少强校验与自动恢复。
+当前系统约定 PostgreSQL 是知识库主数据源，Qdrant 是可重建的派生向量索引。这个方向是正确的，但当前 Docker 启动链路还没有完全体现这个约束：首次初始化、知识导入、Qdrant 对账和索引重建仍然缺少强校验与自动恢复。
 
 因此，在从 0 clone 到新设备并执行 `docker compose up -d --build` 时，只要环境变量、外网、DashScope、ML 服务和 Qdrant 都正常，系统大概率可以启动；但它还不能保证长期运行中自动从 Qdrant 空库、半导入、导入失败或 pending index task 中自愈。
 
@@ -10,10 +10,10 @@
 
 当前版本已经具备一部分一致性基础设施，但还没有形成完整闭环：
 
-1. SQLite 侧已经有 `KnowledgeItem`、`KnowledgeChunk` 和 `KnowledgeIndexTask`，并且 `qdrantPointId` 由 chunk id 稳定派生。
-2. 知识写入链路会在 SQLite 事务内同时写主数据和索引 outbox，避免“主数据写成功但任务丢失”。
+1. PostgreSQL 侧已经有 `KnowledgeDocument`、`KnowledgeChunkSet`、`KnowledgeChunk`、`KnowledgeItem` 投影和 `KnowledgeIndexTask`，并且 `qdrantPointId` 由 chunk id 稳定派生。
+2. 知识写入链路会在 PostgreSQL 事务内同时写文档主数据、检索投影和索引 outbox，避免“主数据写成功但任务丢失”。
 3. `drainKnowledgeIndexTasks` 支持失败重试和指数退避，`reconcileKnowledgeIndex` 和 `rebuildKnowledgeIndex` 也已经存在。
-4. 检索链路不会直接信任 Qdrant payload，会回 SQLite 校验 chunk 和知识条目状态。
+4. 检索链路不会直接信任 Qdrant payload，会回 PostgreSQL 校验 chunk、文档地域范围和知识投影状态。
 5. 但是当前没有常驻 worker，也没有启动级自动对账与自动重建，`docker-entrypoint.sh` 仍通过 HTTP API 做首次知识导入，初始化标记也不能代表索引健康。
 
 结论是：现在属于“有局部保障，但没有完整自动一致性机制”的阶段，不适合把 Qdrant 一致性理解为已闭环。
@@ -28,13 +28,13 @@
 
    `importKnowledgeFromFiles` 会记录 `errors`，但 API 层仍返回 JSON。entrypoint 只要 curl 成功，就会继续写入 `/app/data/.initialized`。这会导致“初始化标记已完成，但知识库没有完整导入”。
 
-3. `.initialized` 只适合表示 SQLite 基础数据初始化完成，不能表示 Qdrant 索引健康。
+3. `.initialized` 只适合表示 PostgreSQL 基础数据初始化完成，不能表示 Qdrant 索引健康。
 
    如果 `db_data` 仍存在，但 `qdrant_storage` 被删除、损坏或回滚，entrypoint 会因为 `.initialized` 存在而跳过知识导入，也不会自动 rebuild/reconcile Qdrant。
 
 4. 当前没有常驻 outbox drain worker。
 
-   请求尾部会尝试 drain 一次索引任务，但如果当时 Qdrant 不可用，任务会留在 SQLite。后续如果没有新的写入或人工执行脚本，pending task 不会被持续处理。
+   请求尾部会尝试 drain 一次索引任务，但如果当时 Qdrant 不可用，任务会留在 PostgreSQL。后续如果没有新的写入或人工执行脚本，pending task 不会被持续处理。
 
 5. Compose 里的 `depends_on: service_started` 不保证 Qdrant API 已经可写。
 
@@ -52,21 +52,21 @@
 
 Docker 启动后应满足：
 
-1. SQLite schema 一定同步完成。
+1. PostgreSQL schema 一定同步完成。
 2. 基础用户和系统配置一定 seed 完成。
-3. 如果 SQLite 没有知识数据，则导入 seed knowledge；导入失败时启动应失败或至少不写初始化成功标记。
+3. 如果 PostgreSQL 没有知识数据，则导入 seed knowledge；导入失败时启动应失败或至少不写初始化成功标记。
 4. 每次启动都对 Qdrant 做健康校验。
-5. 每次启动都 drain SQLite outbox 中未完成的索引任务。
-6. 每次启动都 reconcile SQLite 与 Qdrant。
-7. 如果 SQLite chunk 数量大于 0，但 Qdrant point 数量明显不一致，应自动 rebuild 或显式失败退出。
-8. Qdrant 丢失 volume 后，只要 SQLite 仍在，系统能自动恢复索引。
+5. 每次启动都 drain PostgreSQL outbox 中未完成的索引任务。
+6. 每次启动都 reconcile PostgreSQL 与 Qdrant。
+7. 如果 PostgreSQL chunk 数量大于 0，但 Qdrant point 数量明显不一致，应自动 rebuild 或显式失败退出。
+8. Qdrant 丢失 volume 后，只要 PostgreSQL 仍在，系统能自动恢复索引。
 9. 启动完成后，系统应能明确区分 `ready`、`degraded`、`unhealthy` 三种状态，而不是只看服务进程是否活着。
 
 ## 推荐改造
 
 ### 1. 拆分初始化语义
 
-保留 `.initialized`，但只表示 SQLite 基础初始化完成：
+保留 `.initialized`，但只表示 PostgreSQL 基础初始化完成：
 
 ```text
 /app/data/.db_initialized
@@ -85,11 +85,11 @@ scripts/bootstrap-knowledge-index.ts
 职责：
 
 1. 等待 Qdrant 可写。
-2. 统计 SQLite `knowledgeChunk` 数量。
+2. 统计 PostgreSQL `knowledgeChunk` 数量。
 3. 如果 chunk 数为 0，则导入 seed knowledge。
 4. drain pending/processing index tasks。
 5. 执行 reconcile。
-6. 再次检查 SQLite chunk 数和 Qdrant point 数。
+6. 再次检查 PostgreSQL chunk 数和 Qdrant point 数。
 7. 如果数量不一致，执行 rebuild。
 8. rebuild 后仍不一致则退出非 0。
 
@@ -117,7 +117,7 @@ importedChunks > 0
 errors.length === 0
 ```
 
-如果已有 SQLite 知识，则不重复导入，但仍然要 reconcile/rebuild Qdrant。
+如果已有 PostgreSQL 知识，则不重复导入，但仍然要 reconcile/rebuild Qdrant。
 
 ### 5. 增加 outbox drain worker
 
@@ -139,9 +139,9 @@ knowledge-index-worker:
 
 建议增加一个内部健康检查脚本或 API，检查：
 
-1. SQLite 可访问。
+1. PostgreSQL 可访问。
 2. Qdrant 可访问。
-3. SQLite chunk 数。
+3. PostgreSQL chunk 数。
 4. Qdrant point 数。
 5. pending/failed index task 数。
 6. ML embedding 是否可用。
@@ -158,7 +158,7 @@ unhealthy: 必须人工介入或自动重启
 
 建议新增一个可直接执行的验收脚本，用来在启动后做统一检查：
 
-1. SQLite `knowledgeChunk` 总数。
+1. PostgreSQL `knowledgeChunk` 总数。
 2. Qdrant `pharmacy_kb` point 总数。
 3. `KnowledgeIndexTask` 的 `pending`、`processing`、`failed` 数量。
 4. 最近一次 `reconcile` / `rebuild` 的执行结果。
@@ -174,9 +174,9 @@ unhealthy: 必须人工介入或自动重启
 docker compose up -d --build
 ```
 
-最终 SQLite `knowledgeChunk` 数量大于 0，Qdrant `pharmacy_kb` point 数与 SQLite chunk 数一致。
+最终 PostgreSQL `knowledgeChunk` 数量大于 0，Qdrant `pharmacy_kb` point 数与 PostgreSQL chunk 数一致。
 
-2. 删除 Qdrant volume，保留 SQLite volume，再执行：
+2. 删除 Qdrant volume，保留 PostgreSQL volume，再执行：
 
 ```bash
 docker compose up -d
@@ -192,11 +192,11 @@ docker compose up -d
 
 6. 关闭 ML 服务或配置错误 API Key 后首次导入，容器应明确失败，不能写入“初始化已完成”标记。
 
-7. 连续重启多次后，Qdrant point 数不增长，且与 SQLite chunk 数保持一致。
+7. 连续重启多次后，Qdrant point 数不增长，且与 PostgreSQL chunk 数保持一致。
 
 ## 当前临时运维命令
 
-在现有代码完全改造前，如果发现 SQLite 有知识但 Qdrant 空库，应在 `tianji-web` 容器内执行重建或等价脚本。
+在现有代码完全改造前，如果发现 PostgreSQL 有知识但 Qdrant 空库，应在 `tianji-web` 容器内执行重建或等价脚本。
 
 理想命令是：
 
@@ -213,7 +213,7 @@ P0：
 
 1. entrypoint 不再通过 HTTP API 导入知识。
 2. 每次启动都执行 Qdrant reconcile。
-3. SQLite chunk 与 Qdrant point 不一致时自动 rebuild 或失败退出。
+3. PostgreSQL chunk 与 Qdrant point 不一致时自动 rebuild 或失败退出。
 
 P1：
 

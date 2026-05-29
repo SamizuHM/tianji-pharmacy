@@ -302,6 +302,7 @@ POST /api/auth/logout
 - `resolutionText` 存在。
 - 员工确认后状态为 `resolved`。
 - `closedAt` 此时可以为空。
+- 关闭前必须先生成 `TicketKnowledgeDraft`，且 `knowledgeStatus` 变为 `pending_writeback`。
 
 ---
 
@@ -325,8 +326,10 @@ POST /api/auth/logout
 - `closedAt` 存在。
 - 状态为 `closed`。
 - `knowledgeStatus` 为 `written`。
-- 管理端知识库出现 `manual_ticket` 条目。
-- 生成或更新 `KnowledgeItem`。
+- 只有提交工单的员工、当前处理客服或管理员可以关闭。
+- 管理端「知识文档」列表出现工单 QA 文档。
+- 生成或更新 `KnowledgeItem` 检索投影。
+- 生成或更新 `KnowledgeDocument`、`KnowledgeDocumentVersion`、`KnowledgeParseRun`、`KnowledgeChunkSet`。
 - 生成或更新 `KnowledgeChunk`。
 - 生成并 drain `KnowledgeIndexTask`。
 - Qdrant 中有对应 point。
@@ -374,16 +377,17 @@ POST /api/auth/logout
 
 预期：
 
-- 能看到知识条目。
+- 能看到知识文档。
 - 搜索、分页、状态筛选正常。
 
 ### 新增
 
-新增一条知识。
+新增一条 QA 知识，预期创建为 QA 文档，并能在文档详情中看到对应 chunk。
 
 预期：
 
-- `KnowledgeItem` 写入。
+- `KnowledgeDocument` 写入。
+- `KnowledgeItem` 检索投影写入。
 - `KnowledgeChunk` 写入。
 - Qdrant point 写入。
 
@@ -608,7 +612,7 @@ docs/DOCKER_DEPLOYMENT_GUIDE.md
 - 能登录 staff 和 agent。
 - 能完成一次问答。
 - 能转人工、提交处理方案、确认解决并关闭工单。
-- 能解释 KnowledgeItem、KnowledgeChunk、Qdrant point 的关系。
+- 能解释 KnowledgeDocument、KnowledgeItem 投影、KnowledgeChunk、Qdrant point 的关系。
 - 能执行并理解 `pnpm kb:reconcile`。
 - 能说明 Docker 中 web entrypoint 的职责。
 - 能解释聊天消息编辑、重新发送、重新生成的差异。

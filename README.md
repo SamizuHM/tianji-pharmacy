@@ -11,7 +11,7 @@
 - 一键转人工工单
 - 人工客服实时待办提醒与浏览器通知
 - 人工客服认领、回复、升级、提交处理方案
-- 员工确认问题已解决后，客服生成待入库知识并关闭工单写回知识库
+- 员工确认问题已解决后，客服先生成待入库知识草稿，再关闭工单写回知识库
 - 历史会话支持软删除
 - 统计指标、历史问答、历史工单、近 7 天趋势
 - 从 `seed_knowledge/` 和根目录 Word 文档导入知识
@@ -246,7 +246,7 @@ pnpm kb:rebuild
 
 - `/admin/knowledge`
 
-点击“导入 seed_knowledge 与参考 Word 文档”。
+在「知识入库」中上传文档，选择通用文档、父子切片或 QA 文档模式，可先预览 chunk 再入库。种子知识仍建议用 `pnpm kb:import` 执行。
 
 ## 关于你提供的两个 Word 文档
 
@@ -257,7 +257,9 @@ pnpm kb:rebuild
 
 导入策略：
 
-- 会优先抽取其中的“具体问题 / 简要标准答案”结构
+- 文档会落到 `KnowledgeDocument`，并创建版本、解析记录、chunk set 和 chunks
+- 默认使用通用文档切片；明确一问一答资料可选择 QA 文档模式
+- 手动新增和工单写回也会作为 QA 文档出现在知识文档列表
 - 若文档里存在图片，会尝试抽取图片并保存到 `uploads/knowledge-assets/`
 - 对图片文件本身，会调用 `Qwen3.5` 生成结构化索引文本
 - 对旧版 `.doc`，优先尝试 `LibreOffice/soffice` 转换为 `docx`；若本机未安装，会回退 `antiword` 或 `catdoc`
@@ -374,7 +376,7 @@ pnpm kb:rebuild
 
 预期：
 
-- `/admin/knowledge` 能看到一条 `manual_ticket` 知识
+- `/admin/knowledge` 的「知识文档」列表能看到一条工单 QA 文档
 - Qdrant 已新增向量点
 
 ### 场景 8：再次提问命中新知识

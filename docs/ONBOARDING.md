@@ -141,8 +141,8 @@ http://127.0.0.1:3000
 4. 看是否知识库命中。
 5. 未解决时转人工。
 6. 登录人工账号。
-7. 认领/处理/关闭工单。
-8. 可选：把处理结果写回知识库。
+7. 认领/回复/升级/提交处理方案。
+8. 员工确认已解决后，生成待入库知识草稿，再关闭工单写回知识库。
 9. 到知识库管理页确认数据。
 10. 重建索引后再问一次。
 
@@ -378,7 +378,7 @@ app/web/app/api/tickets/*
   -> agent 提交处理方案
   -> staff 确认问题已解决
   -> agent 生成知识草稿
-  -> 关闭并写回 KnowledgeItem
+  -> 关闭并写回 QA 知识文档
 ```
 
 ### 5. 知识库
@@ -500,8 +500,8 @@ npx prisma migrate deploy
 不是。
 
 ```text
-PostgreSQL 中的 KnowledgeItem / KnowledgeChunk 才是主数据。
-Qdrant 只是派生索引。
+PostgreSQL 中的 KnowledgeDocument / KnowledgeChunkSet / KnowledgeChunk 是知识库主数据。
+KnowledgeItem 是检索投影，Qdrant 只是派生索引。
 ```
 
 ### 误解 2：访问 /staff/chat 会自动创建会话

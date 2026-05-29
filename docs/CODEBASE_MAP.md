@@ -145,7 +145,7 @@ UserRole.agent
 
 ```text
 app/web/components/knowledge/knowledge-admin.tsx
-app/web/components/knowledge/knowledge-table.tsx
+app/web/components/knowledge/knowledge-document-table.tsx
 app/web/components/knowledge/rich-editor.tsx
 app/web/components/settings/settings-form.tsx
 app/web/components/settings/theme-settings.tsx
@@ -251,9 +251,9 @@ app/web/app/api/tickets/[id]/close/route.ts
 - 认领。
 - 回复。
 - 升级。
-- 提交处理结果。
-- 员工确认解决。
-- 生成知识草稿。
+- 提交处理方案。
+- 员工确认已解决。
+- 生成待入库知识草稿。
 - 关闭并写回知识库。
 
 底层：
@@ -268,19 +268,27 @@ app/web/lib/services/tickets.ts
 app/web/app/api/knowledge/route.ts
 app/web/app/api/knowledge/[id]/route.ts
 app/web/app/api/knowledge/bulk/route.ts
+app/web/app/api/knowledge/documents/route.ts
+app/web/app/api/knowledge/documents/[id]/route.ts
 app/web/app/api/knowledge/import-documents/route.ts
+app/web/app/api/knowledge/preview-chunks/route.ts
 app/web/app/api/knowledge/rebuild-index/route.ts
 app/web/app/api/knowledge/reindex/[id]/route.ts
 ```
 
 职责：
 
-- 知识条目列表。
-- 新增/编辑/删除知识。
-- 批量操作。
+- 文档列表和文档详情。
+- 手动 QA 入库。
 - 上传文档导入。
-- 单条重建索引。
+- 导入前预览 chunk。
 - 全量重建索引。
+
+说明：
+
+- 后台知识库管理只展示文档视图。
+- 手动新增和工单写回都会创建 QA 文档。
+- `KnowledgeItem` 仍作为检索兼容和索引投影载体存在，不再作为后台主表维护。
 
 底层：
 
@@ -396,11 +404,13 @@ RAG 检索决策核心。
 
 负责：
 
-- query rewrite。
+- query planning / query rewrite。
+- 多 query 混合召回。
 - 调 ML service embedding。
 - 调 Qdrant search。
+- 关键词召回。
 - 调 ML service rerank。
-- 根据阈值判断走知识库还是大模型。
+- 根据阈值、回答策略和地域过滤判断走知识库、拒答还是大模型兜底。
 - 回 PostgreSQL 校验 Qdrant 命中的 chunk 是否真实存在。
 - 清理陈旧 Qdrant point。
 
@@ -411,11 +421,21 @@ RAG 检索决策核心。
 负责：
 
 - 列表查询。
-- 新增/更新 KnowledgeItem。
-- 维护 KnowledgeChunk。
+- 新增/更新文档与 QA 文档。
+- 维护 `KnowledgeDocument`、`KnowledgeDocumentVersion`、`KnowledgeParseRun`、`KnowledgeChunkSet`、`KnowledgeChunk`。
 - 生成 KnowledgeIndexTask。
 - 文档导入。
+- Dify 风格切片配置落库。
+- 历史裸 QA 自动归并到文档视图。
 - 删除和批量操作。
+
+切片实现：
+
+```text
+app/web/lib/services/document-chunking.ts
+```
+
+支持通用文档、父子切片和 QA 文档切片。
 
 ### `app/web/lib/services/knowledge-index.ts`
 
@@ -549,7 +569,7 @@ app/web/components/tickets/org-tree-select.tsx
 
 ```text
 app/web/components/knowledge/knowledge-admin.tsx
-app/web/components/knowledge/knowledge-table.tsx
+app/web/components/knowledge/knowledge-document-table.tsx
 app/web/components/knowledge/rich-editor.tsx
 app/web/components/knowledge/image-lightbox.tsx
 ```
@@ -599,6 +619,10 @@ ChatMessage
 Ticket
 TicketMessage
 TicketKnowledgeDraft
+KnowledgeDocument
+KnowledgeDocumentVersion
+KnowledgeParseRun
+KnowledgeChunkSet
 KnowledgeItem
 KnowledgeChunk
 KnowledgeIndexTask
@@ -797,6 +821,8 @@ AppSetting
 ```text
 app/web/lib/services/knowledge.ts
 app/web/app/api/knowledge/import-documents/route.ts
+app/web/app/api/knowledge/preview-chunks/route.ts
+app/web/lib/services/document-chunking.ts
 scripts/import-seed-knowledge.ts
 app/ml-service/app/main.py
 ```

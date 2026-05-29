@@ -328,11 +328,23 @@ Retrieval-Augmented Generation。
   -> 命中知识库或走大模型
 ```
 
+### KnowledgeDocument
+
+知识文档主表。
+
+后台知识库管理的唯一主入口。上传资料、手动 QA、工单写回和种子知识都会落到文档视图。
+
+### KnowledgeChunkSet
+
+一次文档切片结果。
+
+同一个文档可以有多次切片记录，当前管理页展示 active chunk set。
+
 ### KnowledgeItem
 
-知识条目主表。
+检索兼容和索引投影表。
 
-表示一条标准问答知识。
+表示一条标准问答知识，但不再作为后台知识库管理主表。
 
 ### KnowledgeChunk
 
@@ -472,7 +484,7 @@ pnpm kb:drain
 
 不是最终知识库数据。
 
-确认写回后才会生成或更新 `KnowledgeItem`。
+确认写回后才会生成或更新 QA 知识文档，并同步生成 `KnowledgeItem` 检索投影和对应 chunk。
 
 ---
 

@@ -11,24 +11,48 @@ Qdrant = 可删除、可重建的派生向量索引
 
 开发时必须坚持以下约束：
 
-1. 业务真相只看 数据库，不看 Qdrant。
-2. `knowledgeItem` 和 `knowledgeChunk` 是知识库主数据。
-3. Qdrant 只负责向量召回，不承载业务真相。
-4. Qdrant point 可以随时从 数据库 全量重建。
-5. 任何对齐、修复、重建都必须以 数据库 为准。
-6. 不允许为了迁就 Qdrant 状态反向删除或修改 数据库 主数据。
+1. 业务真相只看数据库，不看 Qdrant。
+2. `KnowledgeDocument`、`KnowledgeDocumentVersion`、`KnowledgeParseRun`、`KnowledgeChunkSet` 和 `KnowledgeChunk` 是知识库主数据。
+3. `KnowledgeItem` 是检索兼容和索引投影载体，不再是后台知识库管理主对象。
+4. Qdrant 只负责向量召回，不承载业务真相。
+5. Qdrant point 可以随时从数据库全量重建。
+6. 任何对齐、修复、重建都必须以数据库为准。
+7. 不允许为了迁就 Qdrant 状态反向删除或修改数据库主数据。
 
 如果 PostgreSQL 与 Qdrant 不一致，正确修复方向永远是：
 
 ```text
-按 数据库 修复 Qdrant
+按数据库修复 Qdrant
 ```
 
 ## 数据结构职责
 
+### `KnowledgeDocument`
+
+知识文档主表，表示后台知识库管理的唯一主对象。上传文件、手动 QA、工单写回和种子导入都会落到文档视图。
+
+典型字段：
+
+- `sourceType`
+- `businessCategory`
+- `answerPolicy`
+- `scopeLevel`
+- `provinceCode` / `cityCode` / `districtCode` / `storeId`
+- `status`
+
+关联对象：
+
+- `KnowledgeDocumentVersion`：原始文件、解析文本和内容 hash。
+- `KnowledgeParseRun`：一次解析记录。
+- `KnowledgeChunkSet`：一次切片结果，active chunk set 代表当前生效切片。
+- `KnowledgeChunk`：可索引的最小文本片段。
+- `KnowledgeItem`：兼容旧接口和 Qdrant payload 的标准问答投影。
+
+后台只展示和维护文档视图。点开文档后查看 active chunk set 里的 chunk。
+
 ### `KnowledgeItem`
 
-知识条目主表，表示一条标准知识。
+知识检索投影表，保存标准问答字段、统计命中和兼容旧接口。
 
 典型字段：
 
@@ -38,10 +62,12 @@ Qdrant = 可删除、可重建的派生向量索引
 - `categoryL2`
 - `sourceType`
 - `sourceFile`
+- `documentId`
+- `chunkSetId`
 - `imagePath`
 - `imagePathsJson`
 
-它是业务层展示、编辑、工单沉淀、知识库答案整理的主对象。
+它仍参与检索回表、命中统计和部分兼容 API，但不应再作为后台主表单独维护。
 
 ### `KnowledgeChunk`
 
@@ -50,7 +76,9 @@ Qdrant = 可删除、可重建的派生向量索引
 关键字段：
 
 - `id`：数据库 chunk 主键。
-- `knowledgeItemId`：所属知识条目。
+- `knowledgeItemId`：所属检索投影。
+- `documentId`：所属知识文档。
+- `chunkSetId`：所属切片结果。
 - `chunkText`：用于 embedding 和检索的文本。
 - `qdrantPointId`：对应 Qdrant point id。
 - `metadataJson`：索引相关元数据快照。
@@ -83,18 +111,23 @@ buildStablePointId(chunkId);
 
 ## 写入链路
 
-知识新增、导入、编辑、工单沉淀最终都会进入 `persistKnowledgeItem`。
+知识新增、导入、编辑、工单沉淀现在分两类：
+
+- 上传文档和种子文件先进入 `KnowledgeDocument` / `KnowledgeDocumentVersion` / `KnowledgeParseRun` / `KnowledgeChunkSet`，再生成 `KnowledgeItem` 和 `KnowledgeChunk` 投影。
+- 手动 QA 和工单写回走 `upsertQaKnowledgeDocument`，创建或更新 QA 文档，再复用 `persistKnowledgeItem` 写投影与索引任务。
 
 流程：
 
 ```text
 输入知识内容
+→ 生成或复用 knowledgeDocument.id
+→ 生成 documentVersion / parseRun / chunkSet
 → 生成或复用 knowledgeItem.id
 → 生成或复用 knowledgeChunk.id
 → 计算稳定 qdrantPointId
 → 生成 embedding payload
-→ 数据库 事务内 upsert knowledgeItem / knowledgeChunk
-→ 数据库 事务内写 KnowledgeIndexTask
+→ PostgreSQL 事务内 upsert document / version / parseRun / chunkSet / knowledgeItem / knowledgeChunk
+→ PostgreSQL 事务内写 KnowledgeIndexTask
 → 事务提交后 tryDrainKnowledgeIndexTasks
 → Qdrant upsert/delete
 ```
@@ -105,11 +138,11 @@ buildStablePointId(chunkId);
 2. upsert 同一个 `pointId` 必须幂等。
 3. delete 同一个 `pointId` 必须幂等。
 4. 不再保留 legacy point cleanup 逻辑。
-5. 删除 Qdrant point 只能来自真实的 stale chunk 或删除知识条目。
+5. 删除 Qdrant point 只能来自真实的 stale chunk、替换文档、删除文档或删除兼容知识投影。
 
 ## 删除与更新链路
 
-### 更新知识条目
+### 更新文档或 QA 文档
 
 更新时会按 chunk index 尽量复用已有 chunk id：
 
@@ -126,11 +159,11 @@ buildStablePointId(chunkId);
 2. 写入 Qdrant delete task。
 3. drain 后删除对应 Qdrant point。
 
-### 删除知识条目
+### 删除文档或兼容知识投影
 
-删除知识条目前，会为该 item 下所有 chunk 创建 Qdrant delete task，然后删除 数据库 `KnowledgeItem`。
+删除文档或兼容知识投影前，会为相关 chunk 创建 Qdrant delete task，然后删除 PostgreSQL 主数据或投影。
 
-由于 `KnowledgeChunk` 通过 `onDelete: Cascade` 关联 `KnowledgeItem`，删除 item 后 chunk 会被级联删除。
+`KnowledgeChunk` 同时关联 `KnowledgeItem`、`KnowledgeDocument` 和 `KnowledgeChunkSet`，删除上游对象后 chunk 会按 schema 级联或置空策略处理；删除前必须先写入对应的 Qdrant delete task。
 
 ## Qdrant point 内容
 
@@ -178,7 +211,7 @@ payload 是检索阶段的候选展示和 rerank 输入，不是业务真相。�
 ```text
 Qdrant point id
 → 查 knowledgeChunk.id 或 knowledgeChunk.qdrantPointId
-→ include knowledgeItem
+→ include knowledgeItem / document
 ```
 
 如果 Qdrant point 找不到对应 数据库 chunk，说明它是脏索引：
@@ -260,10 +293,10 @@ drain 所有任务
 
 生产 Docker 环境中，命令应在 `tianji-web` 容器内执行，因为它使用的是容器内网络和 数据库 volume。
 
-查看 数据库 数量：
+查看数据库数量：
 
 ```bash
-docker exec -w /app tianji-web node -e "const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); Promise.all([p.knowledgeItem.count(),p.knowledgeChunk.count(),p.knowledgeIndexTask.count()]).then(v=>console.log({knowledgeItem:v[0],knowledgeChunk:v[1],knowledgeIndexTask:v[2]})).finally(()=>p.$disconnect())"
+docker exec -w /app tianji-web node -e "const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); Promise.all([p.knowledgeDocument.count(),p.knowledgeItem.count(),p.knowledgeChunk.count(),p.knowledgeIndexTask.count()]).then(v=>console.log({knowledgeDocument:v[0],knowledgeItem:v[1],knowledgeChunk:v[2],knowledgeIndexTask:v[3]})).finally(()=>p.$disconnect())"
 ```
 
 查看 Qdrant point 数：
