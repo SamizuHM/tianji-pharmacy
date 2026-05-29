@@ -349,6 +349,7 @@ model KnowledgeChunk {
   cityName                  String?
   overrideScope             Boolean             @default(false)
   bm25SearchText            String?
+  bm25DocLength             Int                 @default(0)
   hypotheticalQuestionsJson String?
   sectionPath               String?
   pageStart                 Int?
@@ -361,6 +362,7 @@ model KnowledgeChunk {
   chunkSet                  KnowledgeChunkSet?  @relation(fields: [chunkSetId], references: [id], onDelete: Cascade)
   parentChunk               KnowledgeChunk?     @relation("KnowledgeChunkParent", fields: [parentChunkId], references: [id], onDelete: SetNull)
   childChunks               KnowledgeChunk[]    @relation("KnowledgeChunkParent")
+  bm25Terms                 KnowledgeBm25Term[]
 
   @@index([knowledgeItemId, chunkIndex])
   @@index([documentId, chunkIndex])
@@ -368,6 +370,22 @@ model KnowledgeChunk {
   @@index([enabled])
   @@index([scopeLevel, cityName])
   @@index([overrideScope])
+}
+
+model KnowledgeBm25Term {
+  id            String              @id @default(cuid())
+  chunkId       String
+  term          String
+  termFrequency Int
+  docLength     Int
+  scopeLevel    KnowledgeScopeLevel @default(common)
+  cityName      String?
+  createdAt     DateTime            @default(now())
+  chunk         KnowledgeChunk      @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([chunkId, term])
+  @@index([term, scopeLevel, cityName])
+  @@index([chunkId])
 }
 
 model KnowledgeDocument {

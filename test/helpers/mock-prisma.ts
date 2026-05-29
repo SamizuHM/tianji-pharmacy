@@ -32,6 +32,7 @@ export function createMockPrisma() {
     knowledgeParseRun: createMockModel(),
     knowledgeChunkSet: createMockModel(),
     knowledgeChunk: createMockModel(),
+    knowledgeBm25Term: createMockModel(),
     knowledgeIndexTask: createMockModel(),
     appSetting: createMockModel(),
     session: createMockModel(),

@@ -13,6 +13,7 @@ import {
 import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
 import { parseDocument } from "@/lib/retrieval/ml-service";
+import { buildBm25TermRows } from "@/lib/services/bm25";
 import {
   DEFAULT_DOCUMENT_CHUNKING_CONFIG,
   DEFAULT_QA_CHUNKING_CONFIG,
@@ -220,6 +221,22 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     const chunkId = existingChunk?.id ?? crypto.randomUUID();
     const businessCategory = input.businessCategory ?? inferBusinessCategory(input);
     const chunkText = plan.text;
+    const bm25SearchText = [
+      chunkText,
+      input.question,
+      input.answer,
+      input.categoryL1,
+      input.categoryL2,
+      input.sourceFile,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const bm25Index = buildBm25TermRows({
+      chunkId,
+      text: bm25SearchText,
+      scopeLevel: input.scopeLevel ?? "common",
+      cityName: input.cityName ?? null,
+    });
     return {
       id: chunkId,
       knowledgeItemId: itemId,
@@ -237,16 +254,8 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
       scopeLevel: input.scopeLevel ?? "common",
       cityName: input.cityName ?? null,
       overrideScope: Boolean(plan.metadata?.overrideScope),
-      bm25SearchText: [
-        chunkText,
-        input.question,
-        input.answer,
-        input.categoryL1,
-        input.categoryL2,
-        input.sourceFile,
-      ]
-        .filter(Boolean)
-        .join("\n"),
+      bm25SearchText,
+      bm25DocLength: bm25Index.docLength,
       hypotheticalQuestionsJson: null,
       metadataJson: JSON.stringify({
         ...buildChunkMetadata(itemId, chunkId, chunkIndex, chunkText, {
@@ -338,10 +347,34 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
           cityName: chunk.cityName,
           overrideScope: chunk.overrideScope,
           bm25SearchText: chunk.bm25SearchText,
+          bm25DocLength: chunk.bm25DocLength,
           hypotheticalQuestionsJson: chunk.hypotheticalQuestionsJson,
           metadataJson: chunk.metadataJson,
         },
         create: chunk,
+      });
+    }
+
+    const indexedChunkIds = chunkPlans.map((chunk) => chunk.id);
+    const staleChunkIds = staleChunks.map((chunk) => chunk.id);
+    await tx.knowledgeBm25Term.deleteMany({
+      where: {
+        chunkId: { in: [...indexedChunkIds, ...staleChunkIds] },
+      },
+    });
+    const bm25TermRows = chunkPlans.flatMap(
+      (chunk) =>
+        buildBm25TermRows({
+          chunkId: chunk.id,
+          text: chunk.bm25SearchText ?? chunk.chunkText,
+          scopeLevel: chunk.scopeLevel,
+          cityName: chunk.cityName,
+        }).rows
+    );
+    if (bm25TermRows.length) {
+      await tx.knowledgeBm25Term.createMany({
+        data: bm25TermRows,
+        skipDuplicates: true,
       });
     }
 

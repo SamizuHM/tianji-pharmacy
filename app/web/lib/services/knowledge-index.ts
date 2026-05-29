@@ -16,6 +16,7 @@ import {
   ensureQdrantWriteReady,
   qdrant,
 } from "@/lib/retrieval/qdrant";
+import { buildBm25TermRows } from "@/lib/services/bm25";
 
 const INDEX_RETRY_BASE_MS = 5_000;
 const INDEX_RETRY_MAX_MS = 5 * 60_000;
@@ -31,6 +32,11 @@ export function buildStablePointId(chunkId: string) {
 type ChunkRecord = KnowledgeChunk & {
   knowledgeItem: KnowledgeItem;
 };
+
+type Bm25RefreshChunk = Pick<
+  KnowledgeChunk,
+  "id" | "chunkText" | "bm25SearchText" | "scopeLevel" | "cityName"
+>;
 
 export type KnowledgeChunkProjectionSource = {
   documentId?: string | null;
@@ -430,6 +436,45 @@ async function claimPendingTask(taskId: string) {
   return result.count > 0;
 }
 
+async function refreshBm25IndexForChunks(chunks: Bm25RefreshChunk[]) {
+  if (!chunks.length) {
+    return 0;
+  }
+
+  const rowsByChunk = chunks.map((chunk) => ({
+    chunk,
+    index: buildBm25TermRows({
+      chunkId: chunk.id,
+      text: chunk.bm25SearchText ?? chunk.chunkText,
+      scopeLevel: chunk.scopeLevel,
+      cityName: chunk.cityName,
+    }),
+  }));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.knowledgeBm25Term.deleteMany({
+      where: { chunkId: { in: chunks.map((chunk) => chunk.id) } },
+    });
+
+    for (const item of rowsByChunk) {
+      await tx.knowledgeChunk.update({
+        where: { id: item.chunk.id },
+        data: { bm25DocLength: item.index.docLength },
+      });
+    }
+
+    const rows = rowsByChunk.flatMap((item) => item.index.rows);
+    if (rows.length) {
+      await tx.knowledgeBm25Term.createMany({
+        data: rows,
+        skipDuplicates: true,
+      });
+    }
+  });
+
+  return chunks.length;
+}
+
 export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
   const limit = options?.limit ?? 20;
   const pendingTasks = await prisma.knowledgeIndexTask.findMany({
@@ -650,6 +695,21 @@ export async function reconcileKnowledgeIndex() {
   const dbChunkIds = new Set(dbChunks.map((chunk) => chunk.id));
   const qdrantPoints = await scrollAllQdrantPoints();
   const qdrantPointIds = new Set(qdrantPoints.map((point) => point.id));
+  const bm25MissingChunks = await prisma.knowledgeChunk.findMany({
+    where: {
+      enabled: true,
+      knowledgeItem: { status: "published" },
+      OR: [{ bm25DocLength: 0 }, { bm25Terms: { none: {} } }],
+    },
+    select: {
+      id: true,
+      chunkText: true,
+      bm25SearchText: true,
+      scopeLevel: true,
+      cityName: true,
+    },
+  });
+  const refreshedBm25Chunks = await refreshBm25IndexForChunks(bm25MissingChunks);
 
   const orphanPointIds = qdrantPoints
     .filter((point) => {
@@ -688,6 +748,7 @@ export async function reconcileKnowledgeIndex() {
 
   return {
     normalizedChunks,
+    refreshedBm25Chunks,
     dbChunkCount: dbChunks.length,
     qdrantPointCount: qdrantPoints.length,
     deletedOrphanPoints: orphanPointIds.length,
@@ -704,6 +765,7 @@ export async function rebuildKnowledgeIndex() {
     include: { knowledgeItem: true },
     orderBy: [{ knowledgeItemId: "asc" }, { chunkIndex: "asc" }],
   });
+  const refreshedBm25Chunks = await refreshBm25IndexForChunks(chunks);
 
   const qdrantAdmin = qdrant as unknown as {
     deleteCollection?: (collectionName: string) => Promise<unknown>;
@@ -726,6 +788,7 @@ export async function rebuildKnowledgeIndex() {
   if (!chunks.length) {
     return {
       rebuiltChunks: 0,
+      refreshedBm25Chunks,
     };
   }
 
@@ -754,5 +817,6 @@ export async function rebuildKnowledgeIndex() {
   return {
     normalizedChunks,
     rebuiltChunks: chunks.length,
+    refreshedBm25Chunks,
   };
 }

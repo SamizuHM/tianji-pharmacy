@@ -7,7 +7,7 @@ import {
 } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
 import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
-import { scoreBm25Documents } from "@/lib/services/bm25";
+import { scoreBm25FromTermRows, tokenizeForBm25 } from "@/lib/services/bm25";
 import {
   enqueueDeletePointTask,
   tryDrainKnowledgeIndexTasks,
@@ -306,40 +306,72 @@ async function keywordRecall(
   region: RegionContext | undefined
 ): Promise<RetrievalCandidate[]> {
   const query = buildFullTextQuery(plan);
-  if (!query.trim()) {
+  const queryTerms = Array.from(new Set(tokenizeForBm25(query)));
+  if (!queryTerms.length) {
     return [];
   }
 
-  const chunks =
-    (await prisma.knowledgeChunk.findMany({
+  const visibleScopeWhere = {
+    OR: [
+      { scopeLevel: "common" as const },
+      { scopeLevel: "city" as const, cityName: region?.cityName ?? "__none__" },
+    ],
+  };
+  const visibleChunkWhere = {
+    enabled: true,
+    knowledgeItem: { status: "published" as const },
+    ...visibleScopeWhere,
+  };
+
+  const termRows =
+    (await prisma.knowledgeBm25Term.findMany({
       where: {
-        enabled: true,
-        knowledgeItem: { status: "published" },
-        OR: [
-          { scopeLevel: "common" },
-          { scopeLevel: "city", cityName: region?.cityName ?? "__none__" },
-        ],
+        term: { in: queryTerms },
+        ...visibleScopeWhere,
+        chunk: {
+          enabled: true,
+          knowledgeItem: { status: "published" },
+        },
+      },
+      select: {
+        chunkId: true,
+        term: true,
+        termFrequency: true,
+        docLength: true,
+      },
+    })) ?? [];
+  const chunkIds = Array.from(new Set(termRows.map((row) => row.chunkId)));
+  if (!chunkIds.length) {
+    return [];
+  }
+
+  const [corpusStats, chunks] = await Promise.all([
+    prisma.knowledgeChunk.aggregate({
+      where: visibleChunkWhere,
+      _count: { _all: true },
+      _avg: { bm25DocLength: true },
+    }),
+    prisma.knowledgeChunk.findMany({
+      where: {
+        ...visibleChunkWhere,
+        id: { in: chunkIds },
       },
       include: { knowledgeItem: true },
-      orderBy: [{ chunkIndex: "asc" }],
-    })) ?? [];
+    }),
+  ]);
 
-  return scoreBm25Documents(
+  return scoreBm25FromTermRows(
     query,
-    chunks
-      .filter((chunk) => chunk.knowledgeItem)
-      .map((chunk) => ({
-        id: chunk.id,
-        text: [
-          chunk.bm25SearchText,
-          chunk.chunkText,
-          chunk.knowledgeItem.question,
-          chunk.knowledgeItem.answer,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        payload: chunk,
-      })),
+    chunks.map((chunk) => ({
+      id: chunk.id,
+      docLength: chunk.bm25DocLength,
+      payload: chunk,
+    })),
+    termRows,
+    {
+      documentCount: corpusStats._count._all,
+      averageDocLength: corpusStats._avg.bm25DocLength ?? 1,
+    },
     { limit }
   ).map((scored, rank) => {
     const chunk = scored.payload;

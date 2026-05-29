@@ -8,6 +8,13 @@ export type Bm25ScoredDocument<T> = Bm25Document<T> & {
   score: number;
 };
 
+export type Bm25IndexTermRow = {
+  chunkId: string;
+  term: string;
+  termFrequency: number;
+  docLength: number;
+};
+
 const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 
@@ -72,6 +79,94 @@ export function scoreBm25Documents<T>(
           frequency + BM25_K1 * (1 - BM25_B + BM25_B * (docLength / averageDocLength));
         return sum + idf * (numerator / denominator);
       }, 0);
+      return { ...document, score };
+    })
+    .filter((document) => document.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, options?.limit ?? documents.length);
+}
+
+export function buildBm25TermRows(input: {
+  chunkId: string;
+  text: string;
+  scopeLevel: "common" | "city";
+  cityName?: string | null;
+}) {
+  const tokens = tokenizeForBm25(input.text);
+  const termFrequency = new Map<string, number>();
+  for (const token of tokens) {
+    termFrequency.set(token, (termFrequency.get(token) ?? 0) + 1);
+  }
+
+  const docLength = tokens.length;
+  return {
+    docLength,
+    rows: Array.from(termFrequency.entries()).map(([term, frequency]) => ({
+      chunkId: input.chunkId,
+      term,
+      termFrequency: frequency,
+      docLength,
+      scopeLevel: input.scopeLevel,
+      cityName: input.scopeLevel === "city" ? (input.cityName ?? null) : null,
+    })),
+  };
+}
+
+export function scoreBm25FromTermRows<T>(
+  query: string,
+  documents: Array<{
+    id: string;
+    docLength: number;
+    payload: T;
+  }>,
+  termRows: Bm25IndexTermRow[],
+  corpus: { documentCount: number; averageDocLength: number },
+  options?: { limit?: number }
+): Array<{ id: string; payload: T; score: number }> {
+  const queryTerms = Array.from(new Set(tokenizeForBm25(query)));
+  if (!queryTerms.length || !documents.length || !termRows.length || corpus.documentCount <= 0) {
+    return [];
+  }
+
+  const rowsByChunk = new Map<string, Map<string, number>>();
+  const docFrequency = new Map<string, Set<string>>();
+  for (const row of termRows) {
+    if (!queryTerms.includes(row.term)) {
+      continue;
+    }
+    if (!rowsByChunk.has(row.chunkId)) {
+      rowsByChunk.set(row.chunkId, new Map());
+    }
+    rowsByChunk.get(row.chunkId)!.set(row.term, row.termFrequency);
+
+    if (!docFrequency.has(row.term)) {
+      docFrequency.set(row.term, new Set());
+    }
+    docFrequency.get(row.term)!.add(row.chunkId);
+  }
+
+  const averageDocLength = corpus.averageDocLength || 1;
+  return documents
+    .map((document) => {
+      const termFrequency = rowsByChunk.get(document.id);
+      if (!termFrequency) {
+        return { ...document, score: 0 };
+      }
+
+      const score = queryTerms.reduce((sum, term) => {
+        const frequency = termFrequency.get(term) ?? 0;
+        if (!frequency) {
+          return sum;
+        }
+        const df = docFrequency.get(term)?.size ?? 0;
+        const idf = Math.log(1 + (corpus.documentCount - df + 0.5) / (df + 0.5));
+        const docLength = document.docLength || 1;
+        const numerator = frequency * (BM25_K1 + 1);
+        const denominator =
+          frequency + BM25_K1 * (1 - BM25_B + BM25_B * (docLength / averageDocLength));
+        return sum + idf * (numerator / denominator);
+      }, 0);
+
       return { ...document, score };
     })
     .filter((document) => document.score > 0)

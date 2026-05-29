@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { scoreBm25Documents, tokenizeForBm25 } from "@/lib/services/bm25";
+import {
+  buildBm25TermRows,
+  scoreBm25Documents,
+  scoreBm25FromTermRows,
+  tokenizeForBm25,
+} from "@/lib/services/bm25";
 
 describe("bm25 service", () => {
   it("使用 BM25 公式让精确实体命中文档排在前面", () => {
@@ -33,5 +38,33 @@ describe("bm25 service", () => {
     expect(tokenizeForBm25("医保结算")).toEqual(
       expect.arrayContaining(["医保结算", "医保", "保结", "结算"])
     );
+  });
+
+  it("可基于持久化倒排词项计算同一套 BM25 分数", () => {
+    const policy = buildBm25TermRows({
+      chunkId: "chunk-policy",
+      text: "鄂医保〔2026〕12号规定地西泮销售流程",
+      scopeLevel: "common",
+    });
+    const noise = buildBm25TermRows({
+      chunkId: "chunk-noise",
+      text: "小票打印机卡纸处理流程",
+      scopeLevel: "common",
+    });
+
+    const results = scoreBm25FromTermRows(
+      "鄂医保〔2026〕12号 地西泮",
+      [
+        { id: "chunk-policy", docLength: policy.docLength, payload: { label: "policy" } },
+        { id: "chunk-noise", docLength: noise.docLength, payload: { label: "noise" } },
+      ],
+      [...policy.rows, ...noise.rows],
+      {
+        documentCount: 2,
+        averageDocLength: (policy.docLength + noise.docLength) / 2,
+      }
+    );
+
+    expect(results[0]?.id).toBe("chunk-policy");
   });
 });

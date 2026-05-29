@@ -358,6 +358,7 @@ describe("retrieval service", () => {
       knowledgeItemId: "ki-policy",
       chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
       bm25SearchText: "鄂医保〔2026〕12号 医保结算 流程",
+      bm25DocLength: 12,
       sourceFile: "医保政策.md",
       scopeLevel: "common",
       cityName: null,
@@ -375,12 +376,24 @@ describe("retrieval service", () => {
         updatedAt: new Date("2026-01-02"),
       },
     };
+    prisma.knowledgeBm25Term.findMany.mockResolvedValue([
+      { chunkId: "chunk-policy", term: "鄂医保", termFrequency: 1, docLength: 12 },
+      { chunkId: "chunk-policy", term: "医保", termFrequency: 2, docLength: 12 },
+      { chunkId: "chunk-policy", term: "2026", termFrequency: 1, docLength: 12 },
+      { chunkId: "chunk-policy", term: "12", termFrequency: 1, docLength: 12 },
+      { chunkId: "chunk-policy", term: "号", termFrequency: 1, docLength: 12 },
+    ]);
+    prisma.knowledgeChunk.aggregate.mockResolvedValue({
+      _count: { _all: 1 },
+      _avg: { bm25DocLength: 12 },
+    });
     prisma.knowledgeChunk.findMany.mockResolvedValue([policyChunk]);
     prisma.knowledgeChunk.findUnique.mockResolvedValue({
       id: "chunk-policy",
       qdrantPointId: "point-policy",
       knowledgeItemId: "ki-policy",
       chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
+      bm25DocLength: 12,
       sourceFile: "医保政策.md",
       scopeLevel: "common",
       cityName: null,
@@ -400,9 +413,10 @@ describe("retrieval service", () => {
 
     const result = await retrieveAnswer({ question: "鄂医保〔2026〕12号", imagePaths: [] });
 
-    expect(prisma.knowledgeChunk.findMany).toHaveBeenCalledWith(
+    expect(prisma.knowledgeBm25Term.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          term: expect.objectContaining({ in: expect.any(Array) }),
           OR: expect.arrayContaining([expect.objectContaining({ scopeLevel: "common" })]),
         }),
       })

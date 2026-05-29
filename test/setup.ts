@@ -31,6 +31,7 @@ const prisma = {
   knowledgeParseRun: createMockModel(),
   knowledgeChunkSet: createMockModel(),
   knowledgeChunk: createMockModel(),
+  knowledgeBm25Term: createMockModel(),
   knowledgeIndexTask: createMockModel(),
   appSetting: createMockModel(),
   department: createMockModel(),
