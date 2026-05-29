@@ -130,6 +130,73 @@ export async function buildMultimodalQueryText(input: { question: string; imageP
   return text || input.question || "用户上传了图片，请根据图片内容推断检索关键词";
 }
 
+export type RetrievalQueryRewrite = {
+  normalizedQuery: string;
+  businessCategory: string;
+  vectorQueries: string[];
+  keywordQueries: string[];
+  mustTerms: string[];
+};
+
+function uniqueLimitedStrings(values: unknown, limit: number) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const text = String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text || seen.has(text)) {
+      continue;
+    }
+    seen.add(text);
+    result.push(text);
+    if (result.length >= limit) {
+      break;
+    }
+  }
+  return result;
+}
+
+export async function rewriteRetrievalQueriesWithModel(input: {
+  queryText: string;
+  historyText?: string;
+}): Promise<RetrievalQueryRewrite> {
+  const queryText = input.queryText.trim() || "用户未输入明确问题";
+  const output = await completeText({
+    system:
+      "你是药店 RAG 检索查询重写器，只输出 JSON。你的任务是基于最近对话消解“它、这个、上面那个”等指代，把用户口语化问题改写成适合向量检索和 BM25 检索的多个中文子查询。必须覆盖口语表达、正式政策表达、药品通用名/别名/类别、政策文号或精确实体。不得回答用户问题，不得编造不存在的具体政策编号。",
+    userContent:
+      "最近对话：\n" +
+      (input.historyText?.trim() || "无") +
+      "\n\n当前问题：\n" +
+      queryText +
+      '\n\n请输出 JSON，字段固定为：{"normalizedQuery":"指代消解后的标准问题","businessCategory":"医保/用药/收银打印/通用 之一","vectorQueries":["3-6 条可直接向量检索的自然语言子 query"],"keywordQueries":["2-6 条适合 BM25 的关键词 query"],"mustTerms":["0-8 个必须保留的实体词"]}',
+  });
+  const parsed = JSON.parse(extractJsonObject(output)) as Partial<RetrievalQueryRewrite>;
+  const normalizedQuery =
+    typeof parsed.normalizedQuery === "string" && parsed.normalizedQuery.trim()
+      ? parsed.normalizedQuery.trim()
+      : queryText;
+  const businessCategory =
+    typeof parsed.businessCategory === "string" && parsed.businessCategory.trim()
+      ? parsed.businessCategory.trim()
+      : "通用";
+  const vectorQueries = uniqueLimitedStrings(parsed.vectorQueries, 6);
+  const keywordQueries = uniqueLimitedStrings(parsed.keywordQueries, 6);
+  const mustTerms = uniqueLimitedStrings(parsed.mustTerms, 8);
+
+  return {
+    normalizedQuery,
+    businessCategory,
+    vectorQueries: vectorQueries.length ? vectorQueries : [normalizedQuery],
+    keywordQueries: keywordQueries.length ? keywordQueries : [normalizedQuery],
+    mustTerms,
+  };
+}
+
 function extractJsonObject(text: string) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = fenced ?? text;
@@ -326,7 +393,7 @@ export function buildKbStyledPrompt(input: {
 export function buildGeneralPharmacyPrompt(input: { question: string }) {
   return {
     system:
-      "你是药店场景智能问答助手。用户问题未命中知识库时，你可以基于通用药店场景知识回答门店信息化、医保/ERP/设备基础排查、药品常识、用药咨询等问题。不要声称答案来自知识库，不要引用或编造未提供的知识库内容。回答要直接、实用、中文表达清晰。涉及用药、疾病、孕婴、儿童、老人、过敏、处方药、不良反应、剂量调整等风险时，必须提示遵药品说明书并咨询执业药师或医生；不得诊断疾病、开处方、替代专业医疗建议或给出高风险强操作。非医疗风险问题不要机械追加仅供参考、咨询医生、转人工等安全句。",
+      "你是药店场景智能问答助手。用户问题未命中知识库时，你只能基于通用药店场景知识回答门店信息化、ERP、设备基础排查、收银打印等非政策、非用药问题。不要声称答案来自知识库，不要引用或编造未提供的知识库内容。若问题涉及医保政策、报销结算规则、药品销售管控、处方、剂量、禁忌、不良反应、孕婴、儿童、老人、过敏或疾病处理，不要自由发挥，应提示以知识库政策、药品说明书、执业药师/医生或主管部门意见为准。回答要直接、实用、中文表达清晰。非医疗风险问题不要机械追加仅供参考、咨询医生、转人工等安全句。",
     userText:
       "用户当前问题：" +
       (input.question || "用户上传了图片，请结合图片与上下文回答") +

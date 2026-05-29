@@ -95,6 +95,52 @@ describe("createAssistantGenerationStream", () => {
     expect(completeStream).toHaveBeenCalledWith("asst-msg-1");
   });
 
+  it("从会话账号绑定门店读取 cityCode 并注入检索作用域", async () => {
+    (appendConversationMessage as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ id: "user-msg-1", createdAt: new Date() })
+      .mockResolvedValueOnce({ id: "asst-msg-1" });
+    (getConversationMessages as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    prisma.conversation.findUnique.mockResolvedValueOnce({
+      id: "conv-1",
+      user: {
+        storeId: "store-1",
+        store: {
+          provinceCode: "420000",
+          cityCode: "420100",
+          districtCode: "420102",
+        },
+      },
+    });
+    (retrieveAnswer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      sourceType: "llm",
+      queryText: "测试",
+      retrievalDebug: [],
+    });
+    async function* emptyStream() {}
+    (streamGeneralPharmacyAnswer as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStream());
+
+    const response = createAssistantGenerationStream({
+      mode: "create",
+      conversationId: "conv-1",
+      text: "武汉医保怎么处理",
+      attachments: [],
+    });
+
+    await consumeStream(response);
+
+    expect(retrieveAnswer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        region: expect.objectContaining({
+          storeId: "store-1",
+          provinceCode: "420000",
+          cityCode: "420100",
+          districtCode: "420102",
+        }),
+      }),
+      expect.any(Object)
+    );
+  });
+
   it("KB 命中路径使用知识库风格回答", async () => {
     (appendConversationMessage as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ id: "user-msg-1", createdAt: new Date() })

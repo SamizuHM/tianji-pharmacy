@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 
 vi.mock("@/lib/openai", () => ({
   buildMultimodalQueryText: vi.fn().mockResolvedValue("查询文本"),
+  rewriteRetrievalQueriesWithModel: vi.fn(),
 }));
 
 vi.mock("@/lib/retrieval/ml-service", () => ({
@@ -35,7 +36,7 @@ vi.mock("@/lib/services/knowledge-index", () => ({
 }));
 
 import { retrieveAnswer } from "@/lib/services/retrieval";
-import { buildMultimodalQueryText } from "@/lib/openai";
+import { buildMultimodalQueryText, rewriteRetrievalQueriesWithModel } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
 import { qdrant } from "@/lib/retrieval/qdrant";
 
@@ -43,6 +44,22 @@ describe("retrieval service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("查询文本");
+    (rewriteRetrievalQueriesWithModel as ReturnType<typeof vi.fn>).mockImplementation(
+      ({ queryText }: { queryText: string }) =>
+        Promise.resolve({
+          normalizedQuery: queryText,
+          businessCategory: /医保/.test(queryText)
+            ? "医保"
+            : /安定|处方|药/.test(queryText)
+              ? "用药"
+              : /小票|打印/.test(queryText)
+                ? "收银打印"
+                : "通用",
+          vectorQueries: [queryText],
+          keywordQueries: [queryText],
+          mustTerms: [],
+        })
+    );
   });
 
   it("知识命中路径：返回 sourceType kb", async () => {
@@ -126,6 +143,51 @@ describe("retrieval service", () => {
     const result = await retrieveAnswer({ question: "打印机卡纸怎么办", imagePaths: [] });
 
     expect(result.sourceType).toBe("llm");
+  });
+
+  it("LLM 查询重写输出多个子 query 后用于向量检索", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("它没处方能卖吗");
+    (rewriteRetrievalQueriesWithModel as ReturnType<typeof vi.fn>).mockResolvedValue({
+      normalizedQuery: "地西泮无处方能销售吗",
+      businessCategory: "用药",
+      vectorQueries: ["没带处方能买安定吗", "地西泮无处方销售规定"],
+      keywordQueries: ["地西泮 安定 处方药 第二类精神药品"],
+      mustTerms: ["地西泮", "安定"],
+    });
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await retrieveAnswer({
+      question: "它没处方能卖吗",
+      imagePaths: [],
+      historyMessages: [{ role: "user", content: "顾客想买安定" }],
+    });
+
+    expect(rewriteRetrievalQueriesWithModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryText: "它没处方能卖吗",
+        historyText: expect.stringContaining("顾客想买安定"),
+      })
+    );
+    expect(embedMultimodal).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ text: "没带处方能买安定吗" }),
+        expect.objectContaining({ text: "地西泮无处方销售规定" }),
+      ])
+    );
+  });
+
+  it("LLM 查询重写失败时回退规则式子 query", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("安定能卖吗");
+    (rewriteRetrievalQueriesWithModel as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("rewrite failed")
+    );
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await retrieveAnswer({ question: "安定能卖吗", imagePaths: [] });
+
+    expect(embedMultimodal).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("地西泮") })])
+    );
   });
 
   it("空搜索结果返回 llm", async () => {

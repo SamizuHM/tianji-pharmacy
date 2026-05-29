@@ -2,7 +2,11 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import type { ProgressStepKey } from "@/lib/chat-progress";
-import { buildMultimodalQueryText } from "@/lib/openai";
+import {
+  buildMultimodalQueryText,
+  rewriteRetrievalQueriesWithModel,
+  type RetrievalQueryRewrite,
+} from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
 import { COLLECTION_NAME, ensureFullTextPayloadIndex, qdrant } from "@/lib/retrieval/qdrant";
 import {
@@ -132,7 +136,7 @@ function splitSubQueries(query: string) {
     .filter((item) => item.length >= 2);
 }
 
-function buildQueryPlan(queryText: string, historyText = ""): QueryPlan {
+function buildRuleBasedQueryPlan(queryText: string, historyText = ""): QueryPlan {
   const normalizedQuery = queryText.trim() || "用户未输入明确问题";
   const contextAwareQuery = [historyText.trim(), normalizedQuery]
     .filter(Boolean)
@@ -182,6 +186,43 @@ function buildQueryPlan(queryText: string, historyText = ""): QueryPlan {
     businessCategory,
     mustTerms: terms,
     queryVariants: variants,
+    bm25Queries,
+  };
+}
+
+async function buildQueryPlan(queryText: string, historyText = ""): Promise<QueryPlan> {
+  const fallback = buildRuleBasedQueryPlan(queryText, historyText);
+  try {
+    const rewritten = await rewriteRetrievalQueriesWithModel({ queryText, historyText });
+    return queryPlanFromRewrite(rewritten, fallback);
+  } catch (error) {
+    console.warn("[retrieval] llm query rewrite failed, fallback to rules", error);
+    return fallback;
+  }
+}
+
+function queryPlanFromRewrite(rewritten: RetrievalQueryRewrite, fallback: QueryPlan): QueryPlan {
+  const normalizedQuery = rewritten.normalizedQuery.trim() || fallback.normalizedQuery;
+  const businessCategory = rewritten.businessCategory.trim() || fallback.businessCategory;
+  const mustTerms = Array.from(new Set([...rewritten.mustTerms, ...fallback.mustTerms]))
+    .filter(Boolean)
+    .slice(0, 8);
+  const queryVariants = Array.from(
+    new Set([normalizedQuery, ...rewritten.vectorQueries, ...fallback.queryVariants])
+  )
+    .filter(Boolean)
+    .slice(0, 8);
+  const bm25Queries = Array.from(
+    new Set([normalizedQuery, ...rewritten.keywordQueries, ...fallback.bm25Queries])
+  )
+    .filter(Boolean)
+    .slice(0, 8);
+
+  return {
+    normalizedQuery,
+    businessCategory,
+    mustTerms,
+    queryVariants,
     bm25Queries,
   };
 }
@@ -469,7 +510,7 @@ export async function retrieveAnswer(
       ?.slice(-4)
       .map((message) => `${message.role === "user" ? "用户" : "助手"}：${message.content}`)
       .join("\n") ?? "";
-  const queryPlan = buildQueryPlan(queryText, historyText);
+  const queryPlan = await buildQueryPlan(queryText, historyText);
   const answerPolicy = resolveQuestionAnswerPolicy(queryPlan);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
     embedMultimodal(
