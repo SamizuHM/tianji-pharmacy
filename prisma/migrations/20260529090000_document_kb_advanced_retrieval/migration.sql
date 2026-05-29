@@ -80,6 +80,7 @@ CREATE TABLE "KnowledgeChunkSet" (
   "documentId" TEXT NOT NULL,
   "parseRunId" TEXT NOT NULL,
   "chunkStrategy" "KnowledgeChunkStrategy" NOT NULL,
+  "configJson" TEXT,
   "isActive" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "KnowledgeChunkSet_pkey" PRIMARY KEY ("id")
@@ -118,7 +119,7 @@ ALTER TABLE "KnowledgeChunk"
 CREATE INDEX "Store_provinceCode_cityCode_districtCode_idx" ON "Store"("provinceCode", "cityCode", "districtCode");
 CREATE INDEX "KnowledgeDocument_status_updatedAt_idx" ON "KnowledgeDocument"("status", "updatedAt");
 CREATE INDEX "KnowledgeDocument_businessCategory_status_idx" ON "KnowledgeDocument"("businessCategory", "status");
-CREATE INDEX "KnowledgeDocument_scopeLevel_provinceCode_cityCode_districtCode_storeId_idx" ON "KnowledgeDocument"("scopeLevel", "provinceCode", "cityCode", "districtCode", "storeId");
+CREATE INDEX "KnowledgeDocument_scopeLevel_provinceCode_cityCode_district_idx" ON "KnowledgeDocument"("scopeLevel", "provinceCode", "cityCode", "districtCode", "storeId");
 CREATE INDEX "KnowledgeDocumentVersion_documentId_createdAt_idx" ON "KnowledgeDocumentVersion"("documentId", "createdAt");
 CREATE INDEX "KnowledgeDocumentVersion_contentHash_idx" ON "KnowledgeDocumentVersion"("contentHash");
 CREATE INDEX "KnowledgeParseRun_documentId_createdAt_idx" ON "KnowledgeParseRun"("documentId", "createdAt");

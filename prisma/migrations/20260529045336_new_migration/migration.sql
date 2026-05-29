@@ -1,2 +1,0 @@
--- RenameIndex
-ALTER INDEX "KnowledgeDocument_scopeLevel_provinceCode_cityCode_districtCode" RENAME TO "KnowledgeDocument_scopeLevel_provinceCode_cityCode_district_idx";
