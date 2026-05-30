@@ -195,6 +195,17 @@ describe("retrieval service", () => {
     expect(result.sourceType).toBe("llm");
   });
 
+  it("Qdrant 集合不存在时按空知识库处理，不向前端抛 Not Found", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("打印机卡纸怎么办");
+    (qdrant.search as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Not Found"));
+    prisma.knowledgeBm25Term.findMany.mockResolvedValue([]);
+
+    const result = await retrieveAnswer({ question: "打印机卡纸怎么办", imagePaths: [] });
+
+    expect(result.sourceType).toBe("llm");
+    expect(result.retrievalDebug).toEqual([]);
+  });
+
   it("医保类问题无知识命中时拒绝大模型兜底", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("医保刷不了");
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);

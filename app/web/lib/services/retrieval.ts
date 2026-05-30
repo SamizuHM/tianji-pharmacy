@@ -450,6 +450,21 @@ function qdrantScopeFilter(region: RegionContext | undefined) {
   return { should };
 }
 
+function isQdrantCollectionMissingError(error: unknown) {
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: unknown }).status)
+      : 0;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    status === 404 ||
+    message.includes("Not Found") ||
+    message.includes("not found") ||
+    message.includes("doesn't exist") ||
+    message.includes("does not exist")
+  );
+}
+
 export async function retrieveAnswer(
   input: {
     question: string;
@@ -486,12 +501,20 @@ export async function retrieveAnswer(
   const vectorGroups = await runProgressStep(hooks, "search_qdrant", async () =>
     Promise.all(
       embedResults.vectors.map(async (vector) => {
-        const searchResult = await qdrant.search(COLLECTION_NAME, {
-          vector,
-          with_payload: true,
-          filter: qdrantScopeFilter(input.region),
-          limit: Math.max(settings.retrievalTopK, settings.rerankTopN * 2),
-        });
+        let searchResult;
+        try {
+          searchResult = await qdrant.search(COLLECTION_NAME, {
+            vector,
+            with_payload: true,
+            filter: qdrantScopeFilter(input.region),
+            limit: Math.max(settings.retrievalTopK, settings.rerankTopN * 2),
+          });
+        } catch (error) {
+          if (isQdrantCollectionMissingError(error)) {
+            return [];
+          }
+          throw error;
+        }
         return searchResult
           .map((item) => {
             const payload = item.payload as Record<string, unknown>;
