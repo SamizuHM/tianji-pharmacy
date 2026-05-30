@@ -435,6 +435,70 @@ describe("retrieval service", () => {
     expect(result.sourceType).toBe("kb");
     if (result.sourceType === "kb") {
       expect(result.retrievalDebug[0].sources).toContain("keyword");
+      expect(result.knowledgeItem.question).toBe("医保政策.md");
+    }
+  });
+
+  it("上传文档命中时使用文件名作为可读知识来源", async () => {
+    (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue(
+      "我想买3000元左右拍照最好的手机"
+    );
+    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "point-phone",
+        score: 0.95,
+        payload: {
+          knowledgeItemId: "ki-phone",
+          chunkId: "chunk-phone",
+          chunkText: "通义Vivid 7具备AI智能摄影，参考售价2999 - 3299。",
+          question: "1780105284102-wXSwka",
+          answer: "阿里云百炼手机产品介绍",
+          sourceFile: "阿里云百炼系列手机产品介绍.docx",
+          scopeLevel: "city",
+          cityName: "武汉",
+        },
+      },
+    ]);
+    (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.9] });
+    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
+    prisma.knowledgeChunk.findUnique.mockResolvedValue({
+      id: "chunk-phone",
+      qdrantPointId: "point-phone",
+      knowledgeItemId: "ki-phone",
+      chunkText: "通义Vivid 7具备AI智能摄影，参考售价2999 - 3299。",
+      sourceFile: "阿里云百炼系列手机产品介绍.docx",
+      scopeLevel: "city",
+      cityName: "武汉",
+      document: {
+        title: "阿里云百炼系列手机产品介绍",
+        scopeLevel: "city",
+        cityName: "武汉",
+      },
+      knowledgeItem: {
+        id: "ki-phone",
+        status: "published",
+        question: "1780105284102-wXSwka",
+        answer: "阿里云百炼手机产品介绍",
+        sourceFile: "阿里云百炼系列手机产品介绍.docx",
+        imagePathsJson: null,
+        imagePath: null,
+        createdAt: new Date("2026-05-30T01:41:43.083Z"),
+        updatedAt: new Date("2026-05-30T01:41:43.083Z"),
+      },
+    });
+    prisma.knowledgeItem.update.mockResolvedValue({});
+
+    const result = await retrieveAnswer({
+      question: "我想买3000元左右拍照最好的手机",
+      imagePaths: [],
+      region: { cityName: "武汉" },
+    });
+
+    expect(result.sourceType).toBe("kb");
+    if (result.sourceType === "kb") {
+      expect(result.knowledgeItem.question).toBe("阿里云百炼系列手机产品介绍.docx");
+      expect(result.retrievalDebug[0].question).toBe("阿里云百炼系列手机产品介绍.docx");
+      expect(result.referenceSnippets[0]).toContain("通义Vivid 7");
     }
   });
 });

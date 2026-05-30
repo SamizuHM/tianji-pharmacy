@@ -576,7 +576,7 @@ export async function retrieveAnswer(
   const retrievalDebug: RetrievalDebugRecord[] = ranked.map((item) => ({
     knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
     chunkId: String(item.payload.chunkId ?? item.pointId),
-    question: String(item.payload.question ?? ""),
+    question: String(item.payload.sourceFile ?? item.payload.question ?? ""),
     answer: String(item.payload.answer ?? ""),
     sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,
     rerankScore: item.rerankScore,
@@ -605,6 +605,7 @@ export async function retrieveAnswer(
           answer: string;
           imagePath?: string | null;
           imagePathsJson?: string | null;
+          sourceFile?: string | null;
           createdAt: Date;
           updatedAt: Date;
         };
@@ -612,6 +613,7 @@ export async function retrieveAnswer(
         scopeLevel?: string | null;
         cityName?: string | null;
         document?: {
+          title?: string | null;
           scopeLevel: string;
           cityName?: string | null;
         } | null;
@@ -661,6 +663,11 @@ export async function retrieveAnswer(
       const primary = evidenceChunks[0];
       if (primary) {
         const knowledgeItem = primary.knowledgeItem;
+        const sourceTitle =
+          primary.sourceFile?.trim() ||
+          String(primary.document?.title ?? "").trim() ||
+          knowledgeItem.sourceFile?.trim() ||
+          knowledgeItem.question;
 
         await prisma.knowledgeItem.update({
           where: { id: knowledgeItem.id },
@@ -690,7 +697,7 @@ export async function retrieveAnswer(
           retrievalDebug,
           knowledgeItem: {
             id: knowledgeItem.id,
-            question: knowledgeItem.question,
+            question: sourceTitle,
             answer: knowledgeItem.answer,
             imagePaths,
             createdAt: knowledgeItem.createdAt?.toISOString?.() ?? new Date().toISOString(),
