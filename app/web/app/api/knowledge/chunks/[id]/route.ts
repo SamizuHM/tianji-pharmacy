@@ -28,14 +28,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   if (user.role !== "admin") {
-    const userWithStore = await prisma.user.findUnique({
+    const userWithRegion = await prisma.user.findUnique({
       where: { id: user.id },
-      include: { store: true },
+      include: { region: true },
     });
     const scopeLevel = chunk.scopeLevel ?? chunk.document?.scopeLevel ?? "common";
     const cityName = chunk.cityName ?? chunk.document?.cityName ?? null;
     const visible =
-      scopeLevel === "common" || (cityName && cityName === userWithStore?.store?.cityName);
+      scopeLevel === "common" || (cityName && cityName === userWithRegion?.region?.name);
     if (!visible) {
       return NextResponse.json({ error: "无权限查看该知识片段" }, { status: 403 });
     }

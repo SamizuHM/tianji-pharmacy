@@ -103,9 +103,9 @@ describe("createAssistantGenerationStream", () => {
     prisma.conversation.findUnique.mockResolvedValueOnce({
       id: "conv-1",
       user: {
-        storeId: "store-1",
-        store: {
-          cityName: "武汉",
+        regionId: "region-1",
+        region: {
+          name: "武汉",
         },
       },
     });

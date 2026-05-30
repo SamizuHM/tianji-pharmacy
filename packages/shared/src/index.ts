@@ -8,7 +8,7 @@ export type TicketPriority = "low" | "medium" | "high";
 
 export type MessageRole = "user" | "assistant" | "agent" | "system";
 
-export type MessageSourceType = "kb" | "llm" | "manual" | "system";
+export type MessageSourceType = "kb" | "llm" | "manual" | "system" | "sensitive";
 
 export type MessageFeedback = "helpful" | "unhelpful";
 

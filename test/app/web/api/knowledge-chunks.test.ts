@@ -59,6 +59,7 @@ describe("GET /api/knowledge/chunks/[id]", () => {
     prisma.user.findUnique.mockResolvedValue({
       id: "staff-1",
       store: { cityName: "武汉" },
+      region: { name: "武汉" },
     });
 
     const response = await GET(new Request("http://localhost/api/knowledge/chunks/chunk-1"), {
@@ -83,6 +84,7 @@ describe("GET /api/knowledge/chunks/[id]", () => {
     prisma.user.findUnique.mockResolvedValue({
       id: "staff-1",
       store: { cityName: "武汉" },
+      region: { name: "武汉" },
     });
 
     const response = await GET(new Request("http://localhost/api/knowledge/chunks/chunk-1"), {

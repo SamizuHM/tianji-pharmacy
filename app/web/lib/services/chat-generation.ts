@@ -323,7 +323,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             getConversationMessages(input.conversationId),
             prisma.conversation.findUnique({
               where: { id: input.conversationId },
-              include: { user: { include: { store: true } } },
+              include: { user: { include: { region: true } } },
             }),
           ]);
           const historyMessages = toModelHistoryMessages(
@@ -344,7 +344,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               question: input.text,
               imagePaths: attachmentImagePaths,
               region: {
-                cityName: conversationScope?.user.store?.cityName,
+                cityName: conversationScope?.user.region?.name,
               },
               historyMessages,
             },
