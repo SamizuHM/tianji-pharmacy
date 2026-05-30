@@ -24,6 +24,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId ?? null,
       ticket,
     })
   ) {

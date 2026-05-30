@@ -25,6 +25,9 @@ export default async function DepartmentTicketDetailPage(props: {
   }
 
   const departments = await prisma.department.findMany({
+    where: {
+      users: { some: { role: "department" } },
+    },
     include: {
       users: {
         where: { role: "department" },

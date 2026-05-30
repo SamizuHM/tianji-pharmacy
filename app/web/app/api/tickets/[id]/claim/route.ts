@@ -16,6 +16,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       userId: user.id,
       userDisplayName: user.displayName,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId ?? null,
     });
     return NextResponse.json({ ticket });
   } catch (error) {

@@ -32,6 +32,7 @@ export type TicketListParams = {
   role: UserRole;
   userId: string;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
   status?: TicketStatus | "all";
   statusGroup?: TicketStatusGroup;
   q?: string;
@@ -184,12 +185,14 @@ export function canAccessTicket(input: {
   role: UserRole;
   userId: string;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
   ticket: {
     status: TicketStatus;
     createdByUserId: string;
     claimedByUserId?: string | null;
     escalatedToDept?: string | null;
     escalatedToUserId?: string | null;
+    regionId?: string | null;
   };
 }) {
   if (input.role === "staff") {
@@ -201,6 +204,17 @@ export function canAccessTicket(input: {
   }
 
   if (input.role !== "department") {
+    return false;
+  }
+
+  // 区域校验：部门人员只能操作本区域的工单（"其他部门"除外）
+  const isFallbackDept = input.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
+  if (
+    !isFallbackDept &&
+    input.userRegionId &&
+    input.ticket.regionId &&
+    input.userRegionId !== input.ticket.regionId
+  ) {
     return false;
   }
 
@@ -230,7 +244,7 @@ export function canAccessTicket(input: {
 }
 
 function baseTicketWhere(
-  params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName">
+  params: Pick<TicketListParams, "role" | "userId" | "userDepartmentName" | "userRegionId">
 ): Prisma.TicketWhereInput {
   if (params.role === "staff") {
     return { createdByUserId: params.userId };
@@ -244,14 +258,24 @@ function baseTicketWhere(
     return { id: "__no_visible_tickets__" };
   }
 
+  // "其他部门"不受区域限制，所有区域的其他部门人员都能看到
+  const isFallbackDept = params.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
+  const regionFilter: Prisma.TicketWhereInput =
+    params.userRegionId && !isFallbackDept ? { regionId: params.userRegionId } : {};
+
   return {
-    OR: [
-      { claimedByUserId: params.userId },
+    AND: [
+      regionFilter,
       {
-        status: { in: ["pending_claim", "escalated"] },
-        escalatedToDept: params.userDepartmentName,
+        OR: [
+          { claimedByUserId: params.userId },
+          {
+            status: { in: ["pending_claim", "escalated"] },
+            escalatedToDept: params.userDepartmentName,
+          },
+          { status: "closed", escalatedToDept: params.userDepartmentName },
+        ],
       },
-      { status: "closed", escalatedToDept: params.userDepartmentName },
     ],
   };
 }
@@ -260,11 +284,17 @@ export async function classifyTicketDepartment(input: {
   question: string;
   aiAnswerSnapshot: string;
   category: string;
+  regionId?: string | null;
 }) {
-  const departments = await prisma.department.findMany({
-    select: { name: true, description: true },
+  const allDepartments = await prisma.department.findMany({
+    select: { name: true, description: true, regionId: true },
     orderBy: { name: "asc" },
   });
+
+  const departments = input.regionId
+    ? allDepartments.filter((d) => d.regionId === input.regionId || d.regionId === null)
+    : allDepartments;
+
   const departmentNames = new Set(departments.map((d) => d.name));
   const fallbackDepartment =
     departments.find((dept) => dept.name === FALLBACK_DEPARTMENT_NAME) ?? departments[0];
@@ -277,19 +307,50 @@ export async function classifyTicketDepartment(input: {
     };
   }
 
+  // 预查本区域各部门的可用用户，用于后续兜底判断
+  const regionDeptUserCounts: Record<string, number> = {};
+  if (input.regionId) {
+    const regionDepts = await prisma.department.findMany({
+      where: { regionId: input.regionId },
+      select: { id: true, name: true },
+    });
+    for (const dept of regionDepts) {
+      const count = await prisma.user.count({
+        where: { departmentId: dept.id, role: "department", enabled: true },
+      });
+      regionDeptUserCounts[dept.name] = count;
+    }
+  }
+
+  function hasLocalUsers(deptName: string): boolean {
+    // "其他部门"是全局的，始终可用
+    if (deptName === FALLBACK_DEPARTMENT_NAME) return true;
+    // 没有区域限制时默认可用
+    if (!input.regionId) return true;
+    return (regionDeptUserCounts[deptName] ?? 0) > 0;
+  }
+
   const ruleMatch = classifyDepartmentByRules(input.question, input.category);
   if (ruleMatch && departmentNames.has(ruleMatch)) {
+    if (hasLocalUsers(ruleMatch)) {
+      return {
+        departmentName: ruleMatch,
+        confidence: 0.95,
+        reason: `关键词/分类规则匹配：${input.category} → ${ruleMatch}`,
+      };
+    }
+    // 本区域没有该部门的用户，兜底到其他部门
     return {
-      departmentName: ruleMatch,
+      departmentName: FALLBACK_DEPARTMENT_NAME,
       confidence: 0.95,
-      reason: `关键词/分类规则匹配：${input.category} → ${ruleMatch}`,
+      reason: `关键词匹配${ruleMatch}，但本区域无可用人员，兜底到${FALLBACK_DEPARTMENT_NAME}`,
     };
   }
 
   try {
     const classified = await classifyTicketDepartmentWithModel({
       ...input,
-      departments,
+      departments: departments.map((d) => ({ name: d.name, description: d.description })),
     });
     const matched = departments.find((dept) => dept.name === classified.departmentName);
     if (!matched || classified.confidence < DEPARTMENT_CONFIDENCE_THRESHOLD) {
@@ -297,6 +358,14 @@ export async function classifyTicketDepartment(input: {
         departmentName: fallbackDepartment.name,
         confidence: classified.confidence || 0,
         reason: classified.reason || "模型置信度不足，使用兜底部门",
+      };
+    }
+    // 本区域没有该部门的用户，兜底到其他部门
+    if (!hasLocalUsers(classified.departmentName)) {
+      return {
+        departmentName: FALLBACK_DEPARTMENT_NAME,
+        confidence: classified.confidence,
+        reason: `模型匹配${classified.departmentName}，但本区域无可用人员，兜底到${FALLBACK_DEPARTMENT_NAME}`,
       };
     }
     return classified;
@@ -354,10 +423,17 @@ export async function createTicketFromConversation(input: {
   const title = truncateText(latestUser.contentText, 32);
   const category = deriveTicketCategory(latestUser.contentText);
   const tags = deriveTags(latestUser.contentText);
+
+  const creator = await prisma.user.findUnique({
+    where: { id: input.createdByUserId },
+    select: { regionId: true },
+  });
+
   const departmentRouting = await classifyTicketDepartment({
     question: latestUser.contentText,
     aiAnswerSnapshot: latestAssistant?.contentText ?? "",
     category,
+    regionId: creator?.regionId,
   });
   const conversationSnapshot = JSON.stringify(
     messages.map((item) => ({
@@ -392,6 +468,7 @@ export async function createTicketFromConversation(input: {
       escalatedAt: new Date(),
       escalatedToDept: departmentRouting.departmentName,
       escalatedToUserId: null,
+      regionId: creator?.regionId ?? null,
     },
   });
 
@@ -437,6 +514,7 @@ export async function createTicketFromConversation(input: {
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
     targetRoles: ["department"],
+    targetRegionId: creator?.regionId,
   });
 
   return ticket;
@@ -447,6 +525,7 @@ export async function claimTicket(input: {
   userId: string;
   userDisplayName: string;
   userDepartmentName?: string | null;
+  userRegionId?: string | null;
 }) {
   const existing = await prisma.ticket.findUnique({
     where: { id: input.ticketId },
@@ -466,6 +545,17 @@ export async function claimTicket(input: {
 
   if (existing.escalatedToDept !== input.userDepartmentName) {
     throw new Error("当前工单未分发到你的部门，不能认领");
+  }
+
+  // 区域校验：只能认领本区域的工单（"其他部门"除外）
+  const isFallbackDept = input.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
+  if (
+    !isFallbackDept &&
+    input.userRegionId &&
+    existing.regionId &&
+    input.userRegionId !== existing.regionId
+  ) {
+    throw new Error("不能认领其他区域的工单");
   }
 
   const ticket = await prisma.ticket.update({
@@ -677,22 +767,47 @@ export async function escalateTicket(input: {
     throw new Error("只有工单认领人才能转派工单");
   }
 
-  const department = await prisma.department.findUnique({
-    where: { name: input.targetDept },
-  });
+  // 优先在本区域查找目标部门，找不到则尝试全局部门
+  const department = ticket.regionId
+    ? await prisma.department.findFirst({
+        where: {
+          name: input.targetDept,
+          OR: [{ regionId: ticket.regionId }, { regionId: null }],
+        },
+      })
+    : await prisma.department.findFirst({
+        where: { name: input.targetDept },
+      });
 
   if (!department) {
     throw new Error("目标部门不存在");
   }
 
-  const targetLabel = input.targetDept;
+  // 检查目标部门在工单所属区域是否有可用用户，没有则兜底到"其他部门"
+  let actualTargetDept = input.targetDept;
+  if (input.targetDept !== FALLBACK_DEPARTMENT_NAME && ticket.regionId) {
+    const targetRegionDept = await prisma.department.findFirst({
+      where: { name: input.targetDept, regionId: ticket.regionId },
+      select: { id: true },
+    });
+    if (targetRegionDept) {
+      const userCount = await prisma.user.count({
+        where: { departmentId: targetRegionDept.id, role: "department", enabled: true },
+      });
+      if (userCount === 0) {
+        actualTargetDept = FALLBACK_DEPARTMENT_NAME;
+      }
+    }
+  }
+
+  const targetLabel = actualTargetDept;
 
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
       status: "escalated",
       escalatedAt: new Date(),
-      escalatedToDept: input.targetDept,
+      escalatedToDept: actualTargetDept,
       escalatedToUserId: null,
       claimedByUserId: null,
     },
@@ -833,6 +948,7 @@ export async function getTicketKnowledgeMaterials(ticketId: string) {
         orderBy: { createdAt: "asc" },
         include: { senderUser: true },
       },
+      resolutionSubmittedBy: true,
     },
   });
 
@@ -840,7 +956,7 @@ export async function getTicketKnowledgeMaterials(ticketId: string) {
     throw new Error("工单不存在");
   }
 
-  return ticket.messages
+  const materials: TicketKnowledgeMaterial[] = ticket.messages
     .filter((message) => message.senderRole !== "system")
     .map((message) => {
       const attachments = getAttachmentItems(message.attachments);
@@ -863,6 +979,24 @@ export async function getTicketKnowledgeMaterials(ticketId: string) {
         createdAt: message.createdAt,
       } satisfies TicketKnowledgeMaterial;
     });
+
+  // Include the resolution text as a selectable material
+  if (ticket.resolutionText && ticket.resolutionSubmittedAt) {
+    materials.push({
+      id: `ticketResolution:${ticket.id}`,
+      source: "ticket" as const,
+      messageId: ticket.id,
+      role: "agent",
+      sourceType: "ticket" as const,
+      roleLabel: ticket.resolutionSubmittedBy?.displayName || "部门人员",
+      sourceLabel: "处理方案",
+      contentText: ticket.resolutionText,
+      attachments: [],
+      createdAt: ticket.resolutionSubmittedAt,
+    });
+  }
+
+  return materials;
 }
 
 function selectTicketMaterials(
@@ -977,10 +1111,36 @@ function extractKbKnowledgeItemId(snapshot: string): string | null {
   }
 }
 
+export async function deleteTicket(input: {
+  ticketId: string;
+  userId: string;
+  userRole: UserRole;
+}) {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: input.ticketId },
+  });
+
+  if (!ticket) {
+    throw new Error("工单不存在");
+  }
+
+  if (input.userRole !== "admin" && ticket.createdByUserId !== input.userId) {
+    throw new Error("只有发起人或管理员可以删除工单");
+  }
+
+  if (ticket.status !== "pending_claim") {
+    throw new Error("只有待认领状态的工单可以删除");
+  }
+
+  await prisma.ticket.delete({ where: { id: input.ticketId } });
+  return ticket;
+}
+
 export async function closeTicketWithKnowledgeWriteback(input: {
   ticketId: string;
   closedByUserId: string;
   closedByRole?: UserRole;
+  existingKnowledgeItemId?: string;
 }) {
   const existingTicket = await prisma.ticket.findUnique({
     where: { id: input.ticketId },

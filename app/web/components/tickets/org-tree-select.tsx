@@ -27,28 +27,30 @@ export function OrgTreeSelect(props: {
     <div className="flex flex-col gap-3">
       <div className="text-sm font-medium text-slate-900 dark:text-foreground">选择转派部门</div>
       <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
-        {props.departments.map((dept) => {
-          const isDeptSelected = selected?.targetDept === dept.name;
+        {props.departments
+          .filter((dept) => dept.users.length > 0)
+          .map((dept) => {
+            const isDeptSelected = selected?.targetDept === dept.name;
 
-          return (
-            <div key={dept.id} className="border-b border-border last:border-b-0">
-              <button
-                type="button"
-                className={cn(
-                  "flex flex-1 items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
-                  isDeptSelected
-                    ? "bg-blue-50 font-medium text-primary dark:bg-primary/10"
-                    : "hover:bg-slate-50 dark:hover:bg-secondary"
-                )}
-                onClick={() => selectDept(dept.name)}
-              >
-                <Building2 className="size-4 text-slate-400 dark:text-muted" />
-                {dept.name}
-                <span className="ml-auto text-xs text-muted">{dept.users.length} 人</span>
-              </button>
-            </div>
-          );
-        })}
+            return (
+              <div key={dept.id} className="border-b border-border last:border-b-0">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex flex-1 items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
+                    isDeptSelected
+                      ? "bg-blue-50 font-medium text-primary dark:bg-primary/10"
+                      : "hover:bg-slate-50 dark:hover:bg-secondary"
+                  )}
+                  onClick={() => selectDept(dept.name)}
+                >
+                  <Building2 className="size-4 text-slate-400 dark:text-muted" />
+                  {dept.name}
+                  <span className="ml-auto text-xs text-muted">{dept.users.length} 人</span>
+                </button>
+              </div>
+            );
+          })}
       </div>
       {selected ? (
         <div className="rounded bg-blue-50 px-3 py-2 text-xs text-primary dark:border dark:border-border dark:bg-secondary">

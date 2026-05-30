@@ -12,8 +12,9 @@ import {
   Pin,
   Search,
   Ticket as TicketIcon,
+  Trash2,
 } from "lucide-react";
-import { useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 
 import { MetricCard } from "@/components/shared/metric-card";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -45,7 +46,26 @@ export function TicketList(props: {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const result = props.result as TicketListResult & { items: TicketRow[] };
+
+  const deleteTicket = useCallback(
+    (ticket: TicketRow) => {
+      if (!window.confirm(`确认删除工单"${ticket.ticketNo}"？删除后不可恢复。`)) return;
+      setDeletingId(ticket.id);
+      startTransition(async () => {
+        const response = await fetch(`/api/tickets/${ticket.id}`, { method: "DELETE" });
+        const data = await response.json();
+        setDeletingId(null);
+        if (!response.ok) {
+          window.alert(data.error || "删除失败");
+          return;
+        }
+        router.refresh();
+      });
+    },
+    [router]
+  );
 
   function update(next: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -234,6 +254,18 @@ export function TicketList(props: {
                     <TD>{formatDateTime(ticket.createdAt)}</TD>
                     <TD className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {ticket.createdByUserId === props.currentUserId &&
+                        ticket.status === "pending_claim" ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-8 items-center rounded border border-red-200 bg-white px-3 text-xs font-medium text-red-600 transition-all duration-150 hover:border-red-300 hover:bg-red-50 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 dark:bg-card dark:text-red-400 dark:hover:bg-red-950/30"
+                            disabled={deletingId === ticket.id}
+                            onClick={() => deleteTicket(ticket)}
+                          >
+                            <Trash2 className="mr-1 size-3" />
+                            {deletingId === ticket.id ? "删除中..." : "删除"}
+                          </button>
+                        ) : null}
                         <Link
                           href={`${props.basePath}/${ticket.id}`}
                           className="inline-flex h-8 items-center rounded border border-border bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97] dark:bg-card dark:text-foreground dark:hover:border-border dark:hover:bg-secondary"

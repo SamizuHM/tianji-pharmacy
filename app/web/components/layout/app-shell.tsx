@@ -12,6 +12,7 @@ import {
   ChevronDown,
   UsersRound,
   LifeBuoy,
+  MapPin,
   Menu,
   MessageCircle,
   Search,
@@ -65,6 +66,7 @@ function getNavItems(
   if (role === "admin") {
     return [
       { href: "/admin/users", label: "人员管理", icon: UsersRound },
+      { href: "/admin/regions", label: "区域管理", icon: MapPin },
       { href: "/admin/knowledge", label: "知识库管理", icon: BookOpen },
       { href: "/admin/stats", label: "统计分析", icon: BarChart3 },
       { href: "/admin/settings", label: "系统设置", icon: Settings },

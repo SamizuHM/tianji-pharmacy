@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { roleLabel } from "@/lib/presentation";
 
+interface DemoUser {
+  username: string;
+  displayName: string;
+  role: string;
+  departmentName: string | null;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -19,6 +26,14 @@ export function LoginForm() {
   const [username, setUsername] = useState(FIXED_USERS[0]?.username ?? "");
   const [password, setPassword] = useState(FIXED_USERS[0]?.password ?? "");
   const [demoExpanded, setDemoExpanded] = useState(false);
+  const [demoUsers, setDemoUsers] = useState<DemoUser[]>([]);
+
+  useEffect(() => {
+    fetch("/api/auth/demo-users")
+      .then((res) => res.json())
+      .then((data: DemoUser[]) => setDemoUsers(data))
+      .catch(() => setDemoUsers([]));
+  }, []);
 
   async function handleSubmit() {
     setError("");
@@ -94,6 +109,7 @@ export function LoginForm() {
         </div>
 
         <RoleScrollHint
+          users={demoUsers}
           onSelect={(u, p) => {
             setUsername(u);
             setPassword(p);
@@ -133,24 +149,24 @@ export function LoginForm() {
                 <span>角色</span>
                 <span>说明</span>
               </div>
-              {FIXED_USERS.map((user) => (
+              {demoUsers.map((user) => (
                 <button
                   key={user.username}
                   type="button"
                   className="grid w-full grid-cols-[1fr_1fr_1.5fr] gap-2 px-4 py-2.5 text-left text-xs transition-colors hover:bg-blue-50/50"
                   onClick={() => {
                     setUsername(user.username);
-                    setPassword(user.password);
+                    setPassword(FIXED_USERS[0]?.password ?? "demo123");
                   }}
                 >
-                  <span className="font-medium text-slate-900">{user.username}</span>
-                  <span className="text-slate-600">{roleLabel(user.role)}</span>
+                  <span className="font-medium text-slate-900">{user.displayName}</span>
+                  <span className="text-slate-600">{roleLabel(user.role as any)}</span>
                   <span className="text-muted">
                     {user.role === "staff"
                       ? "门店日常问答使用账号"
                       : user.role === "admin"
                         ? "人员与知识库管理账号"
-                        : `${user.department ?? "部门"}工单处理账号`}
+                        : `${user.departmentName ?? "部门"}工单处理账号`}
                   </span>
                 </button>
               ))}
@@ -176,7 +192,10 @@ async function safeReadJson(response: Response): Promise<{ error?: string; redir
 }
 
 /** 内置角色选择区 —— 横向滚动，首次 hover 自动滚动提示 */
-function RoleScrollHint(props: { onSelect: (username: string, password: string) => void }) {
+function RoleScrollHint(props: {
+  users: DemoUser[];
+  onSelect: (username: string, password: string) => void;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const hintPlayed = useRef(false);
   const [scrollState, setScrollState] = useState<"both" | "left" | "right" | "none">("none");
@@ -246,20 +265,20 @@ function RoleScrollHint(props: { onSelect: (username: string, password: string) 
         />
         <div ref={scrollRef} className="overflow-x-auto px-1">
           <div className="flex gap-2" style={{ width: "max-content" }}>
-            {FIXED_USERS.map((user) => (
+            {props.users.map((user) => (
               <button
                 key={user.username}
                 type="button"
                 className="flex w-[120px] shrink-0 flex-col items-center rounded-lg border border-transparent p-3 text-center transition hover:border-blue-100 hover:bg-white"
                 onClick={() => {
-                  props.onSelect(user.username, user.password);
+                  props.onSelect(user.username, FIXED_USERS[0]?.password ?? "demo123");
                 }}
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-primary">
                   {user.displayName.slice(0, 1)}
                 </span>
                 <span className="mt-2 truncate text-xs font-medium text-slate-700">
-                  {roleLabel(user.role)}
+                  {roleLabel(user.role as any)}
                 </span>
                 <span className="mt-1 text-[10px] text-muted">
                   {user.role === "staff"

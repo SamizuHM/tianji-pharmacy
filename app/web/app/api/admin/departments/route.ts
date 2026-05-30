@@ -1,24 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  if (!user || user.role !== "admin") {
+    return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
   const departments = await prisma.department.findMany({
-    where: {
-      users: { some: {} },
-    },
-    include: {
-      users: {
-        select: { id: true, displayName: true },
-        orderBy: { displayName: "asc" },
-      },
-    },
+    include: { region: true },
     orderBy: { name: "asc" },
   });
 

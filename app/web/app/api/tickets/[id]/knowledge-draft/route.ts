@@ -23,6 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId ?? null,
       ticket,
     })
   ) {

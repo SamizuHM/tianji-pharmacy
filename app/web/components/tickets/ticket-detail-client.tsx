@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageSquareReply,
   Send,
+  Trash2,
   Upload,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime, parseTags } from "@/lib/presentation";
 import { cn, getAttachmentItems } from "@/lib/utils";
@@ -76,6 +78,12 @@ export function TicketDetailClient(props: {
   const [error, setError] = useState("");
   const [showEscalate, setShowEscalate] = useState(false);
   const [showKnowledgeEntry, setShowKnowledgeEntry] = useState(false);
+  const [knowledgeWriteMode, setKnowledgeWriteMode] = useState<"create" | "update">("create");
+  const [existingKnowledgeId, setExistingKnowledgeId] = useState<string>("");
+  const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<
+    Array<{ id: string; question: string; categoryL1: string; categoryL2: string }>
+  >([]);
+  const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState("");
 
   async function uploadFiles(fileList: FileList) {
     const formData = new FormData();
@@ -169,8 +177,14 @@ export function TicketDetailClient(props: {
 
   function closeTicket() {
     startTransition(async () => {
+      const body: Record<string, string> = {};
+      if (knowledgeWriteMode === "update" && existingKnowledgeId) {
+        body.existingKnowledgeItemId = existingKnowledgeId;
+      }
       const response = await fetch(`/api/tickets/${props.ticket.id}/close`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -178,6 +192,32 @@ export function TicketDetailClient(props: {
         return;
       }
       router.refresh();
+    });
+  }
+
+  async function searchKnowledge(query: string) {
+    setKnowledgeSearchQuery(query);
+    if (!query.trim()) {
+      setKnowledgeSearchResults([]);
+      return;
+    }
+    const response = await fetch(`/api/knowledge?q=${encodeURIComponent(query)}&pageSize=10`);
+    const data = await response.json();
+    if (response.ok) {
+      setKnowledgeSearchResults(data.items || []);
+    }
+  }
+
+  function deleteTicket() {
+    if (!window.confirm(`确认删除工单"${props.ticket.ticketNo}"？删除后不可恢复。`)) return;
+    startTransition(async () => {
+      const response = await fetch(`/api/tickets/${props.ticket.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "删除失败");
+        return;
+      }
+      router.push(`/${props.role}/tickets`);
     });
   }
 
@@ -217,6 +257,8 @@ export function TicketDetailClient(props: {
     canClose &&
     props.ticket.knowledgeStatus === "pending_writeback" &&
     Boolean(latestKnowledgeDraft);
+  const canDelete =
+    (isCreator || props.role === "admin") && props.ticket.status === "pending_claim";
 
   const tags = parseTags(props.ticket.tagsJson);
 
@@ -408,6 +450,20 @@ export function TicketDetailClient(props: {
                   <BookOpen className="size-5" />
                 </button>
               ) : null}
+              {canDelete ? (
+                <button
+                  type="button"
+                  className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-red-600 transition hover:bg-red-100 disabled:opacity-60 dark:border-destructive/30 dark:bg-destructive/10 dark:text-red-400 dark:hover:bg-secondary"
+                  onClick={deleteTicket}
+                  disabled={pending}
+                >
+                  <span>
+                    <span className="block text-sm font-medium">删除工单</span>
+                    <span className="text-xs text-muted">仅发起人可删除待认领工单</span>
+                  </span>
+                  <Trash2 className="size-5" />
+                </button>
+              ) : null}
               {error ? (
                 <Alert className="border-destructive bg-red-50 text-destructive dark:border-destructive/30 dark:bg-destructive/10">
                   {error}
@@ -573,9 +629,87 @@ export function TicketDetailClient(props: {
                   <Alert className="border-orange-200 bg-orange-50 text-orange-700 dark:border-warning/30 dark:bg-warning/10 dark:text-foreground">
                     尚未生成待入库答案，暂不能关闭并写回知识库。
                   </Alert>
-                ) : null}
-                <Button onClick={closeTicket} disabled={pending || !canCloseWithWriteback}>
-                  {pending ? "关闭中..." : "关闭工单写回知识库"}
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          knowledgeWriteMode === "create"
+                            ? "border-primary bg-blue-50 text-primary dark:bg-primary/10"
+                            : "border-border bg-white text-slate-600 hover:bg-slate-50 dark:bg-card dark:text-foreground"
+                        )}
+                        onClick={() => setKnowledgeWriteMode("create")}
+                      >
+                        新建知识
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          knowledgeWriteMode === "update"
+                            ? "border-primary bg-blue-50 text-primary dark:bg-primary/10"
+                            : "border-border bg-white text-slate-600 hover:bg-slate-50 dark:bg-card dark:text-foreground"
+                        )}
+                        onClick={() => setKnowledgeWriteMode("update")}
+                      >
+                        更新已有知识
+                      </button>
+                    </div>
+                    {knowledgeWriteMode === "update" ? (
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          placeholder="搜索已有知识条目..."
+                          value={knowledgeSearchQuery}
+                          onChange={(e) => searchKnowledge(e.target.value)}
+                        />
+                        {knowledgeSearchResults.length > 0 ? (
+                          <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-white dark:bg-card">
+                            {knowledgeSearchResults.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                className={cn(
+                                  "flex w-full flex-col items-start gap-1 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50 dark:hover:bg-secondary",
+                                  existingKnowledgeId === item.id && "bg-blue-50 dark:bg-primary/10"
+                                )}
+                                onClick={() => setExistingKnowledgeId(item.id)}
+                              >
+                                <span className="font-medium text-slate-900 dark:text-foreground">
+                                  {item.question}
+                                </span>
+                                <span className="text-xs text-muted">
+                                  {item.categoryL1} / {item.categoryL2}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : knowledgeSearchQuery.trim() ? (
+                          <p className="text-xs text-muted">未找到匹配的知识条目</p>
+                        ) : null}
+                        {existingKnowledgeId ? (
+                          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-success/30 dark:bg-success/10">
+                            已选择更新目标，关闭后将覆盖该知识条目内容。
+                          </Alert>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                <Button
+                  onClick={closeTicket}
+                  disabled={
+                    pending ||
+                    !canCloseWithWriteback ||
+                    (knowledgeWriteMode === "update" && !existingKnowledgeId)
+                  }
+                >
+                  {pending
+                    ? "关闭中..."
+                    : knowledgeWriteMode === "update"
+                      ? "关闭工单并更新知识"
+                      : "关闭工单写回知识库"}
                 </Button>
               </CardContent>
             </Card>

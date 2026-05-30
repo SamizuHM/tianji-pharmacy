@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { Department, Store, User, UserRole } from "@prisma/client";
+import type { Department, Region, User, UserRole } from "@prisma/client";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { roleLabel } from "@/lib/presentation";
 
-type UserWithDepartment = User & { department: Department | null; store: Store | null };
+type DepartmentWithRegion = Department & { region: Region | null };
+type UserWithDepartment = User & { department: DepartmentWithRegion | null; region: Region };
 
 type UserForm = {
   id?: string;
@@ -21,7 +22,7 @@ type UserForm = {
   password: string;
   role: UserRole;
   departmentId: string;
-  cityName: string;
+  regionId: string;
   enabled: boolean;
 };
 
@@ -31,14 +32,14 @@ const emptyForm: UserForm = {
   password: "",
   role: "department",
   departmentId: "",
-  cityName: "",
+  regionId: "",
   enabled: true,
 };
 
 export function UsersManagement(props: {
   initialUsers: UserWithDepartment[];
-  departments: Department[];
-  cityOptions: readonly string[];
+  departments: DepartmentWithRegion[];
+  regions: Region[];
 }) {
   const [users, setUsers] = useState(props.initialUsers);
   const [form, setForm] = useState<UserForm>(emptyForm);
@@ -56,7 +57,7 @@ export function UsersManagement(props: {
       password: "",
       role: user.role,
       departmentId: user.departmentId ?? "",
-      cityName: user.store?.cityName ?? "",
+      regionId: user.regionId ?? "",
       enabled: user.enabled,
     });
   }
@@ -73,7 +74,7 @@ export function UsersManagement(props: {
           password: form.password || undefined,
           role: form.role,
           departmentId: form.role === "department" ? form.departmentId : null,
-          cityName: form.role === "staff" ? form.cityName || null : null,
+          regionId: form.regionId,
           enabled: form.enabled,
         }),
       });
@@ -160,25 +161,23 @@ export function UsersManagement(props: {
               <option value="">请选择部门</option>
               {departmentOptions.map((dept) => (
                 <option key={dept.id} value={dept.id}>
-                  {dept.name}
+                  {dept.region?.name ? `${dept.region.name} - ${dept.name}` : dept.name}
                 </option>
               ))}
             </select>
           ) : null}
-          {form.role === "staff" ? (
-            <select
-              className="border-input h-10 rounded border bg-white px-3 text-sm dark:bg-card"
-              value={form.cityName}
-              onChange={(event) => setForm({ ...form, cityName: event.target.value })}
-            >
-              <option value="">不绑定城市</option>
-              {props.cityOptions.map((cityName) => (
-                <option key={cityName} value={cityName}>
-                  {cityName}
-                </option>
-              ))}
-            </select>
-          ) : null}
+          <select
+            className="border-input h-10 rounded border bg-white px-3 text-sm dark:bg-card"
+            value={form.regionId}
+            onChange={(event) => setForm({ ...form, regionId: event.target.value })}
+          >
+            <option value="">请选择区域</option>
+            {props.regions.map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.name}
+              </option>
+            ))}
+          </select>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -198,7 +197,8 @@ export function UsersManagement(props: {
                 !form.username.trim() ||
                 !form.displayName.trim() ||
                 (!isEditing && !form.password.trim()) ||
-                (form.role === "department" && !form.departmentId)
+                (form.role === "department" && !form.departmentId) ||
+                !form.regionId
               }
               onClick={submit}
             >
@@ -216,14 +216,14 @@ export function UsersManagement(props: {
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[820px]">
+          <Table className="min-w-[900px]">
             <THead>
               <tr>
                 <TH>账号</TH>
                 <TH>姓名</TH>
                 <TH>角色</TH>
                 <TH>部门</TH>
-                <TH>城市</TH>
+                <TH>区域</TH>
                 <TH>状态</TH>
                 <TH className="text-right">操作</TH>
               </tr>
@@ -234,8 +234,14 @@ export function UsersManagement(props: {
                   <TD className="font-medium">{user.username}</TD>
                   <TD>{user.displayName}</TD>
                   <TD>{roleLabel(user.role)}</TD>
-                  <TD>{user.department?.name ?? "-"}</TD>
-                  <TD>{user.store?.cityName ?? "-"}</TD>
+                  <TD>
+                    {user.department
+                      ? user.department.region
+                        ? `${user.department.region.name} - ${user.department.name}`
+                        : user.department.name
+                      : "-"}
+                  </TD>
+                  <TD>{user.region?.name ?? "-"}</TD>
                   <TD>
                     <Badge
                       className={
