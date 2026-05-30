@@ -244,8 +244,8 @@ async function buildHypotheticalQuestions(input: {
   sourceFile?: string | null;
 }) {
   const generated = await generateHypotheticalQuestionsWithModel(input);
-  const questions = uniqueTexts([input.question, ...generated], 9);
-  if (questions.length < 2) {
+  const questions = uniqueTexts([input.question, input.chunkText, ...generated], 10);
+  if (questions.length < 3) {
     throw new Error(`chunk HQ 生成不足：${input.question}`);
   }
   return questions;
@@ -261,7 +261,14 @@ function buildPointId(chunkId: string, basis: string, index: number) {
 }
 
 function buildProjectionPayload(payload: QdrantUpsertPayload, basis: string, index: number) {
-  const basisType: QdrantUpsertPayload["retrievalBasisType"] = index === 0 ? "question" : "hq";
+  let basisType: QdrantUpsertPayload["retrievalBasisType"];
+  if (index === 0) {
+    basisType = "question";
+  } else if (index === 1) {
+    basisType = "chunk";
+  } else {
+    basisType = "hq";
+  }
   return {
     ...payload,
     retrievalBasis: basis,
@@ -546,15 +553,26 @@ export async function drainKnowledgeIndexTasks(options?: { limit?: number }) {
       completed += 1;
     } catch (error) {
       const retryCount = task.retryCount + 1;
-      await prisma.knowledgeIndexTask.update({
-        where: { id: task.id },
-        data: {
-          status: KnowledgeIndexTaskStatus.pending,
-          retryCount,
-          lastError: error instanceof Error ? error.message : "未知错误",
-          availableAt: asDateAfterRetry(retryCount),
-        },
-      });
+      if (retryCount >= 5) {
+        await prisma.knowledgeIndexTask.update({
+          where: { id: task.id },
+          data: {
+            status: KnowledgeIndexTaskStatus.failed,
+            retryCount,
+            lastError: error instanceof Error ? error.message : "未知错误",
+          },
+        });
+      } else {
+        await prisma.knowledgeIndexTask.update({
+          where: { id: task.id },
+          data: {
+            status: KnowledgeIndexTaskStatus.pending,
+            retryCount,
+            lastError: error instanceof Error ? error.message : "未知错误",
+            availableAt: asDateAfterRetry(retryCount),
+          },
+        });
+      }
       failed += 1;
     }
   }

@@ -121,7 +121,8 @@ describe("knowledge-index service", () => {
       expect(result.length).toBeGreaterThan(2);
       expect(result[0].pointId).toBe(buildStablePointId("chunk-1"));
       expect(result[0].retrievalBasisType).toBe("question");
-      expect(result.slice(1).every((task) => task.retrievalBasisType === "hq")).toBe(true);
+      expect(result[1].retrievalBasisType).toBe("chunk");
+      expect(result.slice(2).every((task) => task.retrievalBasisType === "hq")).toBe(true);
       expect(buildHypotheticalQuestionsJsonByChunkId(result).get("chunk-1")).toContain(
         "没带处方能买安定吗"
       );
