@@ -770,8 +770,10 @@ def parse_knowledge_items(
     if structured_items:
         return structured_items
 
-    # 通用切片
-    return build_generic_items("\n".join(lines), source_file, doc_type, image_map)
+    # 通用切片：传入保留空行的原文，供 knowledge.ts 的 chunkPlainText 按分隔符切分
+    import re as _re
+    preserved = _re.sub(r"\n{3,}", "\n\n", text.rstrip())
+    return build_generic_items(preserved, source_file, doc_type, image_map)
 
 
 def _get_images_for_range(
@@ -943,17 +945,16 @@ def build_generic_items(
         build_item(
             "知识文档",
             "原文切片",
-            f"{Path(source_file).stem} - 第 {idx + 1} 段",
-            chunk,
+            Path(source_file).stem,
+            text,
             [Path(source_file).stem],
             source_file,
             doc_type,
-            all_images if idx == 0 else [],
+            all_images,
             original_text=text,
             normalized_text=text,
-            chunk_texts=[chunk],
+            chunk_texts=chunks,
         )
-        for idx, chunk in enumerate(chunks)
     ]
 
 

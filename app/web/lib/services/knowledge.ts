@@ -299,128 +299,131 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
   const upsertTasks = await prepareKnowledgeChunkUpsertTasks(taskSources);
   const hypotheticalQuestionsJsonByChunkId = buildHypotheticalQuestionsJsonByChunkId(upsertTasks);
 
-  const item = await prisma.$transaction(async (tx) => {
-    const itemData = {
-      categoryL1: input.categoryL1,
-      categoryL2: input.categoryL2,
-      question: input.question,
-      answer: input.answer,
-      tagsJson: buildTagsJson(input.tags),
-      status: input.status ?? existing?.status ?? "published",
-      sourceType: input.sourceType,
-      sourceTicketId: input.sourceTicketId ?? null,
-      sourceFile: input.sourceFile ?? null,
-      docType: input.docType ?? null,
-      documentId: input.documentId ?? null,
-      imagePath: input.imagePath ?? null,
-      imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
-    };
+  const item = await prisma.$transaction(
+    async (tx) => {
+      const itemData = {
+        categoryL1: input.categoryL1,
+        categoryL2: input.categoryL2,
+        question: input.question,
+        answer: input.answer,
+        tagsJson: buildTagsJson(input.tags),
+        status: input.status ?? existing?.status ?? "published",
+        sourceType: input.sourceType,
+        sourceTicketId: input.sourceTicketId ?? null,
+        sourceFile: input.sourceFile ?? null,
+        docType: input.docType ?? null,
+        documentId: input.documentId ?? null,
+        imagePath: input.imagePath ?? null,
+        imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
+      };
 
-    if (existing) {
-      await tx.knowledgeItem.update({
-        where: { id: existing.id },
-        data: itemData,
-      });
-    } else {
-      await tx.knowledgeItem.create({
-        data: {
-          id: itemId,
-          ...itemData,
-        },
-      });
-    }
+      if (existing) {
+        await tx.knowledgeItem.update({
+          where: { id: existing.id },
+          data: itemData,
+        });
+      } else {
+        await tx.knowledgeItem.create({
+          data: {
+            id: itemId,
+            ...itemData,
+          },
+        });
+      }
 
-    for (const chunk of chunkPlans) {
-      await tx.knowledgeChunk.upsert({
-        where: { id: chunk.id },
-        update: {
-          knowledgeItemId: chunk.knowledgeItemId,
-          chunkIndex: chunk.chunkIndex,
-          chunkText: chunk.chunkText,
-          originalText: chunk.originalText,
-          documentId: chunk.documentId,
-          chunkSetId: chunk.chunkSetId,
-          sourceFile: chunk.sourceFile ?? null,
-          docType: chunk.docType ?? null,
-          sectionPath: chunk.sectionPath,
-          tokenCount: chunk.tokenCount,
-          enabled: chunk.enabled,
-          qdrantPointId: chunk.qdrantPointId,
-          scopeLevel: chunk.scopeLevel,
-          cityName: chunk.cityName,
-          overrideScope: chunk.overrideScope,
-          bm25SearchText: chunk.bm25SearchText,
-          bm25DocLength: chunk.bm25DocLength,
-          hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
-          metadataJson: chunk.metadataJson,
-        },
-        create: {
-          ...chunk,
-          hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
-        },
-      });
-    }
+      for (const chunk of chunkPlans) {
+        await tx.knowledgeChunk.upsert({
+          where: { id: chunk.id },
+          update: {
+            knowledgeItemId: chunk.knowledgeItemId,
+            chunkIndex: chunk.chunkIndex,
+            chunkText: chunk.chunkText,
+            originalText: chunk.originalText,
+            documentId: chunk.documentId,
+            chunkSetId: chunk.chunkSetId,
+            sourceFile: chunk.sourceFile ?? null,
+            docType: chunk.docType ?? null,
+            sectionPath: chunk.sectionPath,
+            tokenCount: chunk.tokenCount,
+            enabled: chunk.enabled,
+            qdrantPointId: chunk.qdrantPointId,
+            scopeLevel: chunk.scopeLevel,
+            cityName: chunk.cityName,
+            overrideScope: chunk.overrideScope,
+            bm25SearchText: chunk.bm25SearchText,
+            bm25DocLength: chunk.bm25DocLength,
+            hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
+            metadataJson: chunk.metadataJson,
+          },
+          create: {
+            ...chunk,
+            hypotheticalQuestionsJson: hypotheticalQuestionsJsonByChunkId.get(chunk.id) ?? null,
+          },
+        });
+      }
 
-    const indexedChunkIds = chunkPlans.map((chunk) => chunk.id);
-    const staleChunkIds = staleChunks.map((chunk) => chunk.id);
-    await tx.knowledgeBm25Term.deleteMany({
-      where: {
-        chunkId: { in: [...indexedChunkIds, ...staleChunkIds] },
-      },
-    });
-    const bm25TermRows = chunkPlans.flatMap(
-      (chunk) =>
-        buildBm25TermRows({
-          chunkId: chunk.id,
-          text: chunk.bm25SearchText ?? chunk.chunkText,
-          scopeLevel: chunk.scopeLevel,
-          cityName: chunk.cityName,
-        }).rows
-    );
-    if (bm25TermRows.length) {
-      await tx.knowledgeBm25Term.createMany({
-        data: bm25TermRows,
-        skipDuplicates: true,
-      });
-    }
-
-    if (staleChunks.length) {
-      await tx.knowledgeChunk.deleteMany({
+      const indexedChunkIds = chunkPlans.map((chunk) => chunk.id);
+      const staleChunkIds = staleChunks.map((chunk) => chunk.id);
+      await tx.knowledgeBm25Term.deleteMany({
         where: {
-          id: { in: staleChunks.map((chunk) => chunk.id) },
+          chunkId: { in: [...indexedChunkIds, ...staleChunkIds] },
         },
       });
-    }
+      const bm25TermRows = chunkPlans.flatMap(
+        (chunk) =>
+          buildBm25TermRows({
+            chunkId: chunk.id,
+            text: chunk.bm25SearchText ?? chunk.chunkText,
+            scopeLevel: chunk.scopeLevel,
+            cityName: chunk.cityName,
+          }).rows
+      );
+      if (bm25TermRows.length) {
+        await tx.knowledgeBm25Term.createMany({
+          data: bm25TermRows,
+          skipDuplicates: true,
+        });
+      }
 
-    const taskData = [
-      ...upsertTasks.map((task) => ({
-        taskType: KnowledgeIndexTaskType.upsert,
-        status: KnowledgeIndexTaskStatus.pending,
-        knowledgeItemId: task.knowledgeItemId,
-        chunkId: task.chunkId,
-        pointId: task.pointId,
-        payloadJson: task.payloadJson,
-      })),
-      ...staleChunks.map((chunk) => ({
-        taskType: KnowledgeIndexTaskType.delete,
-        status: KnowledgeIndexTaskStatus.pending,
-        knowledgeItemId: existing?.id ?? itemId,
-        chunkId: chunk.id,
-        pointId: chunk.qdrantPointId,
-        payloadJson: JSON.stringify({ reason: "stale_chunk_delete", chunkId: chunk.id }),
-      })),
-    ];
+      if (staleChunks.length) {
+        await tx.knowledgeChunk.deleteMany({
+          where: {
+            id: { in: staleChunks.map((chunk) => chunk.id) },
+          },
+        });
+      }
 
-    if (taskData.length) {
-      await tx.knowledgeIndexTask.createMany({
-        data: taskData,
+      const taskData = [
+        ...upsertTasks.map((task) => ({
+          taskType: KnowledgeIndexTaskType.upsert,
+          status: KnowledgeIndexTaskStatus.pending,
+          knowledgeItemId: task.knowledgeItemId,
+          chunkId: task.chunkId,
+          pointId: task.pointId,
+          payloadJson: task.payloadJson,
+        })),
+        ...staleChunks.map((chunk) => ({
+          taskType: KnowledgeIndexTaskType.delete,
+          status: KnowledgeIndexTaskStatus.pending,
+          knowledgeItemId: existing?.id ?? itemId,
+          chunkId: chunk.id,
+          pointId: chunk.qdrantPointId,
+          payloadJson: JSON.stringify({ reason: "stale_chunk_delete", chunkId: chunk.id }),
+        })),
+      ];
+
+      if (taskData.length) {
+        await tx.knowledgeIndexTask.createMany({
+          data: taskData,
+        });
+      }
+
+      return tx.knowledgeItem.findUniqueOrThrow({
+        where: { id: itemId },
       });
-    }
-
-    return tx.knowledgeItem.findUniqueOrThrow({
-      where: { id: itemId },
-    });
-  });
+    },
+    { timeout: 30_000 }
+  );
 
   await tryDrainKnowledgeIndexTasks({
     limit: Math.max(20, upsertTasks.length + staleChunks.length),
@@ -594,6 +597,64 @@ export async function upsertQaKnowledgeDocument(input: UpsertQaKnowledgeDocument
         ],
         DEFAULT_QA_CHUNKING_CONFIG
       ),
+    },
+    existing
+  );
+}
+
+export async function overwriteKnowledgeItem(input: {
+  knowledgeItemId: string;
+  categoryL1: string;
+  categoryL2: string;
+  question: string;
+  answer: string;
+  tags: string[];
+  sourceTicketId: string;
+  docType: string;
+  imagePath?: string | null;
+  imagePaths?: string[];
+}) {
+  const existing = await prisma.knowledgeItem.findUnique({
+    where: { id: input.knowledgeItemId },
+    include: { chunks: { orderBy: { chunkIndex: "asc" } } },
+  });
+  if (!existing) {
+    throw new Error("原始知识条目不存在");
+  }
+
+  const qaInput = {
+    categoryL1: input.categoryL1,
+    categoryL2: input.categoryL2,
+    question: input.question,
+    answer: input.answer,
+  };
+
+  const existingChunk = existing.chunks[0];
+  const existingMetadata = existingChunk?.metadataJson
+    ? (JSON.parse(existingChunk.metadataJson) as Record<string, unknown>)
+    : {};
+
+  return persistKnowledgeItem(
+    {
+      categoryL1: input.categoryL1,
+      categoryL2: input.categoryL2,
+      question: input.question,
+      answer: input.answer,
+      tags: input.tags,
+      sourceType: "manual_ticket",
+      sourceTicketId: input.sourceTicketId,
+      docType: input.docType,
+      imagePath: input.imagePath ?? null,
+      imagePaths: input.imagePaths ?? [],
+      documentId: existing.documentId,
+      chunkSetId: existingChunk?.chunkSetId ?? null,
+      businessCategory: (existingMetadata.businessCategory as string) ?? undefined,
+      scopeLevel: existingChunk?.scopeLevel ?? "common",
+      cityName: existingChunk?.cityName ?? null,
+      originalText: qaText(qaInput),
+      normalizedText: qaText(qaInput),
+      chunkTexts: [qaText(qaInput)],
+      chunkPlans: chunkQaItems([{ ...qaInput, tags: input.tags }], DEFAULT_QA_CHUNKING_CONFIG),
     },
     existing
   );
