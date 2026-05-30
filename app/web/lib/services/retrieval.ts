@@ -28,6 +28,7 @@ type RetrievalDebugRecord = {
   scopeLevel?: string | null;
   cityName?: string | null;
   sources?: string[];
+  usedAsReference: boolean;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -587,6 +588,7 @@ export async function retrieveAnswer(
     scopeLevel: item.payload.scopeLevel ? String(item.payload.scopeLevel) : null,
     cityName: item.payload.cityName ? String(item.payload.cityName) : null,
     sources: item.sources,
+    usedAsReference: false,
     createdAt: null,
     updatedAt: null,
   }));
@@ -598,6 +600,7 @@ export async function retrieveAnswer(
       const candidates = ranked.filter((item) => item.rerankScore >= settings.kbHitThreshold);
 
       const evidenceChunks: Array<{
+        id: string;
         chunkText: string;
         knowledgeItem: {
           id: string;
@@ -663,6 +666,7 @@ export async function retrieveAnswer(
       const primary = evidenceChunks[0];
       if (primary) {
         const knowledgeItem = primary.knowledgeItem;
+        const referenceChunkIds = new Set(evidenceChunks.map((chunk) => chunk.id));
         const sourceTitle =
           primary.sourceFile?.trim() ||
           String(primary.document?.title ?? "").trim() ||
@@ -685,6 +689,9 @@ export async function retrieveAnswer(
 
         // Fill createdAt/updatedAt into retrievalDebug for matching items
         for (const debug of retrievalDebug) {
+          if (referenceChunkIds.has(debug.chunkId)) {
+            debug.usedAsReference = true;
+          }
           if (debug.knowledgeItemId === knowledgeItem.id) {
             debug.createdAt = knowledgeItem.createdAt?.toISOString?.() ?? null;
             debug.updatedAt = knowledgeItem.updatedAt?.toISOString?.() ?? null;

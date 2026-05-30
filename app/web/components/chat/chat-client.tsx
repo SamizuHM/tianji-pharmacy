@@ -77,7 +77,7 @@ import {
   type ProgressSummaryItem,
 } from "@/lib/chat-progress";
 import {
-  sortKnowledgeSourcesBySimilarity,
+  prepareKnowledgeSourcesForDisplay,
   type KnowledgeSourceDebugItem,
 } from "@/lib/retrieval-debug";
 import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
@@ -2149,24 +2149,16 @@ function AssistantMessageFooter(props: {
 
   return (
     <div className="mt-3 border-t border-border pt-3 text-xs text-muted">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {knowledgeOpen && props.retrievalDebug.length ? (
-          <KnowledgeSourceSummary
+      <div className="flex min-w-0 flex-wrap items-start gap-2">
+        <div>{actionRow}</div>
+        {props.retrievalDebug.length ? (
+          <ReferenceKnowledgePanel
             messageId={props.message.id}
+            sourceType={props.message.sourceType}
             retrievalDebug={props.retrievalDebug}
             open={knowledgeOpen}
             onOpenChange={setKnowledgeOpen}
-            className="order-first w-full flex-none"
-          />
-        ) : null}
-        <div className={knowledgeOpen ? "order-last" : "order-first"}>{actionRow}</div>
-        {!knowledgeOpen && props.retrievalDebug.length ? (
-          <KnowledgeSourceSummary
-            messageId={props.message.id}
-            retrievalDebug={props.retrievalDebug}
-            open={knowledgeOpen}
-            onOpenChange={setKnowledgeOpen}
-            className="min-w-0 flex-1"
+            className="min-w-[260px] flex-1"
           />
         ) : null}
       </div>
@@ -2174,15 +2166,24 @@ function AssistantMessageFooter(props: {
   );
 }
 
-function KnowledgeSourceSummary(props: {
+function ReferenceKnowledgePanel(props: {
   messageId: string;
+  sourceType: Message["sourceType"];
   retrievalDebug: KnowledgeSourceDebugItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
 }) {
-  const orderedSources = sortKnowledgeSourcesBySimilarity(props.retrievalDebug);
+  const [openSourceKey, setOpenSourceKey] = useState<string | null>(null);
+  const orderedSources = prepareKnowledgeSourcesForDisplay(props.retrievalDebug, {
+    isKbMessage: props.sourceType === "kb",
+  });
   const primary = orderedSources[0];
+  const referencedCount = orderedSources.filter((item) => item.usedAsReference).length;
+  const panelLabel =
+    props.sourceType === "kb" && referencedCount
+      ? `已引用 ${referencedCount} 条`
+      : `候选 ${orderedSources.length} 条`;
 
   return (
     <div
@@ -2200,27 +2201,84 @@ function KnowledgeSourceSummary(props: {
           ▸
         </span>
         <span className="min-w-0 truncate">
-          命中知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
+          参考知识：{primary.question || "无"} · 相似度 {primary.rerankScore.toFixed(2)}
           {primary.updatedAt
             ? ` · 更新于 ${new Date(primary.updatedAt).toLocaleDateString("zh-CN")}`
             : ""}
         </span>
+        <Badge className="ml-auto shrink-0 border-blue-100 bg-blue-50 text-blue-700">
+          {panelLabel}
+        </Badge>
       </button>
       {props.open ? (
         <div className="border-t border-border p-3">
-          <div className="mb-2 font-medium text-foreground">知识来源</div>
+          <div className="mb-2 font-medium text-foreground">参考知识</div>
           <div className="flex flex-col gap-2">
             {orderedSources.map((item, index) => (
               <div
-                key={`${props.messageId}-${index}`}
-                className="rounded border border-border bg-white p-2 dark:bg-card"
+                key={`${props.messageId}-${item.chunkId ?? index}`}
+                className={`rounded border p-2 ${
+                  item.usedAsReference
+                    ? "border-blue-200 bg-blue-50/70 text-slate-900 dark:border-primary/40 dark:bg-accent/40 dark:text-foreground"
+                    : "border-border bg-white dark:bg-card"
+                }`}
               >
-                <div className="font-medium text-foreground">问题：{item.question || "无"}</div>
-                <div className="mt-1">来源：{item.sourceFile || "未知来源"}</div>
-                <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-foreground">
+                      {item.question || "无"}
+                    </div>
+                    <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {item.usedAsReference ? (
+                      <Badge className="border-blue-200 bg-white text-blue-700 dark:bg-card">
+                        已引用
+                      </Badge>
+                    ) : (
+                      <Badge className="border-slate-200 bg-slate-100 text-slate-500">候选</Badge>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() =>
+                        setOpenSourceKey((current) =>
+                          current === (item.chunkId ?? String(index))
+                            ? null
+                            : (item.chunkId ?? String(index))
+                        )
+                      }
+                    >
+                      <FileText className="size-3.5" />
+                      查看知识源
+                    </Button>
+                  </div>
+                </div>
                 {item.updatedAt ? (
                   <div className="mt-1">
                     更新于：{new Date(item.updatedAt).toLocaleDateString("zh-CN")}
+                  </div>
+                ) : null}
+                {openSourceKey === (item.chunkId ?? String(index)) ? (
+                  <div className="mt-2 rounded border border-border bg-white/80 p-2 leading-5 dark:bg-card">
+                    <div>来源：{item.sourceFile || item.question || "未知来源"}</div>
+                    {item.scopeLevel ? (
+                      <div>
+                        适用范围：
+                        {item.scopeLevel === "city" ? item.cityName || "城市专属" : "通用"}
+                      </div>
+                    ) : null}
+                    {item.sources?.length ? <div>召回通道：{item.sources.join(" / ")}</div> : null}
+                    {typeof item.finalScore === "number" ? (
+                      <div>融合分：{item.finalScore.toFixed(4)}</div>
+                    ) : null}
+                    {item.answer ? (
+                      <div className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-foreground">
+                        {item.answer}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
