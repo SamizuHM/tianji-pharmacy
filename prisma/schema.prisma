@@ -130,6 +130,7 @@ enum KnowledgeIndexTaskStatus {
   pending
   processing
   completed
+  failed
 }
 
 model Department {
