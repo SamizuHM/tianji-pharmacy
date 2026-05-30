@@ -76,6 +76,10 @@ import {
   type ProgressStepKey,
   type ProgressSummaryItem,
 } from "@/lib/chat-progress";
+import {
+  sortKnowledgeSourcesBySimilarity,
+  type KnowledgeSourceDebugItem,
+} from "@/lib/retrieval-debug";
 import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
@@ -97,13 +101,7 @@ type Message = {
 };
 
 type StreamDebugPayload = {
-  retrievalDebug?: Array<{
-    question: string;
-    sourceFile?: string | null;
-    rerankScore: number;
-    createdAt?: string | null;
-    updatedAt?: string | null;
-  }>;
+  retrievalDebug?: KnowledgeSourceDebugItem[];
   imagePaths?: string[];
 };
 
@@ -1523,13 +1521,7 @@ export function ChatClient(props: {
                 {messages.map((message) => {
                   const attachmentsData = getAttachmentItems(message.attachmentsJson);
                   const debugPayload = safeJsonParse<{
-                    debug?: Array<{
-                      question: string;
-                      sourceFile?: string | null;
-                      rerankScore: number;
-                      createdAt?: string | null;
-                      updatedAt?: string | null;
-                    }>;
+                    debug?: KnowledgeSourceDebugItem[];
                     imagePaths?: string[];
                   }>(message.retrievalDebugJson, {});
                   const retrievalDebug = debugPayload.debug ?? [];
@@ -2117,13 +2109,7 @@ function AssistantMessageFooter(props: {
   hasContent: boolean;
   canPersistAction: boolean;
   copiedActionKey: string | null;
-  retrievalDebug: Array<{
-    question: string;
-    sourceFile?: string | null;
-    rerankScore: number;
-    createdAt?: string | null;
-    updatedAt?: string | null;
-  }>;
+  retrievalDebug: KnowledgeSourceDebugItem[];
   sending: boolean;
   onCreateTicket: () => void | Promise<void>;
   onCopy: (message: Message, format: "text" | "markdown") => void | Promise<void>;
@@ -2190,18 +2176,13 @@ function AssistantMessageFooter(props: {
 
 function KnowledgeSourceSummary(props: {
   messageId: string;
-  retrievalDebug: Array<{
-    question: string;
-    sourceFile?: string | null;
-    rerankScore: number;
-    createdAt?: string | null;
-    updatedAt?: string | null;
-  }>;
+  retrievalDebug: KnowledgeSourceDebugItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
 }) {
-  const primary = props.retrievalDebug[0];
+  const orderedSources = sortKnowledgeSourcesBySimilarity(props.retrievalDebug);
+  const primary = orderedSources[0];
 
   return (
     <div
@@ -2229,7 +2210,7 @@ function KnowledgeSourceSummary(props: {
         <div className="border-t border-border p-3">
           <div className="mb-2 font-medium text-foreground">知识来源</div>
           <div className="flex flex-col gap-2">
-            {props.retrievalDebug.map((item, index) => (
+            {orderedSources.map((item, index) => (
               <div
                 key={`${props.messageId}-${index}`}
                 className="rounded border border-border bg-white p-2 dark:bg-card"
