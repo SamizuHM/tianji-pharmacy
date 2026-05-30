@@ -1,10 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { ProgressStepKey } from "@/lib/chat-progress";
-import {
-  buildMultimodalQueryText,
-  rewriteRetrievalQueriesWithModel,
-  type RetrievalQueryRewrite,
-} from "@/lib/openai";
+import { buildMultimodalQueryText, rewriteRetrievalQueriesWithModel } from "@/lib/openai";
 import { embedMultimodal, rerankMultimodal } from "@/lib/retrieval/ml-service";
 import { COLLECTION_NAME, qdrant } from "@/lib/retrieval/qdrant";
 import { scoreBm25FromTermRows, tokenizeForBm25 } from "@/lib/services/bm25";
@@ -56,6 +52,7 @@ type RetrievalCandidate = {
   keywordScore: number;
   rrfScore: number;
   finalScore: number;
+  scopeWeight: number;
   sources: Set<"vector" | "keyword">;
 };
 
@@ -104,131 +101,19 @@ async function runProgressStep<T>(
   return result;
 }
 
-function inferBusinessCategory(text: string) {
-  if (/医保|统筹|报销|结算|刷卡|医保卡/.test(text)) return "医保";
-  if (/用药|药品|处方|剂量|不良反应|禁忌|过敏|孕妇|儿童|老人/.test(text)) return "用药";
-  if (/小票|打印|收银|票据|打印机/.test(text)) return "收银打印";
-  return "通用";
-}
-
-function resolveFallbackPolicy(plan: QueryPlan): "allow_llm_fallback" | "kb_only" {
-  return ["医保", "用药"].includes(plan.businessCategory) ? "kb_only" : "allow_llm_fallback";
-}
-
-function expandProfessionalTerms(query: string) {
-  const expansionMap: Array<[RegExp, string[]]> = [
-    [/安定|地西泮/, ["地西泮", "安定", "苯二氮䓬类", "第二类精神药品", "处方药"]],
-    [/处方|方子/, ["处方药", "处方审核", "执业药师", "凭处方销售"]],
-    [/医保|刷卡|统筹/, ["医保结算", "医保刷卡", "统筹支付", "报销政策"]],
-    [/小票|票据|打印/, ["收银小票", "票据打印", "热敏打印机", "打印异常"]],
-    [/编号|文号|文件号|政策号/, ["政策编号", "文件编号", "通知文号"]],
-  ];
-
-  return expansionMap.flatMap(([pattern, terms]) => (pattern.test(query) ? terms : []));
-}
-
-function splitSubQueries(query: string) {
-  return query
-    .split(/[？?。；;\n]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2);
-}
-
-function buildRuleBasedQueryPlan(queryText: string, historyText = ""): QueryPlan {
-  const normalizedQuery = queryText.trim() || "用户未输入明确问题";
-  const contextAwareQuery = [historyText.trim(), normalizedQuery]
-    .filter(Boolean)
-    .join("\n当前问题：");
-  const businessCategory = inferBusinessCategory(normalizedQuery);
-  const synonymMap: Record<string, string[]> = {
-    小票: ["收银小票", "打印凭证", "票据", "热敏打印机"],
-    打印: ["打印机", "出纸", "票据打印"],
-    医保: ["医保结算", "医保刷卡", "统筹支付", "报销"],
-    用药: ["药品", "剂量", "禁忌", "不良反应", "处方"],
-  };
-  const synonyms = Object.entries(synonymMap)
-    .filter(([term]) => normalizedQuery.includes(term))
-    .flatMap(([, values]) => values);
-  const professionalTerms = expandProfessionalTerms(normalizedQuery);
-  const terms = Array.from(
-    new Set(
-      [normalizedQuery, ...professionalTerms]
-        .join(" ")
-        .split(/[，。；、\s,.!?！？]+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2)
-    )
-  ).slice(0, 8);
-  const variants = Array.from(
-    new Set([
-      normalizedQuery,
-      ...splitSubQueries(normalizedQuery),
-      [normalizedQuery, ...synonyms, ...professionalTerms].filter(Boolean).join(" "),
-      [businessCategory, normalizedQuery].filter(Boolean).join(" "),
-      contextAwareQuery,
-    ])
-  ).slice(0, 6);
-
-  const bm25Queries = Array.from(
-    new Set([
-      [normalizedQuery, ...professionalTerms].filter(Boolean).join(" "),
-      ...splitSubQueries(normalizedQuery),
-      ...professionalTerms,
-    ])
-  )
-    .filter(Boolean)
-    .slice(0, 6);
-
-  return {
-    normalizedQuery,
-    businessCategory,
-    mustTerms: terms,
-    queryVariants: variants,
-    bm25Queries,
-  };
+function resolveFallbackPolicy(businessCategory: string): "allow_llm_fallback" | "kb_only" {
+  return ["医保", "用药"].includes(businessCategory) ? "kb_only" : "allow_llm_fallback";
 }
 
 async function buildQueryPlan(queryText: string, historyText = ""): Promise<QueryPlan> {
-  const fallback = buildRuleBasedQueryPlan(queryText, historyText);
-  try {
-    const rewritten = await rewriteRetrievalQueriesWithModel({ queryText, historyText });
-    return queryPlanFromRewrite(rewritten, fallback);
-  } catch (error) {
-    console.warn("[retrieval] llm query rewrite failed, fallback to rules", error);
-    return fallback;
-  }
-}
-
-function queryPlanFromRewrite(rewritten: RetrievalQueryRewrite, fallback: QueryPlan): QueryPlan {
-  const normalizedQuery = rewritten.normalizedQuery.trim() || fallback.normalizedQuery;
-  const rewrittenCategory = rewritten.businessCategory.trim() || fallback.businessCategory;
-  const businessCategory =
-    ["医保", "用药"].includes(rewrittenCategory) ||
-    ["医保", "用药"].includes(fallback.businessCategory)
-      ? ["医保", "用药"].includes(fallback.businessCategory)
-        ? fallback.businessCategory
-        : rewrittenCategory
-      : rewrittenCategory;
-  const mustTerms = Array.from(new Set([...rewritten.mustTerms, ...fallback.mustTerms]))
-    .filter(Boolean)
-    .slice(0, 8);
-  const queryVariants = Array.from(
-    new Set([normalizedQuery, ...rewritten.vectorQueries, ...fallback.queryVariants])
-  )
-    .filter(Boolean)
-    .slice(0, 8);
-  const bm25Queries = Array.from(
-    new Set([normalizedQuery, ...rewritten.keywordQueries, ...fallback.bm25Queries])
-  )
-    .filter(Boolean)
-    .slice(0, 8);
-
+  const rewritten = await rewriteRetrievalQueriesWithModel({ queryText, historyText });
+  const normalizedQuery = rewritten.normalizedQuery.trim() || queryText.trim();
   return {
     normalizedQuery,
-    businessCategory,
-    mustTerms,
-    queryVariants,
-    bm25Queries,
+    businessCategory: rewritten.businessCategory,
+    mustTerms: rewritten.mustTerms.slice(0, 8),
+    queryVariants: Array.from(new Set([normalizedQuery, ...rewritten.vectorQueries])).slice(0, 8),
+    bm25Queries: Array.from(new Set([normalizedQuery, ...rewritten.keywordQueries])).slice(0, 8),
   };
 }
 
@@ -257,29 +142,34 @@ function mergeCandidates(
     group.forEach((candidate, index) => {
       const existing = merged.get(candidate.chunkId);
       const rrfScore = 1 / (rrfK + index + 1);
+      const weight = scopeWeight(candidate, region?.cityName, cityWeight);
       if (existing) {
         existing.vectorScore = Math.max(existing.vectorScore, candidate.vectorScore);
         existing.keywordScore = Math.max(existing.keywordScore, candidate.keywordScore);
         existing.rrfScore += rrfScore;
-        existing.finalScore =
-          existing.rrfScore * scopeWeight(existing, region?.cityName, cityWeight);
+        existing.scopeWeight = Math.max(existing.scopeWeight, weight);
         candidate.sources.forEach((source) => existing.sources.add(source));
         return;
       }
       merged.set(candidate.chunkId, {
         ...candidate,
         rrfScore,
-        finalScore: rrfScore * scopeWeight(candidate, region?.cityName, cityWeight),
+        finalScore: 0,
+        scopeWeight: weight,
         sources: new Set(candidate.sources),
       });
     });
   }
 
-  return Array.from(merged.values()).sort((a, b) => b.finalScore - a.finalScore);
+  const candidates = Array.from(merged.values());
+  for (const c of candidates) {
+    c.finalScore = c.rrfScore * c.scopeWeight;
+  }
+  return candidates.sort((a, b) => b.finalScore - a.finalScore);
 }
 
 function buildFullTextQuery(plan: QueryPlan) {
-  return Array.from(new Set([...plan.bm25Queries, ...plan.mustTerms, plan.businessCategory]))
+  return Array.from(new Set([...plan.bm25Queries, ...plan.mustTerms]))
     .filter(Boolean)
     .join(" ");
 }
@@ -298,6 +188,7 @@ function candidateFromPayload(input: {
     keywordScore: input.keywordScore ?? 1 / (input.rank + 1),
     rrfScore: 0,
     finalScore: 0,
+    scopeWeight: 1,
     sources: new Set<"vector" | "keyword">(["keyword"]),
   };
 }
@@ -490,7 +381,7 @@ export async function retrieveAnswer(
       .map((message) => `${message.role === "user" ? "用户" : "助手"}：${message.content}`)
       .join("\n") ?? "";
   const queryPlan = await buildQueryPlan(queryText, historyText);
-  const fallbackPolicy = resolveFallbackPolicy(queryPlan);
+  const fallbackPolicy = resolveFallbackPolicy(queryPlan.businessCategory);
   const embedResults = await runProgressStep(hooks, "embed_query", () =>
     embedMultimodal(
       queryPlan.queryVariants.map((text) => ({
@@ -528,6 +419,7 @@ export async function retrieveAnswer(
               keywordScore: 0,
               rrfScore: 0,
               finalScore: 0,
+              scopeWeight: 1,
               sources: new Set<"vector" | "keyword">(["vector"]),
             };
           })
@@ -561,19 +453,35 @@ export async function retrieveAnswer(
     rerankDocs.length ? rerankMultimodal(queryText, input.imagePaths, rerankDocs) : { scores: [] }
   );
 
-  const ranked = searchResult
-    .map((item, index) => ({
-      pointId: item.pointId,
-      payload: item.payload as Record<string, unknown>,
-      vectorScore: item.vectorScore,
-      keywordScore: item.keywordScore,
-      rrfScore: item.rrfScore,
-      finalScore: item.finalScore,
-      rerankScore: rerankResult.scores[index] ?? 0,
-      sources: Array.from(item.sources),
-    }))
-    .sort((a, b) => b.rerankScore + b.finalScore - (a.rerankScore + a.finalScore))
-    .slice(0, settings.rerankTopN);
+  const ranked = searchResult.map((item, index) => ({
+    pointId: item.pointId,
+    payload: item.payload as Record<string, unknown>,
+    vectorScore: item.vectorScore,
+    keywordScore: item.keywordScore,
+    rrfScore: item.rrfScore,
+    finalScore: item.finalScore,
+    scopeWeight: item.scopeWeight,
+    rerankScore: rerankResult.scores[index] ?? 0,
+    sources: Array.from(item.sources),
+  }));
+
+  // min-max 归一化 RRF 分数后与 rerank 加权融合
+  const finalScores = ranked.map((item) => item.finalScore);
+  const minFinal = Math.min(...finalScores);
+  const maxFinal = Math.max(...finalScores);
+  const range = maxFinal - minFinal || 1;
+  const alpha = settings.rerankAlpha;
+
+  ranked.forEach((item) => {
+    const normalizedFinal = (item.finalScore - minFinal) / range;
+    item.finalScore = normalizedFinal;
+  });
+  ranked.sort((a, b) => {
+    const scoreA = alpha * a.rerankScore + (1 - alpha) * a.finalScore;
+    const scoreB = alpha * b.rerankScore + (1 - alpha) * b.finalScore;
+    return scoreB - scoreA;
+  });
+  ranked.splice(settings.rerankTopN);
 
   const retrievalDebug: RetrievalDebugRecord[] = ranked.map((item) => ({
     knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
@@ -601,6 +509,38 @@ export async function retrieveAnswer(
     async () => {
       const candidates = ranked.filter((item) => item.rerankScore >= settings.kbHitThreshold);
 
+      // 批量查询 evidence chunks
+      const candidateChunkIds = candidates.map((top) => String(top.payload.chunkId ?? top.pointId));
+      const foundChunks = await prisma.knowledgeChunk.findMany({
+        where: { id: { in: candidateChunkIds } },
+        include: { knowledgeItem: true, document: true },
+      });
+      const chunksById = new Map(foundChunks.map((chunk) => [chunk.id, chunk]));
+
+      const missingCandidates = candidates.filter(
+        (top) => !chunksById.has(String(top.payload.chunkId ?? top.pointId))
+      );
+      const missingPointIds = missingCandidates.map((top) => top.pointId);
+
+      let chunksByPointId = new Map<string, (typeof foundChunks)[number]>();
+      if (missingPointIds.length) {
+        const foundByPointId = await prisma.knowledgeChunk.findMany({
+          where: { qdrantPointId: { in: missingPointIds } },
+          include: { knowledgeItem: true, document: true },
+        });
+        chunksByPointId = new Map(foundByPointId.map((chunk) => [chunk.qdrantPointId, chunk]));
+      }
+
+      const stalePointIds = missingCandidates
+        .filter((top) => !chunksByPointId.has(top.pointId))
+        .map((top) => top.pointId);
+      if (stalePointIds.length) {
+        for (const pointId of stalePointIds) {
+          await enqueueDeletePointTask({ pointId, reason: "retrieval_stale_point" });
+        }
+        await tryDrainKnowledgeIndexTasks({ limit: 10 });
+      }
+
       const evidenceChunks: Array<{
         id: string;
         chunkText: string;
@@ -625,44 +565,16 @@ export async function retrieveAnswer(
       }> = [];
 
       for (const top of candidates) {
-        const chunk =
-          (await prisma.knowledgeChunk.findUnique({
-            where: { id: String(top.payload.chunkId ?? top.pointId) },
-            include: {
-              knowledgeItem: true,
-              document: true,
-            },
-          })) ??
-          (await prisma.knowledgeChunk.findUnique({
-            where: { qdrantPointId: top.pointId },
-            include: {
-              knowledgeItem: true,
-              document: true,
-            },
-          }));
-
-        if (!chunk) {
-          await enqueueDeletePointTask({
-            pointId: top.pointId,
-            reason: "retrieval_stale_point",
-          });
-          await tryDrainKnowledgeIndexTasks({ limit: 10 });
-          continue;
-        }
+        const chunkId = String(top.payload.chunkId ?? top.pointId);
+        const chunk = chunksById.get(chunkId) ?? chunksByPointId.get(top.pointId);
+        if (!chunk) continue;
 
         const knowledgeItem = chunk.knowledgeItem;
-        if (knowledgeItem.status !== "published") {
-          continue;
-        }
-        if (!isChunkVisible(chunk, input.region)) {
-          continue;
-        }
+        if (knowledgeItem.status !== "published") continue;
+        if (!isChunkVisible(chunk, input.region)) continue;
 
         evidenceChunks.push(chunk);
-        if (evidenceChunks.length < settings.retrievalTopK) {
-          continue;
-        }
-        break;
+        if (evidenceChunks.length >= settings.retrievalTopK) break;
       }
 
       const primary = evidenceChunks[0];
@@ -689,7 +601,6 @@ export async function retrieveAnswer(
             ? [knowledgeItem.imagePath]
             : [];
 
-        // Fill createdAt/updatedAt into retrievalDebug for matching items
         for (const debug of retrievalDebug) {
           if (referenceChunkIds.has(debug.chunkId)) {
             debug.usedAsReference = true;

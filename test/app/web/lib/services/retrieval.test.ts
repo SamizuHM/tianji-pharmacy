@@ -25,6 +25,7 @@ vi.mock("@/lib/services/settings", () => ({
     kbHitThreshold: 0.7,
     maxContextTurns: 4,
     cityScopeWeight: 1.3,
+    rerankAlpha: 0.7,
   }),
 }));
 
@@ -58,6 +59,14 @@ describe("retrieval service", () => {
           mustTerms: [],
         })
     );
+    // 默认 findMany 返回空，各测试按需覆盖
+    prisma.knowledgeChunk.findMany.mockImplementation(() => Promise.resolve([]));
+    prisma.knowledgeChunk.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _avg: { bm25DocLength: 0 },
+    });
+    prisma.knowledgeBm25Term.findMany.mockResolvedValue([]);
+    prisma.knowledgeItem.update.mockResolvedValue({});
   });
 
   it("知识命中路径：返回 sourceType kb", async () => {
@@ -67,29 +76,45 @@ describe("retrieval service", () => {
         score: 0.95,
         payload: {
           knowledgeItemId: "ki-1",
+          chunkId: "point-1",
           chunkText: "答案内容",
           question: "问题",
           answer: "答案",
           imagePaths: [],
+          scopeLevel: "common",
         },
       },
     ]);
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.85] });
-    prisma.knowledgeChunk.findUnique.mockResolvedValue({
-      id: "point-1",
-      qdrantPointId: "point-1",
-      knowledgeItemId: "ki-1",
-      knowledgeItem: {
-        id: "ki-1",
-        status: "published",
-        question: "问题",
-        answer: "答案",
-        imagePathsJson: null,
-        imagePath: null,
-      },
+    prisma.knowledgeChunk.findMany.mockImplementation(({ where, include }) => {
+      // evidence 批量查询同时 include document
+      if (include?.document) {
+        return Promise.resolve([
+          {
+            id: "point-1",
+            qdrantPointId: "point-1",
+            knowledgeItemId: "ki-1",
+            scopeLevel: "common",
+            cityName: null,
+            chunkText: "答案内容",
+            sourceFile: null,
+            document: null,
+            knowledgeItem: {
+              id: "ki-1",
+              status: "published",
+              question: "问题",
+              answer: "答案",
+              imagePathsJson: null,
+              imagePath: null,
+              sourceFile: null,
+              createdAt: new Date("2026-01-01"),
+              updatedAt: new Date("2026-01-02"),
+            },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
     });
-    prisma.knowledgeItem.update.mockResolvedValue({});
-    prisma.knowledgeChunk.findMany.mockResolvedValue([{ chunkText: "答案内容" }]);
 
     const result = await retrieveAnswer({ question: "测试问题", imagePaths: [] });
 
@@ -107,6 +132,7 @@ describe("retrieval service", () => {
         score: 0.5,
         payload: {
           knowledgeItemId: "ki-2",
+          chunkId: "point-2",
           chunkText: "低分内容",
           question: "问题",
           answer: "答案",
@@ -129,6 +155,7 @@ describe("retrieval service", () => {
         score: 0.5,
         payload: {
           knowledgeItemId: "ki-policy-old",
+          chunkId: "point-policy-old",
           chunkText: "低分旧知识",
           question: "问题",
           answer: "答案",
@@ -173,17 +200,14 @@ describe("retrieval service", () => {
     );
   });
 
-  it("LLM 查询重写失败时回退规则式子 query", async () => {
+  it("LLM 查询重写失败时向上抛出错误", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("安定能卖吗");
     (rewriteRetrievalQueriesWithModel as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error("rewrite failed")
     );
-    (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-    await retrieveAnswer({ question: "安定能卖吗", imagePaths: [] });
-
-    expect(embedMultimodal).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("地西泮") })])
+    await expect(retrieveAnswer({ question: "安定能卖吗", imagePaths: [] })).rejects.toThrow(
+      "rewrite failed"
     );
   });
 
@@ -198,7 +222,6 @@ describe("retrieval service", () => {
   it("Qdrant 集合不存在时按空知识库处理，不向前端抛 Not Found", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("打印机卡纸怎么办");
     (qdrant.search as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Not Found"));
-    prisma.knowledgeBm25Term.findMany.mockResolvedValue([]);
 
     const result = await retrieveAnswer({ question: "打印机卡纸怎么办", imagePaths: [] });
 
@@ -209,7 +232,6 @@ describe("retrieval service", () => {
   it("医保类问题无知识命中时拒绝大模型兜底", async () => {
     (buildMultimodalQueryText as ReturnType<typeof vi.fn>).mockResolvedValue("医保刷不了");
     (qdrant.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
 
     const result = await retrieveAnswer({ question: "医保刷不了", imagePaths: [] });
 
@@ -224,22 +246,41 @@ describe("retrieval service", () => {
       {
         id: "point-3",
         score: 0.9,
-        payload: { knowledgeItemId: "ki-3", chunkText: "内容", question: "Q", answer: "A" },
+        payload: {
+          knowledgeItemId: "ki-3",
+          chunkId: "point-3",
+          chunkText: "内容",
+          question: "Q",
+          answer: "A",
+        },
       },
     ]);
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.85] });
-    prisma.knowledgeChunk.findUnique.mockResolvedValue({
-      id: "point-3",
-      qdrantPointId: "point-3",
-      knowledgeItemId: "ki-3",
-      knowledgeItem: {
-        id: "ki-3",
-        status: "draft",
-        question: "Q",
-        answer: "A",
-        imagePathsJson: null,
-        imagePath: null,
-      },
+    prisma.knowledgeChunk.findMany.mockImplementation(({ where, include }) => {
+      // evidence 批量查询同时 include document
+      if (include?.document) {
+        return Promise.resolve([
+          {
+            id: "point-3",
+            qdrantPointId: "point-3",
+            knowledgeItemId: "ki-3",
+            scopeLevel: "common",
+            cityName: null,
+            chunkText: "内容",
+            sourceFile: null,
+            document: null,
+            knowledgeItem: {
+              id: "ki-3",
+              status: "draft",
+              question: "Q",
+              answer: "A",
+              imagePathsJson: null,
+              imagePath: null,
+            },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
     });
 
     const result = await retrieveAnswer({ question: "问题", imagePaths: [] });
@@ -253,26 +294,43 @@ describe("retrieval service", () => {
       {
         id: "point-region",
         score: 0.9,
-        payload: { knowledgeItemId: "ki-region", chunkText: "内容", question: "Q", answer: "A" },
+        payload: {
+          knowledgeItemId: "ki-region",
+          chunkId: "chunk-region",
+          chunkText: "内容",
+          question: "Q",
+          answer: "A",
+          scopeLevel: "city",
+          cityName: "宜昌",
+        },
       },
     ]);
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.9] });
-    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
-    prisma.knowledgeChunk.findUnique.mockResolvedValue({
-      id: "chunk-region",
-      qdrantPointId: "point-region",
-      knowledgeItemId: "ki-region",
-      scopeLevel: "city",
-      cityName: "宜昌",
-      document: { scopeLevel: "city", cityName: "宜昌" },
-      knowledgeItem: {
-        id: "ki-region",
-        status: "published",
-        question: "Q",
-        answer: "A",
-        imagePathsJson: null,
-        imagePath: null,
-      },
+    prisma.knowledgeChunk.findMany.mockImplementation(({ where, include }) => {
+      // evidence 批量查询同时 include document
+      if (include?.document) {
+        return Promise.resolve([
+          {
+            id: "chunk-region",
+            qdrantPointId: "point-region",
+            knowledgeItemId: "ki-region",
+            scopeLevel: "city",
+            cityName: "宜昌",
+            chunkText: "内容",
+            sourceFile: null,
+            document: { scopeLevel: "city", cityName: "宜昌" },
+            knowledgeItem: {
+              id: "ki-region",
+              status: "published",
+              question: "Q",
+              answer: "A",
+              imagePathsJson: null,
+              imagePath: null,
+            },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
     });
 
     const result = await retrieveAnswer({
@@ -314,31 +372,43 @@ describe("retrieval service", () => {
       },
     ]);
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.8, 0.8] });
-    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
-    prisma.knowledgeChunk.findUnique.mockImplementation(({ where }: { where: { id?: string } }) => {
-      const id = where.id;
-      return Promise.resolve({
-        id,
-        qdrantPointId: id === "chunk-city" ? "point-city" : "point-common",
-        knowledgeItemId: id === "chunk-city" ? "ki-city" : "ki-common",
-        chunkText: id === "chunk-city" ? "武汉政策" : "通用政策",
-        sourceFile: id === "chunk-city" ? "武汉政策.md" : "通用政策.md",
-        scopeLevel: id === "chunk-city" ? "city" : "common",
-        cityName: id === "chunk-city" ? "武汉" : null,
-        document: id === "chunk-city" ? { scopeLevel: "city", cityName: "武汉" } : null,
-        knowledgeItem: {
-          id: id === "chunk-city" ? "ki-city" : "ki-common",
-          status: "published",
-          question: "Q",
-          answer: "A",
-          imagePathsJson: null,
-          imagePath: null,
-          createdAt: new Date("2026-01-01"),
-          updatedAt: new Date("2026-01-02"),
-        },
-      });
+    const mockFn = prisma.knowledgeChunk.findMany;
+    mockFn.mockImplementation(({ where, include }) => {
+      if (include?.document) {
+        const ids =
+          where?.id?.$in ??
+          where?.id?.in ??
+          where?.qdrantPointId?.$in ??
+          where?.qdrantPointId?.in ??
+          [];
+        const byPointId = ids.length > 0 && !where?.id?.$in;
+        const chunks = ids.map((id: string) => {
+          const isCity = byPointId ? id === "point-city" : id === "chunk-city";
+          return {
+            id: isCity ? "chunk-city" : "chunk-common",
+            qdrantPointId: isCity ? "point-city" : "point-common",
+            knowledgeItemId: isCity ? "ki-city" : "ki-common",
+            chunkText: isCity ? "武汉政策" : "通用政策",
+            sourceFile: isCity ? "武汉政策.md" : "通用政策.md",
+            scopeLevel: isCity ? "city" : "common",
+            cityName: isCity ? "武汉" : null,
+            document: isCity ? { scopeLevel: "city", cityName: "武汉" } : null,
+            knowledgeItem: {
+              id: isCity ? "ki-city" : "ki-common",
+              status: "published",
+              question: "Q",
+              answer: "A",
+              imagePathsJson: null,
+              imagePath: null,
+              createdAt: new Date("2026-01-01"),
+              updatedAt: new Date("2026-01-02"),
+            },
+          };
+        });
+        return Promise.resolve(chunks);
+      }
+      return Promise.resolve([]);
     });
-    prisma.knowledgeItem.update.mockResolvedValue({});
 
     const result = await retrieveAnswer({
       question: "安定能不能卖",
@@ -368,7 +438,6 @@ describe("retrieval service", () => {
       qdrantPointId: "point-policy",
       knowledgeItemId: "ki-policy",
       chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
-      bm25SearchText: "鄂医保〔2026〕12号 医保结算 流程",
       bm25DocLength: 12,
       sourceFile: "医保政策.md",
       scopeLevel: "common",
@@ -398,29 +467,13 @@ describe("retrieval service", () => {
       _count: { _all: 1 },
       _avg: { bm25DocLength: 12 },
     });
-    prisma.knowledgeChunk.findMany.mockResolvedValue([policyChunk]);
-    prisma.knowledgeChunk.findUnique.mockResolvedValue({
-      id: "chunk-policy",
-      qdrantPointId: "point-policy",
-      knowledgeItemId: "ki-policy",
-      chunkText: "鄂医保〔2026〕12号规定门店需按流程结算。",
-      bm25DocLength: 12,
-      sourceFile: "医保政策.md",
-      scopeLevel: "common",
-      cityName: null,
-      document: null,
-      knowledgeItem: {
-        id: "ki-policy",
-        status: "published",
-        question: "鄂医保〔2026〕12号是什么？",
-        answer: "按政策执行。",
-        imagePathsJson: null,
-        imagePath: null,
-        createdAt: new Date("2026-01-01"),
-        updatedAt: new Date("2026-01-02"),
-      },
+    prisma.knowledgeChunk.findMany.mockImplementation(({ where, include }) => {
+      // evidence 批量查询同时 include document
+      if (include?.document) {
+        return Promise.resolve([policyChunk]);
+      }
+      return Promise.resolve([policyChunk]);
     });
-    prisma.knowledgeItem.update.mockResolvedValue({});
 
     const result = await retrieveAnswer({ question: "鄂医保〔2026〕12号", imagePaths: [] });
 
@@ -460,33 +513,40 @@ describe("retrieval service", () => {
       },
     ]);
     (rerankMultimodal as ReturnType<typeof vi.fn>).mockResolvedValue({ scores: [0.9] });
-    prisma.knowledgeChunk.findMany.mockResolvedValue([]);
-    prisma.knowledgeChunk.findUnique.mockResolvedValue({
-      id: "chunk-phone",
-      qdrantPointId: "point-phone",
-      knowledgeItemId: "ki-phone",
-      chunkText: "通义Vivid 7具备AI智能摄影，参考售价2999 - 3299。",
-      sourceFile: "阿里云百炼系列手机产品介绍.docx",
-      scopeLevel: "city",
-      cityName: "武汉",
-      document: {
-        title: "阿里云百炼系列手机产品介绍",
-        scopeLevel: "city",
-        cityName: "武汉",
-      },
-      knowledgeItem: {
-        id: "ki-phone",
-        status: "published",
-        question: "1780105284102-wXSwka",
-        answer: "阿里云百炼手机产品介绍",
-        sourceFile: "阿里云百炼系列手机产品介绍.docx",
-        imagePathsJson: null,
-        imagePath: null,
-        createdAt: new Date("2026-05-30T01:41:43.083Z"),
-        updatedAt: new Date("2026-05-30T01:41:43.083Z"),
-      },
+    prisma.knowledgeChunk.findMany.mockImplementation((...args) => {
+      const { where, include } = args[0] ?? {};
+      // evidence 批量查询同时 include document
+      if (include?.document) {
+        return Promise.resolve([
+          {
+            id: "chunk-phone",
+            qdrantPointId: "point-phone",
+            knowledgeItemId: "ki-phone",
+            chunkText: "通义Vivid 7具备AI智能摄影，参考售价2999 - 3299。",
+            sourceFile: "阿里云百炼系列手机产品介绍.docx",
+            scopeLevel: "city",
+            cityName: "武汉",
+            document: {
+              title: "阿里云百炼系列手机产品介绍",
+              scopeLevel: "city",
+              cityName: "武汉",
+            },
+            knowledgeItem: {
+              id: "ki-phone",
+              status: "published",
+              question: "1780105284102-wXSwka",
+              answer: "阿里云百炼手机产品介绍",
+              sourceFile: "阿里云百炼系列手机产品介绍.docx",
+              imagePathsJson: null,
+              imagePath: null,
+              createdAt: new Date("2026-05-30T01:41:43.083Z"),
+              updatedAt: new Date("2026-05-30T01:41:43.083Z"),
+            },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
     });
-    prisma.knowledgeItem.update.mockResolvedValue({});
 
     const result = await retrieveAnswer({
       question: "我想买3000元左右拍照最好的手机",
