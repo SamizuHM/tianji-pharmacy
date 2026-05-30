@@ -11,6 +11,7 @@ export async function getRuntimeSettings() {
     kbHitThreshold: Number(map.get("KB_HIT_THRESHOLD") ?? env.KB_HIT_THRESHOLD),
     maxContextTurns: Number(map.get("MAX_CONTEXT_TURNS") ?? env.MAX_CONTEXT_TURNS),
     cityScopeWeight: Number(map.get("CITY_SCOPE_WEIGHT") ?? 1.3),
+    rerankAlpha: Number(map.get("RERANK_ALPHA") ?? 0.7),
   };
 }
 
@@ -20,6 +21,7 @@ export type RuntimeSettingsInput = {
   kbHitThreshold: number;
   maxContextTurns: number;
   cityScopeWeight?: number;
+  rerankAlpha?: number;
 };
 
 export async function updateRuntimeSettings(input: RuntimeSettingsInput) {
@@ -29,6 +31,7 @@ export async function updateRuntimeSettings(input: RuntimeSettingsInput) {
     KB_HIT_THRESHOLD: String(input.kbHitThreshold),
     MAX_CONTEXT_TURNS: String(input.maxContextTurns),
     CITY_SCOPE_WEIGHT: String(input.cityScopeWeight ?? 1.3),
+    RERANK_ALPHA: String(input.rerankAlpha ?? 0.7),
   };
 
   for (const [key, value] of Object.entries(settings)) {

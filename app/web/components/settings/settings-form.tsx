@@ -14,6 +14,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
   const [settings, setSettings] = useState({
     ...initialSettings,
     cityScopeWeight: initialSettings.cityScopeWeight ?? 1.3,
+    rerankAlpha: initialSettings.rerankAlpha ?? 0.7,
   });
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
@@ -82,6 +83,13 @@ export function SettingsForm({ initialSettings }: { initialSettings: RuntimeSett
             value={settings.cityScopeWeight ?? 1.3}
             step="0.1"
             onChange={(value) => update("cityScopeWeight", value)}
+          />
+          <Field
+            label="重排权重系数"
+            description="rerank 与 RRF 的融合比例，0.7 表示 rerank 占 70%。"
+            value={settings.rerankAlpha ?? 0.7}
+            step="0.05"
+            onChange={(value) => update("rerankAlpha", value)}
           />
           <div className="md:col-span-2">
             <Button onClick={submit} disabled={pending}>

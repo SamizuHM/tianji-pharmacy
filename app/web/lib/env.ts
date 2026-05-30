@@ -73,6 +73,7 @@ export const env = {
   RETRIEVAL_TOP_K: numberEnv("RETRIEVAL_TOP_K", 8, { integer: true, min: 1 }),
   RERANK_TOP_N: numberEnv("RERANK_TOP_N", 5, { integer: true, min: 1 }),
   KB_HIT_THRESHOLD: numberEnv("KB_HIT_THRESHOLD", 0.72, { min: 0, max: 1 }),
+  RERANK_ALPHA: numberEnv("RERANK_ALPHA", 0.7, { min: 0, max: 1 }),
   MAX_CONTEXT_TURNS: numberEnv("MAX_CONTEXT_TURNS", 6, { integer: true, min: 1 }),
   UPLOAD_DIR: stringEnv("UPLOAD_DIR", "./uploads"),
   SERVICE_HOTLINE: stringEnv("SERVICE_HOTLINE", "027-xxxx"),

@@ -10,6 +10,7 @@ const settingsSchema = z.object({
   kbHitThreshold: z.coerce.number().min(0).max(1),
   maxContextTurns: z.coerce.number().int().min(1).max(20),
   cityScopeWeight: z.coerce.number().min(1).max(3).default(1.3),
+  rerankAlpha: z.coerce.number().min(0).max(1).default(0.7),
 });
 
 export async function GET() {

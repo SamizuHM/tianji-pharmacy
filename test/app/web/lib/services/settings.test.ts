@@ -66,7 +66,7 @@ describe("settings service", () => {
         cityScopeWeight: 1.5,
       });
 
-      expect(prisma.appSetting.upsert).toHaveBeenCalledTimes(5);
+      expect(prisma.appSetting.upsert).toHaveBeenCalledTimes(6);
     });
 
     it("将数字转换为字符串存储", async () => {
