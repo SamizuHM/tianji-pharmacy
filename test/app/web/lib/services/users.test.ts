@@ -16,7 +16,8 @@ import {
   deleteManagedUser,
 } from "@/lib/services/users";
 
-const userInclude = { department: true, store: true };
+const listInclude = { department: { include: { region: true } }, region: true };
+const userInclude = { department: true, region: true };
 
 describe("users service", () => {
   beforeEach(() => {
@@ -24,7 +25,7 @@ describe("users service", () => {
   });
 
   describe("listManagedUsers", () => {
-    it("返回所有用户列表（含部门和门店城市信息）", async () => {
+    it("返回所有用户列表（含部门、区域信息）", async () => {
       const users = [
         buildUser({ id: "u1", role: "staff" }),
         buildUser({ id: "u2", role: "department", departmentId: "dept-1" }),
@@ -35,7 +36,7 @@ describe("users service", () => {
       const result = await listManagedUsers();
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
-        include: userInclude,
+        include: listInclude,
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       });
       expect(result).toHaveLength(3);
@@ -59,6 +60,7 @@ describe("users service", () => {
         displayName: "新员工",
         password: "pass123",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
@@ -68,76 +70,11 @@ describe("users service", () => {
           passwordHash: "hashed:pass123",
           role: "staff",
           departmentId: null,
-          storeId: null,
+          regionId: "region-1",
           enabled: true,
         }),
         include: userInclude,
       });
-    });
-
-    it("创建 staff 用户时可绑定湖北城市对应的默认门店", async () => {
-      prisma.store.findFirst.mockResolvedValue({
-        id: "store-wuhan",
-        name: "武汉默认门店",
-        cityName: "武汉",
-      });
-      prisma.user.create.mockResolvedValue(buildUser({ role: "staff", storeId: "store-wuhan" }));
-
-      await createManagedUser({
-        username: "staff-wuhan",
-        displayName: "武汉员工",
-        password: "pass123",
-        role: "staff",
-        cityName: "武汉",
-      });
-
-      expect(prisma.store.findFirst).toHaveBeenCalledWith({
-        where: { name: "武汉默认门店", cityName: "武汉" },
-      });
-      expect(prisma.store.create).not.toHaveBeenCalled();
-      expect(prisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: "staff", storeId: "store-wuhan" }),
-        include: userInclude,
-      });
-    });
-
-    it("绑定城市时没有默认门店则自动创建", async () => {
-      prisma.store.findFirst.mockResolvedValue(null);
-      prisma.store.create.mockResolvedValue({
-        id: "store-yichang",
-        name: "宜昌默认门店",
-        cityName: "宜昌",
-      });
-      prisma.user.create.mockResolvedValue(buildUser({ role: "staff", storeId: "store-yichang" }));
-
-      await createManagedUser({
-        username: "staff-yichang",
-        displayName: "宜昌员工",
-        password: "pass123",
-        role: "staff",
-        cityName: "宜昌",
-      });
-
-      expect(prisma.store.create).toHaveBeenCalledWith({
-        data: { name: "宜昌默认门店", cityName: "宜昌", provinceName: "湖北" },
-      });
-      expect(prisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ storeId: "store-yichang" }),
-        include: userInclude,
-      });
-    });
-
-    it("创建 staff 用户时拒绝绑定非湖北城市", async () => {
-      await expect(
-        createManagedUser({
-          username: "staff-outside",
-          displayName: "外地员工",
-          password: "pass123",
-          role: "staff",
-          cityName: "杭州",
-        })
-      ).rejects.toThrow("药店工作人员所属城市必须为湖北省内城市");
-      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
     it("成功创建 department 用户（带 departmentId）", async () => {
@@ -154,13 +91,14 @@ describe("users service", () => {
         password: "pass123",
         role: "department",
         departmentId: "dept-1",
+        regionId: "region-1",
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           role: "department",
           departmentId: "dept-1",
-          storeId: null,
+          regionId: "region-1",
         }),
         include: userInclude,
       });
@@ -173,6 +111,7 @@ describe("users service", () => {
           displayName: "部门人员",
           password: "pass123",
           role: "department",
+          regionId: "region-1",
         })
       ).rejects.toThrow("部门人员必须选择所属部门");
     });
@@ -184,6 +123,7 @@ describe("users service", () => {
           displayName: "用户",
           password: "",
           role: "staff",
+          regionId: "region-1",
         })
       ).rejects.toThrow("新建用户必须设置密码");
     });
@@ -194,6 +134,7 @@ describe("users service", () => {
           username: "user",
           displayName: "用户",
           role: "staff",
+          regionId: "region-1",
         })
       ).rejects.toThrow("新建用户必须设置密码");
     });
@@ -205,6 +146,7 @@ describe("users service", () => {
           displayName: "用户",
           password: "   ",
           role: "staff",
+          regionId: "region-1",
         })
       ).rejects.toThrow("新建用户必须设置密码");
     });
@@ -219,13 +161,14 @@ describe("users service", () => {
         password: "pass123",
         role: "admin",
         departmentId: "dept-1",
+        regionId: "region-1",
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           role: "admin",
           departmentId: null,
-          storeId: null,
+          regionId: "region-1",
         }),
         include: userInclude,
       });
@@ -239,6 +182,7 @@ describe("users service", () => {
         displayName: "用户",
         password: "pass123",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
@@ -255,6 +199,7 @@ describe("users service", () => {
         displayName: "用户",
         password: "pass123",
         role: "staff",
+        regionId: "region-1",
         enabled: false,
       });
 
@@ -272,6 +217,7 @@ describe("users service", () => {
         displayName: "  名字  ",
         password: "pass123",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
@@ -293,6 +239,7 @@ describe("users service", () => {
         username: "test-user",
         displayName: "新名字",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
@@ -310,6 +257,7 @@ describe("users service", () => {
         displayName: "用户",
         password: "newpass",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
@@ -327,6 +275,7 @@ describe("users service", () => {
         displayName: "用户",
         password: "",
         role: "staff",
+        regionId: "region-1",
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
@@ -342,6 +291,7 @@ describe("users service", () => {
           username: "user",
           displayName: "用户",
           role: "department",
+          regionId: "region-1",
         })
       ).rejects.toThrow("部门人员必须选择所属部门");
     });
@@ -353,36 +303,12 @@ describe("users service", () => {
         username: "user",
         displayName: "用户",
         role: "staff",
-        departmentId: "dept-1",
+        regionId: "region-1",
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: "u1" },
-        data: expect.objectContaining({ role: "staff", departmentId: null, storeId: null }),
-        include: userInclude,
-      });
-    });
-
-    it("更新 staff 用户时可修改所属城市", async () => {
-      prisma.store.findFirst.mockResolvedValue({
-        id: "store-xiangyang",
-        name: "襄阳默认门店",
-        cityName: "襄阳",
-      });
-      prisma.user.update.mockResolvedValue(
-        buildUser({ role: "staff", storeId: "store-xiangyang" })
-      );
-
-      await updateManagedUser("u1", {
-        username: "user",
-        displayName: "用户",
-        role: "staff",
-        cityName: "襄阳",
-      });
-
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: "u1" },
-        data: expect.objectContaining({ role: "staff", storeId: "store-xiangyang" }),
+        data: expect.objectContaining({ role: "staff", departmentId: null }),
         include: userInclude,
       });
     });

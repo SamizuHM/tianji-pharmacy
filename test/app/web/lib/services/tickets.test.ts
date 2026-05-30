@@ -324,6 +324,7 @@ describe("tickets service", () => {
       prisma.ticket.findUnique.mockResolvedValue(
         buildTicket({ claimedByUserId: "agent-1", ticketNo: "TK001" })
       );
+      prisma.department.findFirst.mockResolvedValue({ id: "dept-1", name: "营运部" });
       prisma.ticket.update.mockResolvedValue(
         buildTicket({ status: "escalated", escalatedToDept: "营运部" })
       );

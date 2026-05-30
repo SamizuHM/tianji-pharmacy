@@ -131,7 +131,7 @@ describe("POST /api/admin/users", () => {
         displayName: "新用户",
         password: "pass123",
         role: "staff",
-        cityName: "武汉",
+        regionId: "region-1",
       }),
       headers: { "Content-Type": "application/json" },
     });
@@ -141,7 +141,7 @@ describe("POST /api/admin/users", () => {
     const body = await response.json();
     expect(body.user.id).toBe("new-1");
     expect(createManagedUser).toHaveBeenCalledWith(
-      expect.objectContaining({ username: "newuser", role: "staff", cityName: "武汉" })
+      expect.objectContaining({ username: "newuser", role: "staff", regionId: "region-1" })
     );
   });
 
@@ -158,6 +158,7 @@ describe("POST /api/admin/users", () => {
         displayName: "d",
         password: "",
         role: "staff",
+        regionId: "region-1",
       }),
       headers: { "Content-Type": "application/json" },
     });
@@ -211,7 +212,7 @@ describe("PUT /api/admin/users/[id]", () => {
         username: "user",
         displayName: "更新后",
         role: "staff",
-        cityName: "宜昌",
+        regionId: "region-1",
       }),
       headers: { "Content-Type": "application/json" },
     });
@@ -222,7 +223,7 @@ describe("PUT /api/admin/users/[id]", () => {
     expect(body.user.displayName).toBe("更新后");
     expect(updateManagedUser).toHaveBeenCalledWith(
       "u1",
-      expect.objectContaining({ username: "user", role: "staff", cityName: "宜昌" })
+      expect.objectContaining({ username: "user", role: "staff", regionId: "region-1" })
     );
   });
 

@@ -42,8 +42,8 @@ describe("FIXED_ASSISTANT_SUFFIX", () => {
 });
 
 describe("DEPARTMENTS", () => {
-  it("有 7 个部门", () => {
-    expect(DEPARTMENTS).toHaveLength(7);
+  it("有 8 个部门", () => {
+    expect(DEPARTMENTS).toHaveLength(8);
   });
 
   it("每个部门有 name 和 description", () => {
@@ -62,8 +62,8 @@ describe("DEPARTMENTS", () => {
 });
 
 describe("FIXED_USERS", () => {
-  it("有 9 个用户", () => {
-    expect(FIXED_USERS).toHaveLength(9);
+  it("有 10 个用户", () => {
+    expect(FIXED_USERS).toHaveLength(10);
   });
 
   it("每个用户有必要字段", () => {
@@ -79,8 +79,8 @@ describe("FIXED_USERS", () => {
     expect(FIXED_USERS.filter((u) => u.role === "staff")).toHaveLength(1);
   });
 
-  it("包含 7 个部门人员和 1 个管理员", () => {
-    expect(FIXED_USERS.filter((u) => u.role === "department")).toHaveLength(7);
+  it("包含 8 个部门人员和 1 个管理员", () => {
+    expect(FIXED_USERS.filter((u) => u.role === "department")).toHaveLength(8);
     expect(FIXED_USERS.filter((u) => u.role === "admin")).toHaveLength(1);
   });
 

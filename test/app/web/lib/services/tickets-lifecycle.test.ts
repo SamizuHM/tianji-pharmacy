@@ -353,9 +353,16 @@ describe("listTickets 补充场景", () => {
     expect(prisma.ticket.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          OR: expect.arrayContaining([
-            { claimedByUserId: "agent-1" },
-            expect.objectContaining({ status: { in: ["pending_claim", "escalated"] } }),
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { claimedByUserId: "agent-1" },
+                {
+                  status: { in: ["pending_claim", "escalated"] },
+                  escalatedToDept: "营运部",
+                },
+              ]),
+            }),
           ]),
         }),
       })
@@ -763,7 +770,7 @@ describe("escalateTicket 补充场景", () => {
   });
 
   it("转派后清除 claimedByUserId", async () => {
-    prisma.department.findUnique.mockResolvedValue({ id: "dept-1", name: "营运部" });
+    prisma.department.findFirst.mockResolvedValue({ id: "dept-1", name: "营运部" });
     prisma.ticket.findUnique.mockResolvedValue(
       buildTicket({ claimedByUserId: "agent-1", ticketNo: "TK001" })
     );

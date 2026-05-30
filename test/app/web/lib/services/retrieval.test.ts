@@ -235,10 +235,7 @@ describe("retrieval service", () => {
 
     const result = await retrieveAnswer({ question: "医保刷不了", imagePaths: [] });
 
-    expect(result.sourceType).toBe("refusal");
-    if (result.sourceType === "refusal") {
-      expect(result.refusalReason).toBe("当前知识库中未找到相关政策，建议咨询上级主管部门。");
-    }
+    expect(result.sourceType).toBe("sensitive");
   });
 
   it("未发布知识跳过", async () => {
