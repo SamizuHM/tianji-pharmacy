@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Edit3, FileText, Save, Search, Trash2 } from "lucide-react";
+import { Edit3, FileText, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { KnowledgeStatusBadge } from "@/components/shared/status-badge";
@@ -113,10 +113,22 @@ export function KnowledgeDocumentTable({
     cityName: "",
     status: "published" as "draft" | "published" | "archived",
   });
+  const [indexTasks, setIndexTasks] = useState<
+    Array<{
+      id: string;
+      taskType: string;
+      status: string;
+      chunkId: string | null;
+      retryCount: number;
+      lastError: string | null;
+    }>
+  >([]);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!detailId) {
       setDetail(null);
+      setIndexTasks([]);
       return;
     }
 
@@ -136,6 +148,15 @@ export function KnowledgeDocumentTable({
               status: nextDetail.status,
             });
           }
+        }
+      })
+      .catch(() => undefined);
+
+    fetch(`/api/knowledge/index-tasks?documentId=${detailId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!disposed && data?.tasks) {
+          setIndexTasks(data.tasks);
         }
       })
       .catch(() => undefined);
@@ -184,7 +205,36 @@ export function KnowledgeDocumentTable({
     setDetailId(null);
     setDetailError("");
     setEditingMetadata(false);
+    setIndexTasks([]);
     startNavTransition(() => router.push(`?${params.toString()}`));
+  }
+
+  async function retryFailedTasks(taskIds: string[]) {
+    setRetryingIds((prev) => {
+      const next = new Set(prev);
+      taskIds.forEach((id) => next.add(id));
+      return next;
+    });
+    try {
+      const response = await fetch("/api/knowledge/index-tasks/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskIds }),
+      });
+      if (response.ok) {
+        if (detailId) {
+          const tasksRes = await fetch(`/api/knowledge/index-tasks?documentId=${detailId}`);
+          const tasksData = await tasksRes.json();
+          if (tasksData?.tasks) setIndexTasks(tasksData.tasks);
+        }
+      }
+    } finally {
+      setRetryingIds((prev) => {
+        const next = new Set(prev);
+        taskIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
   }
 
   async function saveMetadata() {
@@ -486,11 +536,14 @@ export function KnowledgeDocumentTable({
                         <TH>切分内容</TH>
                         <TH className="w-32">HQ</TH>
                         <TH className="w-28">状态</TH>
+                        <TH className="w-36">索引任务</TH>
                       </tr>
                     </THead>
                     <TBody>
                       {activeChunks.map((chunk) => {
                         const hqList = parseHqList(chunk.hypotheticalQuestionsJson);
+                        const chunkTasks = indexTasks.filter((t) => t.chunkId === chunk.id);
+                        const failedTasks = chunkTasks.filter((t) => t.status === "failed");
                         return (
                           <tr key={chunk.id}>
                             <TD>{chunk.chunkIndex + 1}</TD>
@@ -523,12 +576,65 @@ export function KnowledgeDocumentTable({
                             <TD>
                               <Badge>{chunk.enabled ? "启用" : "停用"}</Badge>
                             </TD>
+                            <TD>
+                              {chunkTasks.length === 0 ? (
+                                <span className="text-xs text-muted">无</span>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  {chunkTasks.map((task) => (
+                                    <div key={task.id} className="flex items-center gap-1">
+                                      <Badge
+                                        className={
+                                          task.status === "completed"
+                                            ? "bg-green-100 text-green-700"
+                                            : task.status === "failed"
+                                              ? "bg-red-100 text-red-700"
+                                              : task.status === "pending"
+                                                ? "bg-yellow-100 text-yellow-700"
+                                                : "bg-blue-100 text-blue-700"
+                                        }
+                                      >
+                                        {task.status === "completed"
+                                          ? "完成"
+                                          : task.status === "failed"
+                                            ? "失败"
+                                            : task.status === "pending"
+                                              ? "等待中"
+                                              : "处理中"}
+                                      </Badge>
+                                      {task.status === "failed" && task.lastError && (
+                                        <span
+                                          className="max-w-[120px] truncate text-xs text-red-500"
+                                          title={task.lastError}
+                                        >
+                                          {task.lastError}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {failedTasks.length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-1 h-6 gap-1 px-2 text-xs"
+                                      disabled={failedTasks.some((t) => retryingIds.has(t.id))}
+                                      onClick={() => retryFailedTasks(failedTasks.map((t) => t.id))}
+                                    >
+                                      <RefreshCw className="size-3" />
+                                      {failedTasks.some((t) => retryingIds.has(t.id))
+                                        ? "重试中…"
+                                        : "重试失败任务"}
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </TD>
                           </tr>
                         );
                       })}
                       {!activeChunks.length ? (
                         <tr>
-                          <TD colSpan={4} className="py-10 text-center text-muted">
+                          <TD colSpan={5} className="py-10 text-center text-muted">
                             暂无 chunk
                           </TD>
                         </tr>
