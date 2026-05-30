@@ -498,6 +498,9 @@ describe("retrieval service", () => {
     if (result.sourceType === "kb") {
       expect(result.knowledgeItem.question).toBe("阿里云百炼系列手机产品介绍.docx");
       expect(result.retrievalDebug[0].question).toBe("阿里云百炼系列手机产品介绍.docx");
+      expect(result.retrievalDebug[0].chunkText).toBe(
+        "通义Vivid 7具备AI智能摄影，参考售价2999 - 3299。"
+      );
       expect(result.referenceSnippets[0]).toContain("通义Vivid 7");
     }
   });

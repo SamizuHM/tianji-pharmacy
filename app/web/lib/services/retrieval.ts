@@ -17,6 +17,7 @@ import { getRuntimeSettings } from "@/lib/services/settings";
 type RetrievalDebugRecord = {
   knowledgeItemId: string;
   chunkId: string;
+  chunkText: string;
   question: string;
   answer: string;
   sourceFile: string | null;
@@ -577,6 +578,7 @@ export async function retrieveAnswer(
   const retrievalDebug: RetrievalDebugRecord[] = ranked.map((item) => ({
     knowledgeItemId: String(item.payload.knowledgeItemId ?? ""),
     chunkId: String(item.payload.chunkId ?? item.pointId),
+    chunkText: String(item.payload.chunkText ?? ""),
     question: String(item.payload.sourceFile ?? item.payload.question ?? ""),
     answer: String(item.payload.answer ?? ""),
     sourceFile: item.payload.sourceFile ? String(item.payload.sourceFile) : null,

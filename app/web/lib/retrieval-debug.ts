@@ -1,5 +1,6 @@
 export type KnowledgeSourceDebugItem = {
   chunkId?: string;
+  chunkText?: string;
   question: string;
   answer?: string;
   sourceFile?: string | null;

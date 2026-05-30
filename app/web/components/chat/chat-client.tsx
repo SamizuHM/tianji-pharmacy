@@ -2149,8 +2149,7 @@ function AssistantMessageFooter(props: {
 
   return (
     <div className="mt-3 border-t border-border pt-3 text-xs text-muted">
-      <div className="flex min-w-0 flex-wrap items-start gap-2">
-        <div>{actionRow}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         {props.retrievalDebug.length ? (
           <ReferenceKnowledgePanel
             messageId={props.message.id}
@@ -2158,9 +2157,10 @@ function AssistantMessageFooter(props: {
             retrievalDebug={props.retrievalDebug}
             open={knowledgeOpen}
             onOpenChange={setKnowledgeOpen}
-            className="min-w-[260px] flex-1"
+            className={knowledgeOpen ? "order-first w-full flex-none" : "min-w-[260px] flex-1"}
           />
         ) : null}
+        <div className={knowledgeOpen ? "order-last" : "order-first"}>{actionRow}</div>
       </div>
     </div>
   );
@@ -2175,6 +2175,19 @@ function ReferenceKnowledgePanel(props: {
   className?: string;
 }) {
   const [openSourceKey, setOpenSourceKey] = useState<string | null>(null);
+  const [sourceDetails, setSourceDetails] = useState<
+    Record<
+      string,
+      {
+        chunkText?: string;
+        sourceFile?: string | null;
+        scopeLevel?: string | null;
+        cityName?: string | null;
+        loading?: boolean;
+        error?: string;
+      }
+    >
+  >({});
   const orderedSources = prepareKnowledgeSourcesForDisplay(props.retrievalDebug, {
     isKbMessage: props.sourceType === "kb",
   });
@@ -2184,6 +2197,46 @@ function ReferenceKnowledgePanel(props: {
     props.sourceType === "kb" && referencedCount
       ? `已引用 ${referencedCount} 条`
       : `候选 ${orderedSources.length} 条`;
+
+  async function toggleSourceDetail(item: KnowledgeSourceDebugItem, index: number) {
+    const key = item.chunkId ?? String(index);
+    if (openSourceKey === key) {
+      setOpenSourceKey(null);
+      return;
+    }
+
+    setOpenSourceKey(key);
+    if (item.chunkText || !item.chunkId || sourceDetails[key]) {
+      return;
+    }
+
+    setSourceDetails((current) => ({ ...current, [key]: { loading: true } }));
+    try {
+      const response = await fetch(`/api/knowledge/chunks/${item.chunkId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        setSourceDetails((current) => ({
+          ...current,
+          [key]: { error: data.error || "读取知识片段失败" },
+        }));
+        return;
+      }
+      setSourceDetails((current) => ({
+        ...current,
+        [key]: {
+          chunkText: data.chunk?.chunkText,
+          sourceFile: data.chunk?.sourceFile,
+          scopeLevel: data.chunk?.scopeLevel,
+          cityName: data.chunk?.cityName,
+        },
+      }));
+    } catch {
+      setSourceDetails((current) => ({
+        ...current,
+        [key]: { error: "读取知识片段失败" },
+      }));
+    }
+  }
 
   return (
     <div
@@ -2214,75 +2267,93 @@ function ReferenceKnowledgePanel(props: {
         <div className="border-t border-border p-3">
           <div className="mb-2 font-medium text-foreground">参考知识</div>
           <div className="flex flex-col gap-2">
-            {orderedSources.map((item, index) => (
-              <div
-                key={`${props.messageId}-${item.chunkId ?? index}`}
-                className={`rounded border p-2 ${
-                  item.usedAsReference
-                    ? "border-blue-200 bg-blue-50/70 text-slate-900 dark:border-primary/40 dark:bg-accent/40 dark:text-foreground"
-                    : "border-border bg-white dark:bg-card"
-                }`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-foreground">
-                      {item.question || "无"}
+            {orderedSources.map((item, index) => {
+              const sourceKey = item.chunkId ?? String(index);
+              const detail = sourceDetails[sourceKey];
+              const sourceFile =
+                detail?.sourceFile || item.sourceFile || item.question || "未知来源";
+              const scopeLevel = detail?.scopeLevel ?? item.scopeLevel;
+              const cityName = detail?.cityName ?? item.cityName;
+              const chunkText = item.chunkText || detail?.chunkText;
+
+              return (
+                <div
+                  key={`${props.messageId}-${sourceKey}`}
+                  className={`rounded border p-2 ${
+                    item.usedAsReference
+                      ? "border-blue-200 bg-blue-50/70 text-slate-900 dark:border-primary/40 dark:bg-accent/40 dark:text-foreground"
+                      : "border-border bg-white dark:bg-card"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-foreground">
+                        {item.question || "无"}
+                      </div>
+                      <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
                     </div>
-                    <div className="mt-1">相似度：{item.rerankScore.toFixed(4)}</div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {item.usedAsReference ? (
+                        <Badge className="border-blue-200 bg-white text-blue-700 dark:bg-card">
+                          已引用
+                        </Badge>
+                      ) : (
+                        <Badge className="border-slate-200 bg-slate-100 text-slate-500">候选</Badge>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => void toggleSourceDetail(item, index)}
+                      >
+                        <FileText className="size-3.5" />
+                        查看知识源
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {item.usedAsReference ? (
-                      <Badge className="border-blue-200 bg-white text-blue-700 dark:bg-card">
-                        已引用
-                      </Badge>
-                    ) : (
-                      <Badge className="border-slate-200 bg-slate-100 text-slate-500">候选</Badge>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      onClick={() =>
-                        setOpenSourceKey((current) =>
-                          current === (item.chunkId ?? String(index))
-                            ? null
-                            : (item.chunkId ?? String(index))
-                        )
-                      }
-                    >
-                      <FileText className="size-3.5" />
-                      查看知识源
-                    </Button>
-                  </div>
+                  {item.updatedAt ? (
+                    <div className="mt-1">
+                      更新于：{new Date(item.updatedAt).toLocaleDateString("zh-CN")}
+                    </div>
+                  ) : null}
+                  {openSourceKey === sourceKey ? (
+                    <div className="mt-2 rounded border border-border bg-white/80 p-2 leading-5 dark:bg-card">
+                      <div>来源：{sourceFile}</div>
+                      {scopeLevel ? (
+                        <div>
+                          适用范围：
+                          {scopeLevel === "city" ? cityName || "城市专属" : "通用"}
+                        </div>
+                      ) : null}
+                      {item.sources?.length ? (
+                        <div>召回通道：{item.sources.join(" / ")}</div>
+                      ) : null}
+                      {typeof item.finalScore === "number" ? (
+                        <div>融合分：{item.finalScore.toFixed(4)}</div>
+                      ) : null}
+                      {detail?.loading ? (
+                        <div className="mt-2 rounded bg-slate-50 px-2 py-1 text-muted dark:bg-secondary">
+                          正在读取 Chunk...
+                        </div>
+                      ) : detail?.error ? (
+                        <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">
+                          {detail.error}
+                        </div>
+                      ) : chunkText ? (
+                        <div className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-foreground">
+                          {chunkText}
+                        </div>
+                      ) : (
+                        <div className="mt-2 rounded bg-slate-50 px-2 py-1 text-muted dark:bg-secondary">
+                          未找到该参考知识对应的 Chunk 原文。
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-                {item.updatedAt ? (
-                  <div className="mt-1">
-                    更新于：{new Date(item.updatedAt).toLocaleDateString("zh-CN")}
-                  </div>
-                ) : null}
-                {openSourceKey === (item.chunkId ?? String(index)) ? (
-                  <div className="mt-2 rounded border border-border bg-white/80 p-2 leading-5 dark:bg-card">
-                    <div>来源：{item.sourceFile || item.question || "未知来源"}</div>
-                    {item.scopeLevel ? (
-                      <div>
-                        适用范围：
-                        {item.scopeLevel === "city" ? item.cityName || "城市专属" : "通用"}
-                      </div>
-                    ) : null}
-                    {item.sources?.length ? <div>召回通道：{item.sources.join(" / ")}</div> : null}
-                    {typeof item.finalScore === "number" ? (
-                      <div>融合分：{item.finalScore.toFixed(4)}</div>
-                    ) : null}
-                    {item.answer ? (
-                      <div className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-foreground">
-                        {item.answer}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}
