@@ -15,7 +15,7 @@ import {
   type TicketKnowledgeMaterialForModel,
 } from "@/lib/openai";
 import { appendConversationMessage } from "@/lib/services/conversations";
-import { upsertQaKnowledgeDocument } from "@/lib/services/knowledge";
+import { overwriteKnowledgeItem, upsertQaKnowledgeDocument } from "@/lib/services/knowledge";
 import type { AttachmentItem } from "@pharmacy/shared";
 import { getAttachmentItems, safeJsonParse } from "@/lib/utils";
 import { buildTicketNo, truncateText } from "@/lib/utils";
@@ -957,6 +957,26 @@ export async function generateTicketKnowledgeDraft(input: {
   return draft;
 }
 
+function extractKbKnowledgeItemId(snapshot: string): string | null {
+  try {
+    const messages = JSON.parse(snapshot) as Array<{
+      sourceType?: string;
+      retrievalDebugJson?: string;
+    }>;
+    const kbMessage = [...messages]
+      .reverse()
+      .find((m) => m.sourceType === "kb" && m.retrievalDebugJson);
+    if (!kbMessage || !kbMessage.retrievalDebugJson) return null;
+    const debug = JSON.parse(kbMessage.retrievalDebugJson) as {
+      debug?: Array<{ knowledgeItemId?: string }>;
+    };
+    const hit = debug.debug?.find((d) => d.knowledgeItemId);
+    return hit?.knowledgeItemId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function closeTicketWithKnowledgeWriteback(input: {
   ticketId: string;
   closedByUserId: string;
@@ -1004,18 +1024,42 @@ export async function closeTicketWithKnowledgeWriteback(input: {
 
   const tags = tagsFromDraft(draft.question, JSON.parse(draft.tagsJson || "[]") as string[]);
   const imagePaths = JSON.parse(draft.imagePathsJson || "[]") as string[];
-  const item = await upsertQaKnowledgeDocument({
-    categoryL1: draft.categoryL1,
-    categoryL2: draft.categoryL2,
-    question: draft.question,
-    answer: draft.answer,
-    tags,
-    sourceType: "manual_ticket",
-    sourceTicketId: existingTicket.id,
-    docType: "manual_ticket",
-    imagePath: imagePaths[0] ?? null,
-    imagePaths,
-  });
+
+  const kbKnowledgeItemId = existingTicket.conversationSnapshot
+    ? extractKbKnowledgeItemId(existingTicket.conversationSnapshot)
+    : null;
+
+  const isOverwrite = Boolean(kbKnowledgeItemId);
+
+  const item = isOverwrite
+    ? await overwriteKnowledgeItem({
+        knowledgeItemId: kbKnowledgeItemId!,
+        categoryL1: draft.categoryL1,
+        categoryL2: draft.categoryL2,
+        question: draft.question,
+        answer: draft.answer,
+        tags,
+        sourceTicketId: existingTicket.id,
+        docType: "manual_ticket",
+        imagePath: imagePaths[0] ?? null,
+        imagePaths,
+      })
+    : await upsertQaKnowledgeDocument({
+        categoryL1: draft.categoryL1,
+        categoryL2: draft.categoryL2,
+        question: draft.question,
+        answer: draft.answer,
+        tags,
+        sourceType: "manual_ticket",
+        sourceTicketId: existingTicket.id,
+        docType: "manual_ticket",
+        imagePath: imagePaths[0] ?? null,
+        imagePaths,
+      });
+
+  const writebackMessage = isOverwrite
+    ? "工单已关闭，客服改进的答案已更新到知识库。"
+    : "工单已关闭，客服生成的优质答案已写回知识库。";
 
   const ticket = await prisma.$transaction(async (tx) => {
     await tx.ticketKnowledgeDraft.update({
@@ -1038,7 +1082,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
         ticketId: input.ticketId,
         senderRole: "system",
         messageType: "system",
-        content: "工单已关闭，客服生成的优质答案已写回知识库。",
+        content: writebackMessage,
       },
     });
 
@@ -1050,7 +1094,7 @@ export async function closeTicketWithKnowledgeWriteback(input: {
       conversationId: ticket.conversationId,
       role: "system",
       sourceType: "system",
-      contentText: "工单已关闭，优质答案已写回知识库。",
+      contentText: writebackMessage,
     });
   }
 

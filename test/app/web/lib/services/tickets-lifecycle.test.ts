@@ -221,7 +221,7 @@ describe("工单完整流转 (lifecycle)", () => {
     expect(appendConversationMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: "conv-1",
-        contentText: "工单已关闭，优质答案已写回知识库。",
+        contentText: "工单已关闭，客服生成的优质答案已写回知识库。",
       })
     );
     expect(broadcastTicketNotification).toHaveBeenCalledWith(
