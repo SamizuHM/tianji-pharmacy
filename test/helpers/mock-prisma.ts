@@ -35,6 +35,7 @@ export function createMockPrisma() {
     knowledgeBm25Term: createMockModel(),
     knowledgeIndexTask: createMockModel(),
     appSetting: createMockModel(),
+    store: createMockModel(),
     session: createMockModel(),
     user: createMockModel(),
     importJob: createMockModel(),

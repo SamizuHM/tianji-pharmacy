@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { Department, User, UserRole } from "@prisma/client";
+import type { Department, Store, User, UserRole } from "@prisma/client";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { roleLabel } from "@/lib/presentation";
 
-type UserWithDepartment = User & { department: Department | null };
+type UserWithDepartment = User & { department: Department | null; store: Store | null };
 
 type UserForm = {
   id?: string;
@@ -21,6 +21,7 @@ type UserForm = {
   password: string;
   role: UserRole;
   departmentId: string;
+  cityName: string;
   enabled: boolean;
 };
 
@@ -30,12 +31,14 @@ const emptyForm: UserForm = {
   password: "",
   role: "department",
   departmentId: "",
+  cityName: "",
   enabled: true,
 };
 
 export function UsersManagement(props: {
   initialUsers: UserWithDepartment[];
   departments: Department[];
+  cityOptions: readonly string[];
 }) {
   const [users, setUsers] = useState(props.initialUsers);
   const [form, setForm] = useState<UserForm>(emptyForm);
@@ -53,6 +56,7 @@ export function UsersManagement(props: {
       password: "",
       role: user.role,
       departmentId: user.departmentId ?? "",
+      cityName: user.store?.cityName ?? "",
       enabled: user.enabled,
     });
   }
@@ -69,6 +73,7 @@ export function UsersManagement(props: {
           password: form.password || undefined,
           role: form.role,
           departmentId: form.role === "department" ? form.departmentId : null,
+          cityName: form.role === "staff" ? form.cityName || null : null,
           enabled: form.enabled,
         }),
       });
@@ -138,6 +143,7 @@ export function UsersManagement(props: {
                 ...form,
                 role: event.target.value as UserRole,
                 departmentId: event.target.value === "department" ? form.departmentId : "",
+                cityName: event.target.value === "staff" ? form.cityName : "",
               })
             }
           >
@@ -155,6 +161,20 @@ export function UsersManagement(props: {
               {departmentOptions.map((dept) => (
                 <option key={dept.id} value={dept.id}>
                   {dept.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {form.role === "staff" ? (
+            <select
+              className="border-input h-10 rounded border bg-white px-3 text-sm dark:bg-card"
+              value={form.cityName}
+              onChange={(event) => setForm({ ...form, cityName: event.target.value })}
+            >
+              <option value="">不绑定城市</option>
+              {props.cityOptions.map((cityName) => (
+                <option key={cityName} value={cityName}>
+                  {cityName}
                 </option>
               ))}
             </select>
@@ -203,6 +223,7 @@ export function UsersManagement(props: {
                 <TH>姓名</TH>
                 <TH>角色</TH>
                 <TH>部门</TH>
+                <TH>城市</TH>
                 <TH>状态</TH>
                 <TH className="text-right">操作</TH>
               </tr>
@@ -214,6 +235,7 @@ export function UsersManagement(props: {
                   <TD>{user.displayName}</TD>
                   <TD>{roleLabel(user.role)}</TD>
                   <TD>{user.department?.name ?? "-"}</TD>
+                  <TD>{user.store?.cityName ?? "-"}</TD>
                   <TD>
                     <Badge
                       className={

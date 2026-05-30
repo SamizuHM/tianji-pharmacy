@@ -131,6 +131,7 @@ describe("POST /api/admin/users", () => {
         displayName: "新用户",
         password: "pass123",
         role: "staff",
+        cityName: "武汉",
       }),
       headers: { "Content-Type": "application/json" },
     });
@@ -139,6 +140,9 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.user.id).toBe("new-1");
+    expect(createManagedUser).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "newuser", role: "staff", cityName: "武汉" })
+    );
   });
 
   it("服务层抛错返回 400", async () => {
@@ -207,6 +211,7 @@ describe("PUT /api/admin/users/[id]", () => {
         username: "user",
         displayName: "更新后",
         role: "staff",
+        cityName: "宜昌",
       }),
       headers: { "Content-Type": "application/json" },
     });
@@ -215,7 +220,10 @@ describe("PUT /api/admin/users/[id]", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.user.displayName).toBe("更新后");
-    expect(updateManagedUser).toHaveBeenCalledWith("u1", expect.any(Object));
+    expect(updateManagedUser).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ username: "user", role: "staff", cityName: "宜昌" })
+    );
   });
 
   it("参数不合法返回 400", async () => {

@@ -10,6 +10,7 @@ const userSchema = z.object({
   password: z.string().optional(),
   role: z.enum(["staff", "department", "admin"]),
   departmentId: z.string().nullable().optional(),
+  cityName: z.string().nullable().optional(),
   enabled: z.boolean().optional(),
 });
 

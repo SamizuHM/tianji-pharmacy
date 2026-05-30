@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Search } from "lucide-react";
+import { Edit3, FileText, Save, Search, Trash2 } from "lucide-react";
 
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { KnowledgeStatusBadge } from "@/components/shared/status-badge";
@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/presentation";
+import { HUBEI_CITY_NAMES } from "@/lib/knowledge-scope";
 
 type KnowledgeDocumentRow = {
   id: string;
@@ -33,7 +34,17 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
     chunkIndex: number;
     chunkText: string;
     sectionPath: string | null;
+    hypotheticalQuestionsJson: string | null;
+    bm25DocLength: number;
     enabled: boolean;
+  }>;
+  knowledgeItems: Array<{
+    id: string;
+    categoryL1: string;
+    categoryL2: string;
+    question: string;
+    answer: string;
+    status: "draft" | "published" | "archived";
   }>;
   chunkSets: Array<{
     id: string;
@@ -45,6 +56,8 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
       chunkIndex: number;
       chunkText: string;
       sectionPath: string | null;
+      hypotheticalQuestionsJson: string | null;
+      bm25DocLength: number;
       enabled: boolean;
     }>;
   }>;
@@ -53,6 +66,16 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
 function scopeLabel(item: KnowledgeDocumentRow) {
   if (item.scopeLevel === "city") return item.cityName || "城市专属";
   return "通用";
+}
+
+function parseHqList(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map((item) => String(item)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function KnowledgeDocumentTable({
@@ -81,6 +104,15 @@ export function KnowledgeDocumentTable({
   const [navPending, startNavTransition] = useTransition();
   const [detailId, setDetailId] = useState<string | null>(searchParams.get("document"));
   const [detail, setDetail] = useState<KnowledgeDocumentDetail | null>(null);
+  const [detailError, setDetailError] = useState("");
+  const [editingMetadata, setEditingMetadata] = useState(false);
+  const [metadataForm, setMetadataForm] = useState({
+    title: "",
+    businessCategory: "",
+    scopeLevel: "common" as "common" | "city",
+    cityName: "",
+    status: "published" as "draft" | "published" | "archived",
+  });
 
   useEffect(() => {
     if (!detailId) {
@@ -93,7 +125,17 @@ export function KnowledgeDocumentTable({
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!disposed) {
-          setDetail(data?.document ?? null);
+          const nextDetail = data?.document ?? null;
+          setDetail(nextDetail);
+          if (nextDetail) {
+            setMetadataForm({
+              title: nextDetail.title,
+              businessCategory: nextDetail.businessCategory,
+              scopeLevel: nextDetail.scopeLevel,
+              cityName: nextDetail.cityName ?? "",
+              status: nextDetail.status,
+            });
+          }
         }
       })
       .catch(() => undefined);
@@ -131,6 +173,8 @@ export function KnowledgeDocumentTable({
     const params = new URLSearchParams(searchParams.toString());
     params.set("document", id);
     setDetailId(id);
+    setDetailError("");
+    setEditingMetadata(false);
     startNavTransition(() => router.push(`?${params.toString()}`));
   }
 
@@ -138,7 +182,45 @@ export function KnowledgeDocumentTable({
     const params = new URLSearchParams(searchParams.toString());
     params.delete("document");
     setDetailId(null);
+    setDetailError("");
+    setEditingMetadata(false);
     startNavTransition(() => router.push(`?${params.toString()}`));
+  }
+
+  async function saveMetadata() {
+    if (!visibleDetail) return;
+    setDetailError("");
+    const response = await fetch(`/api/knowledge/documents/${visibleDetail.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(metadataForm),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setDetailError(data.error || "保存文档失败");
+      return;
+    }
+    setDetail((current) => (current ? { ...current, ...data.document } : current));
+    setEditingMetadata(false);
+    router.refresh();
+  }
+
+  async function deleteDocument(item: KnowledgeDocumentRow) {
+    const confirmed = window.confirm(
+      `确认删除知识文档“${item.title}”？相关 Chunk、HQ 和索引都会删除。`
+    );
+    if (!confirmed) return;
+    setDetailError("");
+    const response = await fetch(`/api/knowledge/documents/${item.id}`, { method: "DELETE" });
+    const data = await response.json();
+    if (!response.ok) {
+      setDetailError(data.error || "删除文档失败");
+      return;
+    }
+    if (detailId === item.id) {
+      closeDetail();
+    }
+    router.refresh();
   }
 
   return (
@@ -220,9 +302,14 @@ export function KnowledgeDocumentTable({
                   <KnowledgeStatusBadge status={item.status} />
                 </TD>
                 <TD className="text-right">
-                  <Button variant="outline" onClick={() => openDetail(item.id)}>
-                    查看 chunk
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => openDetail(item.id)}>
+                      查看
+                    </Button>
+                    <Button variant="ghost" onClick={() => deleteDocument(item)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </TD>
               </tr>
             ))}
@@ -249,6 +336,111 @@ export function KnowledgeDocumentTable({
           <SheetBody>
             {visibleDetail ? (
               <div className="flex flex-col gap-4">
+                {detailError ? (
+                  <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {detailError}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-muted">文档元数据会影响作用域过滤和索引重建。</div>
+                  <div className="flex gap-2">
+                    {editingMetadata ? (
+                      <>
+                        <Button size="sm" onClick={saveMetadata} disabled={navPending}>
+                          <Save className="size-4" />
+                          保存
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingMetadata(false)}
+                        >
+                          取消
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => setEditingMetadata(true)}>
+                        <Edit3 className="size-4" />
+                        编辑
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {editingMetadata ? (
+                  <div className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs text-muted">标题</span>
+                      <Input
+                        value={metadataForm.title}
+                        onChange={(event) =>
+                          setMetadataForm({ ...metadataForm, title: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs text-muted">业务分类</span>
+                      <Input
+                        value={metadataForm.businessCategory}
+                        onChange={(event) =>
+                          setMetadataForm({
+                            ...metadataForm,
+                            businessCategory: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs text-muted">适用范围</span>
+                      <Select
+                        value={metadataForm.scopeLevel}
+                        onChange={(event) =>
+                          setMetadataForm({
+                            ...metadataForm,
+                            scopeLevel: event.target.value as "common" | "city",
+                            cityName: event.target.value === "city" ? metadataForm.cityName : "",
+                          })
+                        }
+                      >
+                        <option value="common">通用</option>
+                        <option value="city">城市专属</option>
+                      </Select>
+                    </label>
+                    {metadataForm.scopeLevel === "city" ? (
+                      <label className="flex flex-col gap-1 text-sm">
+                        <span className="text-xs text-muted">城市</span>
+                        <Select
+                          value={metadataForm.cityName}
+                          onChange={(event) =>
+                            setMetadataForm({ ...metadataForm, cityName: event.target.value })
+                          }
+                        >
+                          <option value="">请选择城市</option>
+                          {HUBEI_CITY_NAMES.map((cityName) => (
+                            <option key={cityName} value={cityName}>
+                              {cityName}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    ) : null}
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs text-muted">状态</span>
+                      <Select
+                        value={metadataForm.status}
+                        onChange={(event) =>
+                          setMetadataForm({
+                            ...metadataForm,
+                            status: event.target.value as "draft" | "published" | "archived",
+                          })
+                        }
+                      >
+                        <option value="published">已发布</option>
+                        <option value="draft">草稿</option>
+                        <option value="archived">已归档</option>
+                      </Select>
+                    </label>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
                     <div className="text-xs text-muted">业务分类</div>
@@ -267,37 +459,76 @@ export function KnowledgeDocumentTable({
                     <div className="font-medium">{activeChunkSet?.chunkStrategy ?? "未设置"}</div>
                   </div>
                 </div>
+                {detail?.knowledgeItems?.length ? (
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="mb-2 text-sm font-semibold">关联知识条目</div>
+                    <div className="space-y-3">
+                      {detail.knowledgeItems.map((item) => (
+                        <div key={item.id} className="rounded border border-border px-3 py-2">
+                          <div className="flex flex-wrap gap-2 text-xs text-muted">
+                            <span>{item.categoryL1}</span>
+                            <span>/</span>
+                            <span>{item.categoryL2}</span>
+                            <KnowledgeStatusBadge status={item.status} />
+                          </div>
+                          <div className="mt-2 text-sm font-medium">{item.question}</div>
+                          <div className="mt-1 line-clamp-3 text-sm text-muted">{item.answer}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="rounded-lg border border-border">
                   <Table>
                     <THead>
                       <tr>
                         <TH className="w-20">序号</TH>
                         <TH>切分内容</TH>
+                        <TH className="w-32">HQ</TH>
                         <TH className="w-28">状态</TH>
                       </tr>
                     </THead>
                     <TBody>
-                      {activeChunks.map((chunk) => (
-                        <tr key={chunk.id}>
-                          <TD>{chunk.chunkIndex + 1}</TD>
-                          <TD>
-                            <div className="flex flex-col gap-1">
-                              <div className="text-xs text-muted">
-                                {chunk.sectionPath || "未分节"}
+                      {activeChunks.map((chunk) => {
+                        const hqList = parseHqList(chunk.hypotheticalQuestionsJson);
+                        return (
+                          <tr key={chunk.id}>
+                            <TD>{chunk.chunkIndex + 1}</TD>
+                            <TD>
+                              <div className="flex flex-col gap-1">
+                                <div className="text-xs text-muted">
+                                  {chunk.sectionPath || "未分节"} · BM25 长度 {chunk.bm25DocLength}
+                                </div>
+                                <div className="whitespace-pre-wrap text-sm leading-6">
+                                  {chunk.chunkText}
+                                </div>
                               </div>
-                              <div className="whitespace-pre-wrap text-sm leading-6">
-                                {chunk.chunkText}
-                              </div>
-                            </div>
-                          </TD>
-                          <TD>
-                            <Badge>{chunk.enabled ? "启用" : "停用"}</Badge>
-                          </TD>
-                        </tr>
-                      ))}
+                            </TD>
+                            <TD>
+                              {hqList.length ? (
+                                <div className="flex max-h-44 flex-col gap-1 overflow-y-auto text-xs">
+                                  {hqList.map((hq, index) => (
+                                    <div
+                                      key={`${chunk.id}-${index}`}
+                                      className="rounded bg-slate-50 px-2 py-1 dark:bg-secondary"
+                                    >
+                                      {hq}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted">未生成</span>
+                              )}
+                            </TD>
+                            <TD>
+                              <Badge>{chunk.enabled ? "启用" : "停用"}</Badge>
+                            </TD>
+                          </tr>
+                        );
+                      })}
                       {!activeChunks.length ? (
                         <tr>
-                          <TD colSpan={3} className="py-10 text-center text-muted">
+                          <TD colSpan={4} className="py-10 text-center text-muted">
                             暂无 chunk
                           </TD>
                         </tr>

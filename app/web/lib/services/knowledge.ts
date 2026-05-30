@@ -12,6 +12,7 @@ import {
 
 import { prisma } from "@/lib/db";
 import { repoRoot } from "@/lib/env";
+import { isHubeiCityName } from "@/lib/knowledge-scope";
 import { parseDocument } from "@/lib/retrieval/ml-service";
 import { buildBm25TermRows } from "@/lib/services/bm25";
 import {
@@ -750,6 +751,15 @@ export async function getKnowledgeDocumentDetail(id: string) {
   return prisma.knowledgeDocument.findUnique({
     where: { id },
     include: {
+      knowledgeItems: {
+        orderBy: { updatedAt: "desc" },
+        include: {
+          chunks: {
+            orderBy: { chunkIndex: "asc" },
+            take: 300,
+          },
+        },
+      },
       versions: { orderBy: { createdAt: "desc" } },
       parseRuns: { orderBy: { createdAt: "desc" } },
       chunkSets: {
@@ -767,6 +777,109 @@ export async function getKnowledgeDocumentDetail(id: string) {
       },
     },
   });
+}
+
+export async function updateKnowledgeDocumentMetadata(
+  id: string,
+  input: {
+    title: string;
+    businessCategory: string;
+    scopeLevel: "common" | "city";
+    cityName?: string | null;
+    status?: "draft" | "published" | "archived";
+  }
+) {
+  const existing = await prisma.knowledgeDocument.findUnique({
+    where: { id },
+    include: { chunks: { select: { id: true } } },
+  });
+  if (!existing) {
+    throw new Error("知识文档不存在");
+  }
+
+  const cityName = input.scopeLevel === "city" ? input.cityName?.trim() || null : null;
+  if (input.scopeLevel === "city" && !cityName) {
+    throw new Error("城市专属知识必须选择城市");
+  }
+  if (cityName && !isHubeiCityName(cityName)) {
+    throw new Error("城市专属知识必须选择湖北省内城市");
+  }
+
+  const chunkIds = existing.chunks.map((chunk) => chunk.id);
+  const document = await prisma.$transaction(async (tx) => {
+    const updated = await tx.knowledgeDocument.update({
+      where: { id },
+      data: {
+        title: input.title.trim(),
+        businessCategory: input.businessCategory.trim() || "通用",
+        scopeLevel: input.scopeLevel,
+        cityName,
+        status: input.status ?? existing.status,
+      },
+    });
+    if (chunkIds.length) {
+      await tx.knowledgeChunk.updateMany({
+        where: { id: { in: chunkIds } },
+        data: {
+          scopeLevel: input.scopeLevel,
+          cityName,
+        },
+      });
+      await tx.knowledgeBm25Term.updateMany({
+        where: { chunkId: { in: chunkIds } },
+        data: {
+          scopeLevel: input.scopeLevel,
+          cityName,
+        },
+      });
+    }
+    return updated;
+  });
+
+  if (chunkIds.length) {
+    await enqueueUpsertTasksForChunkIds(chunkIds);
+    await tryDrainKnowledgeIndexTasks({ limit: Math.max(20, chunkIds.length * 10) });
+  }
+
+  return document;
+}
+
+export async function deleteKnowledgeDocument(id: string) {
+  const existing = await prisma.knowledgeDocument.findUnique({
+    where: { id },
+    include: {
+      chunks: { select: { id: true, qdrantPointId: true, knowledgeItemId: true } },
+      knowledgeItems: { select: { id: true } },
+    },
+  });
+  if (!existing) {
+    throw new Error("知识文档不存在");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (existing.chunks.length) {
+      await tx.knowledgeIndexTask.createMany({
+        data: existing.chunks.map((chunk) => ({
+          taskType: KnowledgeIndexTaskType.delete,
+          status: KnowledgeIndexTaskStatus.pending,
+          knowledgeItemId: chunk.knowledgeItemId,
+          chunkId: chunk.id,
+          pointId: chunk.qdrantPointId,
+          payloadJson: JSON.stringify({ reason: "knowledge_document_delete", chunkId: chunk.id }),
+        })),
+      });
+    }
+
+    if (existing.knowledgeItems.length) {
+      await tx.knowledgeItem.deleteMany({
+        where: { id: { in: existing.knowledgeItems.map((item) => item.id) } },
+      });
+    }
+
+    await tx.knowledgeDocument.delete({ where: { id } });
+  });
+
+  await tryDrainKnowledgeIndexTasks({ limit: Math.max(20, existing.chunks.length * 10) });
 }
 
 export async function getKnowledgeSummary() {
