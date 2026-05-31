@@ -144,7 +144,6 @@ export function UsersManagement(props: {
                 ...form,
                 role: event.target.value as UserRole,
                 departmentId: event.target.value === "department" ? form.departmentId : "",
-                cityName: event.target.value === "staff" ? form.cityName : "",
               })
             }
           >
