@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: tianji-v2-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-tianji_pharmacy}
+      - POSTGRES_USER=${POSTGRES_USER:-tianji}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tianji_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres_data_v2:/var/lib/postgresql/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.0
+    container_name: tianji-v2-qdrant
+    ports:
+      - "6335:6333"
+      - "6336:6334"
+    volumes:
+      - qdrant_storage_v2:/qdrant/storage
+
+  ml-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: tianji-v2-ml
+    environment:
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
+      - ROOT_DIR=/app
+      - UPLOAD_DIR=./uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - uploads_data_v2:/app/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: tianji-v2-web
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-tianji}:${POSTGRES_PASSWORD:-tianji_password}@postgres:5432/${POSTGRES_DB:-tianji_pharmacy}?schema=public
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-qwen3.5-27b}
+      - UPLOAD_DIR=/app/uploads
+      - AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT=${AUTO_IMPORT_KNOWLEDGE_ON_FIRST_BOOT:-true}
+      - QDRANT_URL=http://qdrant:6333
+      - EMBEDDING_SERVICE_URL=http://ml-service:8001/embed
+      - RERANK_SERVICE_URL=http://ml-service:8001/rerank
+      - ML_SERVICE_URL=http://ml-service:8001
+    volumes:
+      - app_state_v2:/app/data
+      - uploads_data_v2:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ml-service:
+        condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tianji-v2-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+
+volumes:
+  postgres_data_v2:
+  qdrant_storage_v2:
+  app_state_v2:
+  uploads_data_v2:
