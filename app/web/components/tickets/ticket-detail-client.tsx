@@ -55,6 +55,26 @@ type Department = {
   users: Array<{ id: string; displayName: string }>;
 };
 
+function extractKbKnowledgeItemId(snapshot: string | null): string | null {
+  if (!snapshot) return null;
+  try {
+    const messages = JSON.parse(snapshot) as Array<{
+      sourceType?: string;
+      retrievalDebugJson?: string;
+    }>;
+    const kbMessage = [...messages]
+      .reverse()
+      .find((m) => m.sourceType === "kb" && m.retrievalDebugJson);
+    if (!kbMessage || !kbMessage.retrievalDebugJson) return null;
+    const debug = JSON.parse(kbMessage.retrievalDebugJson) as {
+      debug?: Array<{ knowledgeItemId?: string }>;
+    };
+    return debug.debug?.find((d) => d.knowledgeItemId)?.knowledgeItemId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function TicketDetailClient(props: {
   role: "staff" | "department" | "admin";
   userId: string;
@@ -78,8 +98,17 @@ export function TicketDetailClient(props: {
   const [error, setError] = useState("");
   const [showEscalate, setShowEscalate] = useState(false);
   const [showKnowledgeEntry, setShowKnowledgeEntry] = useState(false);
-  const [knowledgeWriteMode, setKnowledgeWriteMode] = useState<"create" | "update">("create");
-  const [existingKnowledgeId, setExistingKnowledgeId] = useState<string>("");
+
+  const kbKnowledgeItemId = useMemo(
+    () => extractKbKnowledgeItemId(props.ticket.conversationSnapshot),
+    [props.ticket.conversationSnapshot]
+  );
+  const isKbOrigin = Boolean(kbKnowledgeItemId);
+
+  const [knowledgeWriteMode, setKnowledgeWriteMode] = useState<"create" | "update">(
+    isKbOrigin ? "update" : "create"
+  );
+  const [existingKnowledgeId, setExistingKnowledgeId] = useState<string>(kbKnowledgeItemId ?? "");
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<
     Array<{ id: string; question: string; categoryL1: string; categoryL2: string }>
   >([]);
@@ -629,21 +658,12 @@ export function TicketDetailClient(props: {
                   <Alert className="border-orange-200 bg-orange-50 text-orange-700 dark:border-warning/30 dark:bg-warning/10 dark:text-foreground">
                     尚未生成待入库答案，暂不能关闭并写回知识库。
                   </Alert>
-                ) : (
+                ) : isKbOrigin ? (
                   <>
+                    <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-success/30 dark:bg-success/10">
+                      本次回答来自知识库命中，关闭后将自动更新对应知识条目。
+                    </Alert>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
-                          knowledgeWriteMode === "create"
-                            ? "border-primary bg-blue-50 text-primary dark:bg-primary/10"
-                            : "border-border bg-white text-slate-600 hover:bg-slate-50 dark:bg-card dark:text-foreground"
-                        )}
-                        onClick={() => setKnowledgeWriteMode("create")}
-                      >
-                        新建知识
-                      </button>
                       <button
                         type="button"
                         className={cn(
@@ -652,15 +672,33 @@ export function TicketDetailClient(props: {
                             ? "border-primary bg-blue-50 text-primary dark:bg-primary/10"
                             : "border-border bg-white text-slate-600 hover:bg-slate-50 dark:bg-card dark:text-foreground"
                         )}
-                        onClick={() => setKnowledgeWriteMode("update")}
+                        onClick={() => {
+                          setKnowledgeWriteMode("update");
+                          setExistingKnowledgeId(kbKnowledgeItemId ?? "");
+                        }}
                       >
-                        更新已有知识
+                        更新已有知识（默认）
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          knowledgeWriteMode === "create"
+                            ? "border-primary bg-blue-50 text-primary dark:bg-primary/10"
+                            : "border-border bg-white text-slate-600 hover:bg-slate-50 dark:bg-card dark:text-foreground"
+                        )}
+                        onClick={() => {
+                          setKnowledgeWriteMode("create");
+                          setExistingKnowledgeId("");
+                        }}
+                      >
+                        新建知识（备选）
                       </button>
                     </div>
                     {knowledgeWriteMode === "update" ? (
                       <div className="flex flex-col gap-2">
                         <Input
-                          placeholder="搜索已有知识条目..."
+                          placeholder="搜索其他知识条目..."
                           value={knowledgeSearchQuery}
                           onChange={(e) => searchKnowledge(e.target.value)}
                         />
@@ -688,14 +726,16 @@ export function TicketDetailClient(props: {
                         ) : knowledgeSearchQuery.trim() ? (
                           <p className="text-xs text-muted">未找到匹配的知识条目</p>
                         ) : null}
-                        {existingKnowledgeId ? (
-                          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-success/30 dark:bg-success/10">
-                            已选择更新目标，关闭后将覆盖该知识条目内容。
-                          </Alert>
-                        ) : null}
+                        <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-success/30 dark:bg-success/10">
+                          已选择更新目标，关闭后将覆盖该知识条目内容。
+                        </Alert>
                       </div>
                     ) : null}
                   </>
+                ) : (
+                  <Alert className="border-primary/30 bg-blue-50 text-foreground dark:bg-primary/10">
+                    本次回答来自大模型，关闭后将新建知识条目。
+                  </Alert>
                 )}
                 <Button
                   onClick={closeTicket}
