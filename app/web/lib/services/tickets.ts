@@ -1091,7 +1091,7 @@ export async function generateTicketKnowledgeDraft(input: {
   return draft;
 }
 
-function extractKbKnowledgeItemId(snapshot: string): string | null {
+function extractKbHitInfo(snapshot: string): { knowledgeItemId: string; chunkId: string } | null {
   try {
     const messages = JSON.parse(snapshot) as Array<{
       sourceType?: string;
@@ -1102,10 +1102,11 @@ function extractKbKnowledgeItemId(snapshot: string): string | null {
       .find((m) => m.sourceType === "kb" && m.retrievalDebugJson);
     if (!kbMessage || !kbMessage.retrievalDebugJson) return null;
     const debug = JSON.parse(kbMessage.retrievalDebugJson) as {
-      debug?: Array<{ knowledgeItemId?: string }>;
+      debug?: Array<{ knowledgeItemId?: string; chunkId?: string }>;
     };
-    const hit = debug.debug?.find((d) => d.knowledgeItemId);
-    return hit?.knowledgeItemId ?? null;
+    const hit = debug.debug?.find((d) => d.knowledgeItemId && d.chunkId);
+    if (!hit?.knowledgeItemId || !hit?.chunkId) return null;
+    return { knowledgeItemId: hit.knowledgeItemId, chunkId: hit.chunkId };
   } catch {
     return null;
   }
@@ -1185,15 +1186,16 @@ export async function closeTicketWithKnowledgeWriteback(input: {
   const tags = tagsFromDraft(draft.question, JSON.parse(draft.tagsJson || "[]") as string[]);
   const imagePaths = JSON.parse(draft.imagePathsJson || "[]") as string[];
 
-  const kbKnowledgeItemId = existingTicket.conversationSnapshot
-    ? extractKbKnowledgeItemId(existingTicket.conversationSnapshot)
+  const kbHitInfo = existingTicket.conversationSnapshot
+    ? extractKbHitInfo(existingTicket.conversationSnapshot)
     : null;
 
-  const isOverwrite = Boolean(kbKnowledgeItemId);
+  const isOverwrite = Boolean(kbHitInfo);
 
   const item = isOverwrite
     ? await overwriteKnowledgeItem({
-        knowledgeItemId: kbKnowledgeItemId!,
+        knowledgeItemId: kbHitInfo!.knowledgeItemId,
+        chunkId: kbHitInfo!.chunkId,
         categoryL1: draft.categoryL1,
         categoryL2: draft.categoryL2,
         question: draft.question,

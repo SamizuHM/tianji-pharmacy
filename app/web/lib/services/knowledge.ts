@@ -604,6 +604,7 @@ export async function upsertQaKnowledgeDocument(input: UpsertQaKnowledgeDocument
 
 export async function overwriteKnowledgeItem(input: {
   knowledgeItemId: string;
+  chunkId: string;
   categoryL1: string;
   categoryL2: string;
   question: string;
@@ -622,6 +623,11 @@ export async function overwriteKnowledgeItem(input: {
     throw new Error("原始知识条目不存在");
   }
 
+  const targetChunk = existing.chunks.find((c) => c.id === input.chunkId);
+  if (!targetChunk) {
+    throw new Error("命中的知识片段不存在");
+  }
+
   const qaInput = {
     categoryL1: input.categoryL1,
     categoryL2: input.categoryL2,
@@ -629,35 +635,125 @@ export async function overwriteKnowledgeItem(input: {
     answer: input.answer,
   };
 
-  const existingChunk = existing.chunks[0];
-  const existingMetadata = existingChunk?.metadataJson
-    ? (JSON.parse(existingChunk.metadataJson) as Record<string, unknown>)
-    : {};
+  const chunkText = qaText(qaInput);
+  const businessCategory =
+    ((JSON.parse(targetChunk.metadataJson || "{}") as Record<string, unknown>)
+      .businessCategory as string) ?? "通用";
+  const imagePaths = buildImagePaths(input);
+  const bm25SearchText = [
+    chunkText,
+    input.question,
+    input.answer,
+    input.categoryL1,
+    input.categoryL2,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const bm25Index = buildBm25TermRows({
+    chunkId: targetChunk.id,
+    text: bm25SearchText,
+    scopeLevel: targetChunk.scopeLevel,
+    cityName: targetChunk.cityName,
+  });
 
-  return persistKnowledgeItem(
-    {
-      categoryL1: input.categoryL1,
-      categoryL2: input.categoryL2,
-      question: input.question,
-      answer: input.answer,
-      tags: input.tags,
-      sourceType: "manual_ticket",
-      sourceTicketId: input.sourceTicketId,
-      docType: input.docType,
-      imagePath: input.imagePath ?? null,
-      imagePaths: input.imagePaths ?? [],
-      documentId: existing.documentId,
-      chunkSetId: existingChunk?.chunkSetId ?? null,
-      businessCategory: (existingMetadata.businessCategory as string) ?? undefined,
-      scopeLevel: existingChunk?.scopeLevel ?? "common",
-      cityName: existingChunk?.cityName ?? null,
-      originalText: qaText(qaInput),
-      normalizedText: qaText(qaInput),
-      chunkTexts: [qaText(qaInput)],
-      chunkPlans: chunkQaItems([{ ...qaInput, tags: input.tags }], DEFAULT_QA_CHUNKING_CONFIG),
+  const item = await prisma.$transaction(
+    async (tx) => {
+      await tx.knowledgeItem.update({
+        where: { id: existing.id },
+        data: {
+          categoryL1: input.categoryL1,
+          categoryL2: input.categoryL2,
+          question: input.question,
+          answer: input.answer,
+          tagsJson: buildTagsJson(input.tags),
+          sourceType: "manual_ticket",
+          sourceTicketId: input.sourceTicketId,
+          docType: input.docType,
+          imagePath: input.imagePath ?? null,
+          imagePathsJson: imagePaths.length ? JSON.stringify(imagePaths) : null,
+        },
+      });
+
+      await tx.knowledgeChunk.update({
+        where: { id: targetChunk.id },
+        data: {
+          chunkText,
+          originalText: chunkText,
+          tokenCount: chunkText.length,
+          sectionPath: `${input.categoryL1} / ${input.categoryL2}`,
+          sourceFile: input.sourceFile ?? null,
+          docType: input.docType,
+          bm25SearchText,
+          bm25DocLength: bm25Index.docLength,
+          metadataJson: JSON.stringify(
+            buildChunkMetadata(existing.id, targetChunk.id, targetChunk.chunkIndex, chunkText, {
+              categoryL1: input.categoryL1,
+              categoryL2: input.categoryL2,
+              question: input.question,
+              answer: input.answer,
+              tags: input.tags,
+              sourceType: "manual_ticket",
+              docType: input.docType,
+              businessCategory,
+            })
+          ),
+        },
+      });
+
+      await tx.knowledgeBm25Term.deleteMany({ where: { chunkId: targetChunk.id } });
+      if (bm25Index.rows.length) {
+        await tx.knowledgeBm25Term.createMany({
+          data: bm25Index.rows,
+          skipDuplicates: true,
+        });
+      }
+
+      const taskSource: KnowledgeChunkProjectionSource = {
+        documentId: targetChunk.documentId,
+        chunkSetId: targetChunk.chunkSetId,
+        knowledgeItemId: existing.id,
+        chunkId: targetChunk.id,
+        chunkIndex: targetChunk.chunkIndex,
+        chunkText,
+        sourceFile: input.sourceFile ?? null,
+        docType: input.docType,
+        businessCategory,
+        scopeLevel: targetChunk.scopeLevel,
+        cityName: targetChunk.cityName,
+        effectiveFrom: null,
+        effectiveTo: null,
+        knowledgeItem: {
+          question: input.question,
+          answer: input.answer,
+          sourceFile: input.sourceFile ?? null,
+          docType: input.docType,
+          categoryL1: input.categoryL1,
+          categoryL2: input.categoryL2,
+          imagePath: input.imagePath ?? null,
+          imagePaths,
+        },
+      };
+      const upsertTasks = await prepareKnowledgeChunkUpsertTasks([taskSource]);
+      if (upsertTasks.length) {
+        await tx.knowledgeIndexTask.createMany({
+          data: upsertTasks.map((task) => ({
+            taskType: KnowledgeIndexTaskType.upsert,
+            status: KnowledgeIndexTaskStatus.pending,
+            knowledgeItemId: task.knowledgeItemId,
+            chunkId: task.chunkId,
+            pointId: task.pointId,
+            payloadJson: task.payloadJson,
+          })),
+        });
+      }
+
+      return tx.knowledgeItem.findUniqueOrThrow({ where: { id: existing.id } });
     },
-    existing
+    { timeout: 30_000 }
   );
+
+  await tryDrainKnowledgeIndexTasks({ limit: 20 });
+  return item;
 }
 
 export async function ensureKnowledgeItemsHaveDocuments(limit = 500) {
