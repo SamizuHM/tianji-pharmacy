@@ -156,21 +156,6 @@ model Department {
   region      Region?  @relation(fields: [regionId], references: [id], onDelete: Cascade)
 }
 
-model Store {
-  id           String   @id @default(cuid())
-  name         String
-  provinceCode String?
-  provinceName String?
-  cityName     String?
-  districtCode String?
-  districtName String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  users        User[]
-
-  @@index([cityName])
-}
-
 model User {
   id                        String                     @id @default(cuid())
   username                  String                     @unique
