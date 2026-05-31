@@ -639,7 +639,7 @@ export async function overwriteKnowledgeItem(input: {
   const businessCategory =
     ((JSON.parse(targetChunk.metadataJson || "{}") as Record<string, unknown>)
       .businessCategory as string) ?? "通用";
-  const imagePaths = buildImagePaths(input);
+  const imagePaths = input.imagePaths?.filter(Boolean) ?? [];
   const bm25SearchText = [
     chunkText,
     input.question,
