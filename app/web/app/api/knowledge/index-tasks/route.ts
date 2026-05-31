@@ -18,7 +18,11 @@ export async function GET(request: NextRequest) {
     where.status = status;
   }
   if (documentId) {
-    where.chunk = { documentId };
+    const chunkIds = await prisma.knowledgeChunk.findMany({
+      where: { documentId },
+      select: { id: true },
+    });
+    where.chunkId = { in: chunkIds.map((c) => c.id) };
   }
 
   const [tasks, statusCounts] = await Promise.all([
