@@ -50,3 +50,5 @@ coverage/
 
 # 忽略Windows快捷方式
 *.lnk
+
+samples/
