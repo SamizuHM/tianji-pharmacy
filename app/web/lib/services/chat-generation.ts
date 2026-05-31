@@ -93,7 +93,6 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
       detail?: string;
     }
   >();
-  let firstResponseLatencyMs: number | null = null;
   let firstTokenLatencyMs: number | null = null;
 
   return {
@@ -132,14 +131,6 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         detail,
       });
     },
-    markFirstResponse() {
-      if (firstResponseLatencyMs !== null) {
-        return firstResponseLatencyMs;
-      }
-
-      firstResponseLatencyMs = Date.now() - startedAt;
-      return firstResponseLatencyMs;
-    },
     markFirstToken() {
       if (firstTokenLatencyMs !== null) {
         return firstTokenLatencyMs;
@@ -153,15 +144,12 @@ function createProgressTracker(onProgress: (payload: unknown) => void) {
         stepsSummary.get(stepKey)
       ).filter(Boolean);
       const waitFirstTokenMs = stepsSummary.get("await_first_token")?.durationMs;
-      const reasoningAnswerMs = stepsSummary.get("reasoning_answer")?.durationMs;
       const streamAnswerMs = stepsSummary.get("stream_answer")?.durationMs;
 
       return {
         totalDurationMs: Date.now() - startedAt,
         stepsSummary: stepsSummaryList,
-        firstResponseLatencyMs,
         firstTokenLatencyMs,
-        reasoningAnswerMs,
         waitFirstTokenMs,
         streamAnswerMs,
       };
@@ -226,7 +214,6 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           }
         };
         let assistantText = "";
-        let hasStartedReasoningAnswer = false;
         let hasStartedStreamAnswer = false;
         let assistantMessageId: string | null = null;
         let lastDbUpdate = Date.now();
@@ -247,28 +234,10 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           deltaCount = 0;
         };
 
-        const markFirstResponse = (detail?: string) => {
-          progress.markFirstResponse();
-
-          if (!hasStartedReasoningAnswer && !hasStartedStreamAnswer) {
-            progress.completeStep("await_first_token", detail);
-            progress.startStep("reasoning_answer");
-            hasStartedReasoningAnswer = true;
-          }
-        };
-
         const emitFirstDelta = (delta: string) => {
-          if (!hasStartedReasoningAnswer && !hasStartedStreamAnswer) {
-            markFirstResponse();
-          }
-
           if (!hasStartedStreamAnswer) {
             progress.markFirstToken();
-            if (hasStartedReasoningAnswer) {
-              progress.completeStep("reasoning_answer");
-            } else {
-              progress.completeStep("await_first_token");
-            }
+            progress.completeStep("await_first_token");
             progress.startStep("stream_answer");
             hasStartedStreamAnswer = true;
           }
@@ -427,9 +396,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
               answer: assistantText,
               totalDurationMs: donePayload.totalDurationMs,
               stepsSummary: donePayload.stepsSummary,
-              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-              reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
               streamAnswerMs: donePayload.streamAnswerMs,
             });
@@ -503,16 +470,10 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
                     });
 
               for await (const chunk of llmStream) {
-                const choiceDelta = chunk.choices[0]?.delta;
-                const reasoningDelta =
-                  typeof choiceDelta?.reasoning_content === "string"
-                    ? choiceDelta.reasoning_content
+                const delta =
+                  typeof chunk.choices[0]?.delta?.content === "string"
+                    ? chunk.choices[0].delta.content
                     : "";
-                if (reasoningDelta) {
-                  markFirstResponse("模型已开始推理，等待正文输出");
-                }
-
-                const delta = typeof choiceDelta?.content === "string" ? choiceDelta.content : "";
                 if (!delta) {
                   continue;
                 }
@@ -522,11 +483,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
           }
 
           if (!hasStartedStreamAnswer) {
-            if (hasStartedReasoningAnswer) {
-              progress.completeStep("reasoning_answer", "模型未返回正文内容");
-            } else {
-              progress.completeStep("await_first_token", "模型未返回正文内容");
-            }
+            progress.completeStep("await_first_token", "模型未返回正文内容");
           }
 
           await prisma.chatMessage.update({
@@ -546,9 +503,7 @@ export function createAssistantGenerationStream(input: CreateAssistantGeneration
             answer: assistantText,
             totalDurationMs: donePayload.totalDurationMs,
             stepsSummary: donePayload.stepsSummary,
-            firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
             firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-            reasoningAnswerMs: donePayload.reasoningAnswerMs,
             waitFirstTokenMs: donePayload.waitFirstTokenMs,
             streamAnswerMs: donePayload.streamAnswerMs,
           });

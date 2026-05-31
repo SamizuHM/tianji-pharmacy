@@ -80,7 +80,7 @@ import {
   prepareKnowledgeSourcesForDisplay,
   type KnowledgeSourceDebugItem,
 } from "@/lib/retrieval-debug";
-import { getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
+import { cn, getAttachmentItems, getFileUrl, safeJsonParse } from "@/lib/utils";
 
 type Conversation = {
   id: string;
@@ -112,9 +112,7 @@ type MessageProgressState = {
   currentStepStartedClientAt?: number;
   currentElapsedMs: number;
   totalDurationMs?: number;
-  firstResponseLatencyMs?: number | null;
   firstTokenLatencyMs?: number | null;
-  reasoningAnswerMs?: number;
   waitFirstTokenMs?: number;
   streamAnswerMs?: number;
 };
@@ -501,9 +499,7 @@ export function ChatClient(props: {
             totalDurationMs?: number;
             stepsSummary?: ProgressSummaryItem[];
             assistantMessageId?: string;
-            firstResponseLatencyMs?: number | null;
             firstTokenLatencyMs?: number | null;
-            reasoningAnswerMs?: number;
             waitFirstTokenMs?: number;
             streamAnswerMs?: number;
           };
@@ -596,9 +592,7 @@ export function ChatClient(props: {
               ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
-              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-              reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
               streamAnswerMs: donePayload.streamAnswerMs,
             };
@@ -906,9 +900,7 @@ export function ChatClient(props: {
             assistantMessageId?: string;
             totalDurationMs?: number;
             stepsSummary?: ProgressSummaryItem[];
-            firstResponseLatencyMs?: number | null;
             firstTokenLatencyMs?: number | null;
-            reasoningAnswerMs?: number;
             waitFirstTokenMs?: number;
             streamAnswerMs?: number;
           };
@@ -1001,9 +993,7 @@ export function ChatClient(props: {
               ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
-              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-              reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
               streamAnswerMs: donePayload.streamAnswerMs,
             };
@@ -1137,9 +1127,7 @@ export function ChatClient(props: {
             totalDurationMs?: number;
             stepsSummary?: ProgressSummaryItem[];
             assistantMessageId?: string;
-            firstResponseLatencyMs?: number | null;
             firstTokenLatencyMs?: number | null;
-            reasoningAnswerMs?: number;
             waitFirstTokenMs?: number;
             streamAnswerMs?: number;
           };
@@ -1230,9 +1218,7 @@ export function ChatClient(props: {
               ),
               currentElapsedMs: donePayload.totalDurationMs,
               totalDurationMs: donePayload.totalDurationMs,
-              firstResponseLatencyMs: donePayload.firstResponseLatencyMs,
               firstTokenLatencyMs: donePayload.firstTokenLatencyMs,
-              reasoningAnswerMs: donePayload.reasoningAnswerMs,
               waitFirstTokenMs: donePayload.waitFirstTokenMs,
               streamAnswerMs: donePayload.streamAnswerMs,
             };
@@ -2562,15 +2548,7 @@ function ProgressCard(props: { progress: MessageProgressState; nowMs: number }) 
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
-              <div className="rounded-xl bg-secondary/40 px-3 py-2">
-                <div>首个响应</div>
-                <div className="mt-1 font-medium text-foreground">
-                  {props.progress.firstResponseLatencyMs != null
-                    ? formatDurationSeconds(props.progress.firstResponseLatencyMs)
-                    : "未返回"}
-                </div>
-              </div>
+            <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-2">
               <div className="rounded-xl bg-secondary/40 px-3 py-2">
                 <div>首个正文</div>
                 <div className="mt-1 font-medium text-foreground">

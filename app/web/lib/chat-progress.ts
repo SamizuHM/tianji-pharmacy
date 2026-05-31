@@ -7,7 +7,6 @@ export const PROGRESS_STEP_LABELS = {
   rerank: "重排候选结果",
   decide_source: "判断知识命中",
   await_first_token: "等待模型响应",
-  reasoning_answer: "模型推理中",
   stream_answer: "流式生成回答",
 } as const;
 
@@ -42,9 +41,7 @@ export type ProgressDonePayload = {
   answer: string;
   totalDurationMs: number;
   stepsSummary: ProgressSummaryItem[];
-  firstResponseLatencyMs?: number | null;
   firstTokenLatencyMs?: number | null;
-  reasoningAnswerMs?: number;
   waitFirstTokenMs?: number;
   streamAnswerMs?: number;
 };

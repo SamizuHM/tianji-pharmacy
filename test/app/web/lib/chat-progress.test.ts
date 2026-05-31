@@ -7,8 +7,8 @@ import {
 } from "@/lib/chat-progress";
 
 describe("PROGRESS_STEP_LABELS", () => {
-  it("包含 10 个步骤", () => {
-    expect(Object.keys(PROGRESS_STEP_LABELS)).toHaveLength(10);
+  it("包含 9 个步骤", () => {
+    expect(Object.keys(PROGRESS_STEP_LABELS)).toHaveLength(9);
   });
 
   it("每个步骤有非空中文标签", () => {
