@@ -18,6 +18,7 @@ export default async function DepartmentTicketDetailPage(props: {
       role: user.role,
       userId: user.id,
       userDepartmentName: user.department?.name ?? null,
+      userRegionId: user.regionId,
       ticket,
     })
   ) {
@@ -29,13 +30,14 @@ export default async function DepartmentTicketDetailPage(props: {
       users: { some: { role: "department" } },
     },
     include: {
+      region: { select: { name: true } },
       users: {
         where: { role: "department" },
         select: { id: true, displayName: true },
         orderBy: { displayName: "asc" },
       },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ regionId: "asc" }, { name: "asc" }],
   });
 
   return (

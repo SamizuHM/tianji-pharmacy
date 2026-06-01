@@ -56,6 +56,8 @@ export default async function StaffTicketsPage(props: {
       }
       q={searchParams.q}
       currentUserId={user.id}
+      showTicketType={false}
+      showCurrentDepartment
     />
   );
 }

@@ -52,6 +52,7 @@ type KnowledgeMaterial = {
 type Department = {
   id: string;
   name: string;
+  region?: { name: string } | null;
   users: Array<{ id: string; displayName: string }>;
 };
 
@@ -125,7 +126,7 @@ export function TicketDetailClient(props: {
     setAttachments((current) => [...current, ...data.files]);
   }
 
-  function claimTicket() {
+  function unusedClaimTicket() {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/claim`, { method: "POST" });
       const data = await response.json();
@@ -155,7 +156,7 @@ export function TicketDetailClient(props: {
     });
   }
 
-  function escalate(target: { targetDept: string }) {
+  function escalate(target: { targetDept: string; targetDepartmentId?: string }) {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/escalate`, {
         method: "POST",
@@ -252,11 +253,6 @@ export function TicketDetailClient(props: {
 
   const isClaimant = props.ticket.claimedBy && props.ticket.claimedByUserId === props.userId;
   const isCreator = props.ticket.createdByUserId === props.userId;
-  const canClaim =
-    props.role === "department" &&
-    Boolean(props.userDepartmentName) &&
-    (props.ticket.status === "pending_claim" || props.ticket.status === "escalated") &&
-    props.ticket.escalatedToDept === props.userDepartmentName;
   const canReply =
     props.ticket.status !== "closed" &&
     ((props.role === "staff" && isCreator) || (props.role === "department" && isClaimant));
@@ -395,16 +391,18 @@ export function TicketDetailClient(props: {
 
         <div className="flex flex-col gap-5">
           {/* Claim button */}
-          {canClaim ? (
-            <Card>
-              <CardContent className="p-5">
-                <Button className="w-full" onClick={claimTicket} disabled={pending}>
-                  {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-                  {pending ? "认领中..." : "认领工单"}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
+          {/*
+              {false ? (
+                <Card>
+                  <CardContent className="p-5">
+                    <Button className="w-full" onClick={unusedClaimTicket} disabled={pending}>
+                      {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+                      {pending ? "认领中..." : "认领工单"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
+              */}
 
           {/* Quick actions */}
           <Card>

@@ -66,6 +66,13 @@ const statusGroups: Record<Exclude<TicketStatusGroup, "all">, TicketStatus[]> = 
 const FALLBACK_DEPARTMENT_NAME = "其他部门";
 const DEPARTMENT_CONFIDENCE_THRESHOLD = 0.3;
 
+type AssignableDepartment = {
+  id: string;
+  name: string;
+  regionId: string | null;
+  users: Array<{ id: string; displayName: string }>;
+};
+
 const CATEGORY_DEPARTMENT_MAP: Record<string, string> = {
   医保政策: "医保办",
   商品库存: "营运部",
@@ -181,6 +188,65 @@ function tagsFromDraft(question: string, tags: string[]) {
   return Array.from(new Set([...tags, ...deriveTags(question)])).slice(0, 5);
 }
 
+async function findAssignableDepartment(input: {
+  departmentName: string;
+  preferredRegionId?: string | null;
+  departmentId?: string | null;
+}): Promise<{
+  department: AssignableDepartment;
+  user: { id: string; displayName: string };
+} | null> {
+  async function findCandidates(name: string) {
+    if (input.departmentId) {
+      const department = await prisma.department.findUnique({
+        where: { id: input.departmentId },
+        include: {
+          users: {
+            where: { role: "department", enabled: true },
+            select: { id: true, displayName: true },
+            orderBy: { displayName: "asc" },
+          },
+        },
+      });
+      return department && department.name === name ? [department] : [];
+    }
+
+    return prisma.department.findMany({
+      where: {
+        name,
+        users: { some: { role: "department", enabled: true } },
+      },
+      include: {
+        users: {
+          where: { role: "department", enabled: true },
+          select: { id: true, displayName: true },
+          orderBy: { displayName: "asc" },
+        },
+      },
+      orderBy: [{ regionId: "asc" }, { name: "asc" }],
+    });
+  }
+
+  async function pick(name: string) {
+    const candidates = await findCandidates(name);
+    const ordered = [...candidates].sort((a, b) => {
+      const aLocal = input.preferredRegionId && a.regionId === input.preferredRegionId ? 0 : 1;
+      const bLocal = input.preferredRegionId && b.regionId === input.preferredRegionId ? 0 : 1;
+      return aLocal - bLocal;
+    });
+    const department = ordered.find((item) => Array.isArray(item.users) && item.users.length > 0);
+    const user = department?.users[0];
+    return department && user ? { department, user } : null;
+  }
+
+  return (
+    (await pick(input.departmentName)) ??
+    (input.departmentName === FALLBACK_DEPARTMENT_NAME
+      ? null
+      : await pick(FALLBACK_DEPARTMENT_NAME))
+  );
+}
+
 export function canAccessTicket(input: {
   role: UserRole;
   userId: string;
@@ -208,16 +274,6 @@ export function canAccessTicket(input: {
   }
 
   // 区域校验：部门人员只能操作本区域的工单（"其他部门"除外）
-  const isFallbackDept = input.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
-  if (
-    !isFallbackDept &&
-    input.userRegionId &&
-    input.ticket.regionId &&
-    input.userRegionId !== input.ticket.regionId
-  ) {
-    return false;
-  }
-
   if (input.ticket.claimedByUserId === input.userId) {
     return true;
   }
@@ -259,23 +315,14 @@ function baseTicketWhere(
   }
 
   // "其他部门"不受区域限制，所有区域的其他部门人员都能看到
-  const isFallbackDept = params.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
-  const regionFilter: Prisma.TicketWhereInput =
-    params.userRegionId && !isFallbackDept ? { regionId: params.userRegionId } : {};
-
   return {
-    AND: [
-      regionFilter,
+    OR: [
+      { claimedByUserId: params.userId },
       {
-        OR: [
-          { claimedByUserId: params.userId },
-          {
-            status: { in: ["pending_claim", "escalated"] },
-            escalatedToDept: params.userDepartmentName,
-          },
-          { status: "closed", escalatedToDept: params.userDepartmentName },
-        ],
+        status: { in: ["pending_claim", "escalated"] },
+        escalatedToDept: params.userDepartmentName,
       },
+      { status: "closed", escalatedToDept: params.userDepartmentName },
     ],
   };
 }
@@ -291,9 +338,9 @@ export async function classifyTicketDepartment(input: {
     orderBy: { name: "asc" },
   });
 
-  const departments = input.regionId
-    ? allDepartments.filter((d) => d.regionId === input.regionId || d.regionId === null)
-    : allDepartments;
+  const departments = allDepartments.filter(
+    (dept, index, array) => array.findIndex((item) => item.name === dept.name) === index
+  );
 
   const departmentNames = new Set(departments.map((d) => d.name));
   const fallbackDepartment =
@@ -327,7 +374,7 @@ export async function classifyTicketDepartment(input: {
     if (deptName === FALLBACK_DEPARTMENT_NAME) return true;
     // 没有区域限制时默认可用
     if (!input.regionId) return true;
-    return (regionDeptUserCounts[deptName] ?? 0) > 0;
+    return Boolean(deptName);
   }
 
   const ruleMatch = classifyDepartmentByRules(input.question, input.category);
@@ -435,6 +482,11 @@ export async function createTicketFromConversation(input: {
     category,
     regionId: creator?.regionId,
   });
+  const assignment = await findAssignableDepartment({
+    departmentName: departmentRouting.departmentName,
+    preferredRegionId: creator?.regionId,
+  });
+  const routedDepartmentName = assignment?.department.name ?? departmentRouting.departmentName;
   const conversationSnapshot = JSON.stringify(
     messages.map((item) => ({
       id: item.id,
@@ -450,7 +502,7 @@ export async function createTicketFromConversation(input: {
   const ticket = await prisma.ticket.create({
     data: {
       ticketNo: buildTicketNo(),
-      status: "pending_claim",
+      status: assignment ? "processing" : "pending_claim",
       priority: deriveTicketPriority(latestUser.contentText),
       createdByUserId: input.createdByUserId,
       conversationId: input.conversationId,
@@ -466,8 +518,9 @@ export async function createTicketFromConversation(input: {
       aiAnswerSnapshot: latestAssistant?.contentText ?? "",
       conversationSnapshot,
       escalatedAt: new Date(),
-      escalatedToDept: departmentRouting.departmentName,
-      escalatedToUserId: null,
+      escalatedToDept: routedDepartmentName,
+      escalatedToUserId: assignment?.user.id ?? null,
+      claimedByUserId: assignment?.user.id ?? null,
       regionId: creator?.regionId ?? null,
     },
   });
@@ -478,7 +531,9 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "system",
         messageType: "system",
-        content: `系统已将工单分发至${departmentRouting.departmentName}，等待部门人员认领。`,
+        content: assignment
+          ? `系统已将工单分配至${routedDepartmentName}，处理人：${assignment.user.displayName}。`
+          : `系统已将工单分发至${routedDepartmentName}，暂无可用处理人。`,
       },
       ...messages.map((message) => {
         const attachments = getAttachmentItems(message.attachmentsJson);
@@ -510,11 +565,13 @@ export async function createTicketFromConversation(input: {
   await broadcastTicketNotification({
     type: "ticket_created",
     title: "收到新的部门工单",
-    message: `工单 ${ticket.ticketNo} 已分发至${departmentRouting.departmentName}：${ticket.title}`,
+    message: assignment
+      ? `工单 ${ticket.ticketNo} 已分配至${assignment.user.displayName}：${ticket.title}`
+      : `工单 ${ticket.ticketNo} 已分发至${routedDepartmentName}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["department"],
-    targetRegionId: creator?.regionId,
+    targetRoles: assignment ? undefined : ["department"],
+    targetUserIds: assignment ? [assignment.user.id] : undefined,
   });
 
   return ticket;
@@ -754,6 +811,7 @@ export async function escalateTicket(input: {
   senderUserId: string;
   senderDisplayName: string;
   targetDept: string;
+  targetDepartmentId?: string | null;
 }) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: input.ticketId },
@@ -768,6 +826,11 @@ export async function escalateTicket(input: {
   }
 
   // 优先在本区域查找目标部门，找不到则尝试全局部门
+  const assignment = await findAssignableDepartment({
+    departmentName: input.targetDept,
+    preferredRegionId: ticket.regionId,
+    departmentId: input.targetDepartmentId,
+  });
   const department = ticket.regionId
     ? await prisma.department.findFirst({
         where: {
@@ -779,12 +842,13 @@ export async function escalateTicket(input: {
         where: { name: input.targetDept },
       });
 
-  if (!department) {
+  if (!assignment) {
     throw new Error("目标部门不存在");
   }
 
   // 检查目标部门在工单所属区域是否有可用用户，没有则兜底到"其他部门"
-  let actualTargetDept = input.targetDept;
+  void department;
+  let actualTargetDept = assignment.department.name;
   if (input.targetDept !== FALLBACK_DEPARTMENT_NAME && ticket.regionId) {
     const targetRegionDept = await prisma.department.findFirst({
       where: { name: input.targetDept, regionId: ticket.regionId },
@@ -795,21 +859,21 @@ export async function escalateTicket(input: {
         where: { departmentId: targetRegionDept.id, role: "department", enabled: true },
       });
       if (userCount === 0) {
-        actualTargetDept = FALLBACK_DEPARTMENT_NAME;
+        actualTargetDept = assignment.department.name;
       }
     }
   }
 
-  const targetLabel = actualTargetDept;
+  const targetLabel = `${actualTargetDept}（${assignment.user.displayName}）`;
 
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
-      status: "escalated",
+      status: "processing",
       escalatedAt: new Date(),
       escalatedToDept: actualTargetDept,
-      escalatedToUserId: null,
-      claimedByUserId: null,
+      escalatedToUserId: assignment.user.id,
+      claimedByUserId: assignment.user.id,
     },
   });
 
@@ -828,7 +892,8 @@ export async function escalateTicket(input: {
     message: `工单 ${ticket.ticketNo} 已转派至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: ["department"],
+    targetRoles: undefined,
+    targetUserIds: [assignment.user.id],
   });
 
   return updated;

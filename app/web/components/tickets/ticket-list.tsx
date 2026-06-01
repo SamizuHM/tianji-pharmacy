@@ -42,12 +42,17 @@ export function TicketList(props: {
   currentStatusGroup: TicketStatusGroup;
   q?: string;
   currentUserId: string;
+  showTicketType?: boolean;
+  showCurrentDepartment?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const result = props.result as TicketListResult & { items: TicketRow[] };
+  const showTicketType = props.showTicketType ?? true;
+  const showCurrentDepartment = props.showCurrentDepartment ?? false;
+  const columnCount = 8 + (showTicketType ? 1 : 0) + (showCurrentDepartment ? 1 : 0);
 
   const deleteTicket = useCallback(
     (ticket: TicketRow) => {
@@ -207,7 +212,8 @@ export function TicketList(props: {
               <tr>
                 <TH>工单编号</TH>
                 <TH>问题摘要</TH>
-                <TH>问题类型</TH>
+                {showTicketType ? <TH>问题类型</TH> : null}
+                {showCurrentDepartment ? <TH>所在部门</TH> : null}
                 <TH>状态</TH>
                 <TH>处理人</TH>
                 <TH>优先级</TH>
@@ -218,7 +224,7 @@ export function TicketList(props: {
             </THead>
             <TBody>
               {isPending ? (
-                <TableSkeleton columns={9} rows={5} />
+                <TableSkeleton columns={columnCount} rows={5} />
               ) : (
                 result.items.map((ticket) => (
                   <tr key={ticket.id}>
@@ -235,11 +241,14 @@ export function TicketList(props: {
                         </div>
                       </div>
                     </TD>
-                    <TD>
-                      <Badge className="border border-blue-100 bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
-                        {ticket.category}
-                      </Badge>
-                    </TD>
+                    {showTicketType ? (
+                      <TD>
+                        <Badge className="border border-blue-100 bg-blue-50 text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                          {ticket.category}
+                        </Badge>
+                      </TD>
+                    ) : null}
+                    {showCurrentDepartment ? <TD>{ticket.escalatedToDept || "-"}</TD> : null}
                     <TD>
                       <TicketStatusBadge status={ticket.status} />
                     </TD>

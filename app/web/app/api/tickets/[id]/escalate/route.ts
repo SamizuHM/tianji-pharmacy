@@ -10,7 +10,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const body = (await request.json()) as { targetDept?: string };
+  const body = (await request.json()) as { targetDept?: string; targetDepartmentId?: string };
 
   if (!body.targetDept?.trim()) {
     return NextResponse.json({ error: "请选择转派目标部门" }, { status: 400 });
@@ -22,6 +22,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       senderUserId: user.id,
       senderDisplayName: user.displayName,
       targetDept: body.targetDept.trim(),
+      targetDepartmentId: body.targetDepartmentId?.trim() || null,
     });
     return NextResponse.json({ ticket });
   } catch (error) {
