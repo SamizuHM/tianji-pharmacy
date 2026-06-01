@@ -40,8 +40,6 @@ type KnowledgeDocumentDetail = KnowledgeDocumentRow & {
   }>;
   knowledgeItems: Array<{
     id: string;
-    categoryL1: string;
-    categoryL2: string;
     question: string;
     answer: string;
     status: "draft" | "published" | "archived";
@@ -516,9 +514,6 @@ export function KnowledgeDocumentTable({
                       {detail.knowledgeItems.map((item) => (
                         <div key={item.id} className="rounded border border-border px-3 py-2">
                           <div className="flex flex-wrap gap-2 text-xs text-muted">
-                            <span>{item.categoryL1}</span>
-                            <span>/</span>
-                            <span>{item.categoryL2}</span>
                             <KnowledgeStatusBadge status={item.status} />
                           </div>
                           <div className="mt-2 text-sm font-medium">{item.question}</div>

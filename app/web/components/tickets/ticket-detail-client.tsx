@@ -111,7 +111,7 @@ export function TicketDetailClient(props: {
   );
   const [existingKnowledgeId, setExistingKnowledgeId] = useState<string>(kbKnowledgeItemId ?? "");
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<
-    Array<{ id: string; question: string; categoryL1: string; categoryL2: string }>
+    Array<{ id: string; question: string }>
   >([]);
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState("");
 
@@ -715,9 +715,7 @@ export function TicketDetailClient(props: {
                                 <span className="font-medium text-slate-900 dark:text-foreground">
                                   {item.question}
                                 </span>
-                                <span className="text-xs text-muted">
-                                  {item.categoryL1} / {item.categoryL2}
-                                </span>
+                                <span className="text-xs text-muted">{item.question}</span>
                               </button>
                             ))}
                           </div>
@@ -964,10 +962,6 @@ function KnowledgeDraftPreview({ draft }: { draft: TicketKnowledgeDraftWithUser 
         <span className="text-xs text-muted">
           {draft.generatedBy?.displayName ? `生成：${draft.generatedBy.displayName}` : "已生成"}
         </span>
-      </div>
-      <div className="text-xs text-muted">分类</div>
-      <div className="mt-1 font-medium text-slate-900 dark:text-foreground">
-        {draft.categoryL1} / {draft.categoryL2}
       </div>
       <div className="mt-3 text-xs text-muted">问题</div>
       <div className="mt-1 whitespace-pre-wrap leading-6 text-slate-800 dark:text-foreground">

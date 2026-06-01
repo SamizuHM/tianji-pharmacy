@@ -322,11 +322,8 @@ export function KnowledgeCreateForm() {
   const searchParams = useSearchParams();
   const initialQuestion = searchParams.get("question") || "";
   const initialAnswer = searchParams.get("answer") || "";
-  const initialCategoryL1 = searchParams.get("categoryL1") || "";
-  const initialCategoryL2 = searchParams.get("categoryL2") || "";
 
-  const [categoryL1, setCategoryL1] = useState(initialCategoryL1);
-  const [categoryL2, setCategoryL2] = useState(initialCategoryL2);
+  const [businessCategory, setBusinessCategory] = useState("");
   const [question, setQuestion] = useState(initialQuestion);
   const [answerHtml, setAnswerHtml] = useState(
     initialAnswer ? buildEditorHtml(initialAnswer, []) : ""
@@ -355,8 +352,6 @@ export function KnowledgeCreateForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categoryL1: categoryL1.trim() || "手动录入",
-          categoryL2: categoryL2.trim() || "手动新增",
           question: question.trim(),
           answer: answerText,
           imagePaths,
@@ -371,8 +366,7 @@ export function KnowledgeCreateForm() {
         return;
       }
 
-      setCategoryL1("");
-      setCategoryL2("");
+      setBusinessCategory("");
       setQuestion("");
       setAnswerHtml("");
       router.refresh();
@@ -381,23 +375,13 @@ export function KnowledgeCreateForm() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium">一级分类</label>
-          <Input
-            value={categoryL1}
-            onChange={(e) => setCategoryL1(e.target.value)}
-            placeholder="如：设备维护"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">二级分类</label>
-          <Input
-            value={categoryL2}
-            onChange={(e) => setCategoryL2(e.target.value)}
-            placeholder="如：打印机"
-          />
-        </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium">业务分类</label>
+        <Input
+          value={businessCategory}
+          onChange={(e) => setBusinessCategory(e.target.value)}
+          placeholder="如：医保、用药、收银打印（可留空）"
+        />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">问题</label>

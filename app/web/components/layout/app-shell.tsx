@@ -95,8 +95,6 @@ type SearchResult = {
   knowledge: Array<{
     id: string;
     question: string;
-    categoryL1: string;
-    categoryL2: string;
     hitCount: number;
   }>;
   conversations: Array<{ id: string; title: string }>;
@@ -531,9 +529,7 @@ function GlobalSearch({ role }: { role: UserRole }) {
                 <div className="truncate text-sm font-medium text-slate-900 dark:text-foreground">
                   {item.question}
                 </div>
-                <div className="text-xs text-muted">
-                  {item.categoryL1} / {item.categoryL2} · 命中 {item.hitCount}
-                </div>
+                <div className="text-xs text-muted">命中 {item.hitCount}</div>
               </Link>
             ))}
           </SearchSection>

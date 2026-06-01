@@ -42,19 +42,7 @@ export async function POST(request: NextRequest) {
   // 手动新增知识条目
   if (contentType.includes("application/json")) {
     const body = await request.json();
-    const {
-      categoryL1,
-      categoryL2,
-      question,
-      answer,
-      imagePaths,
-      status,
-      scopeTarget,
-      scopeLevel,
-      cityName,
-    } = body as {
-      categoryL1?: string;
-      categoryL2?: string;
+    const { question, answer, imagePaths, status, scopeTarget, scopeLevel, cityName } = body as {
       question?: string;
       answer?: string;
       imagePaths?: string[];
@@ -73,8 +61,6 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await upsertQaKnowledgeDocument({
-      categoryL1: categoryL1 || "手动录入",
-      categoryL2: categoryL2 || "手动新增",
       question: question.trim(),
       answer: answer.trim(),
       status: status ?? "published",

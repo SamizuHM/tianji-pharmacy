@@ -66,16 +66,12 @@ export async function GET(request: Request) {
         OR: [
           { question: { contains: q } },
           { answer: { contains: q } },
-          { categoryL1: { contains: q } },
-          { categoryL2: { contains: q } },
           { sourceFile: { contains: q } },
         ],
       },
       select: {
         id: true,
         question: true,
-        categoryL1: true,
-        categoryL2: true,
         hitCount: true,
       },
       orderBy: { updatedAt: "desc" },

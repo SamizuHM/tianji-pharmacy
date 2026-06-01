@@ -37,9 +37,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
   const body = await request.json();
-  const { categoryL1, categoryL2, question, answer, imagePaths, status } = body as {
-    categoryL1?: string;
-    categoryL2?: string;
+  const { question, answer, imagePaths, status } = body as {
     question?: string;
     answer?: string;
     imagePaths?: string[];
@@ -51,8 +49,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const item = await updateKnowledgeItem(id, {
-    categoryL1: categoryL1 || "手动录入",
-    categoryL2: categoryL2 || "手动新增",
     question: question.trim(),
     answer: answer.trim(),
     imagePaths: imagePaths ?? [],
