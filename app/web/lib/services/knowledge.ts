@@ -44,7 +44,7 @@ type UpsertKnowledgeInput = {
   docType?: string;
   documentId?: string | null;
   chunkSetId?: string | null;
-  businessCategory?: string;
+  businessCategory?: string | null;
   scopeLevel?: "common" | "city";
   cityName?: string | null;
   effectiveFrom?: Date | null;
@@ -60,7 +60,7 @@ type UpsertKnowledgeInput = {
 export type DocumentImportOptions = {
   sourceFileNameByPath?: Record<string, string>;
   uploadedByUserId?: string;
-  businessCategory?: string;
+  businessCategory?: string | null;
   scopeLevel?: "common" | "city";
   cityName?: string | null;
   chunkingConfig?: Partial<DocumentChunkingConfig>;
@@ -102,12 +102,8 @@ function buildImagePaths(input: UpsertKnowledgeInput) {
   return input.imagePaths?.filter(Boolean) ?? [];
 }
 
-function inferBusinessCategory(input: { text?: string }) {
-  const text = input.text ?? "";
-  if (/医保|统筹|报销|结算|刷卡|医保卡/.test(text)) return "医保";
-  if (/用药|药品|处方|剂量|不良反应|禁忌|过敏|孕妇|儿童|老人/.test(text)) return "用药";
-  if (/小票|打印|收银|票据|打印机/.test(text)) return "收银打印";
-  return null;
+function normalizeBusinessCategory(value: string | null | undefined) {
+  return value?.trim() || null;
 }
 
 function hashText(text: string) {
@@ -166,7 +162,7 @@ function buildChunkMetadata(
     answer: input.answer,
     sourceFile: input.sourceFile ?? null,
     docType: input.docType ?? null,
-    businessCategory: input.businessCategory ?? inferBusinessCategory(input),
+    businessCategory: normalizeBusinessCategory(input.businessCategory),
     scopeLevel: input.scopeLevel ?? "common",
     cityName: input.cityName ?? null,
     effectiveFrom: toNullableIso(input.effectiveFrom),
@@ -209,7 +205,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
   const chunkPlans = inputChunkPlans.map((plan, chunkIndex) => {
     const existingChunk = existingChunks[chunkIndex];
     const chunkId = existingChunk?.id ?? crypto.randomUUID();
-    const businessCategory = input.businessCategory ?? inferBusinessCategory(input);
+    const businessCategory = normalizeBusinessCategory(input.businessCategory);
     const chunkText = plan.text;
     const bm25SearchText = [chunkText, input.question, input.answer, input.sourceFile]
       .filter(Boolean)
@@ -261,7 +257,7 @@ async function persistKnowledgeItem(input: UpsertKnowledgeInput, existing: Exist
     chunkText: chunk.chunkText,
     sourceFile: chunk.sourceFile ?? null,
     docType: chunk.docType ?? null,
-    businessCategory: input.businessCategory ?? inferBusinessCategory(input),
+    businessCategory: normalizeBusinessCategory(input.businessCategory),
     scopeLevel: input.scopeLevel ?? "common",
     cityName: input.cityName ?? null,
     effectiveFrom: toNullableIso(input.effectiveFrom),
@@ -428,7 +424,7 @@ async function ensureQaDocumentShell(input: {
   uploadedByUserId?: string;
   question: string;
   answer: string;
-  businessCategory?: string;
+  businessCategory?: string | null;
   scopeLevel?: "common" | "city";
   cityName?: string | null;
   effectiveFrom?: Date | null;
@@ -443,8 +439,7 @@ async function ensureQaDocumentShell(input: {
     : null;
 
   if (input.existing?.documentId && activeChunkSet) {
-    const businessCategory =
-      input.businessCategory ?? inferBusinessCategory({ text: qaText(input) });
+    const businessCategory = normalizeBusinessCategory(input.businessCategory);
     await prisma.knowledgeDocument.update({
       where: { id: input.existing.documentId },
       data: {
@@ -465,7 +460,7 @@ async function ensureQaDocumentShell(input: {
   const parseRunId = crypto.randomUUID();
   const chunkSetId = crypto.randomUUID();
   const text = qaText(input);
-  const businessCategory = input.businessCategory ?? inferBusinessCategory({ text });
+  const businessCategory = normalizeBusinessCategory(input.businessCategory);
 
   await prisma.$transaction(async (tx) => {
     await tx.knowledgeDocument.create({
@@ -594,9 +589,12 @@ export async function overwriteKnowledgeItem(input: {
   };
 
   const chunkText = qaText(qaInput);
-  const businessCategory =
-    ((JSON.parse(targetChunk.metadataJson || "{}") as Record<string, unknown>)
-      .businessCategory as string) ?? null;
+  const businessCategory = normalizeBusinessCategory(
+    (JSON.parse(targetChunk.metadataJson || "{}") as Record<string, unknown>).businessCategory as
+      | string
+      | null
+      | undefined
+  );
   const imagePaths = input.imagePaths?.filter(Boolean) ?? [];
   const bm25SearchText = [chunkText, input.question, input.answer].filter(Boolean).join("\n");
   const bm25Index = buildBm25TermRows({
@@ -837,7 +835,9 @@ export async function listKnowledgeDocuments(params: KnowledgeListParams = {}) {
     page,
     pageSize,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    categoryOptions: categories.map((item) => item.businessCategory).filter(Boolean),
+    categoryOptions: categories
+      .map((item) => item.businessCategory)
+      .filter((item): item is string => Boolean(item)),
   };
 }
 
@@ -877,7 +877,7 @@ export async function updateKnowledgeDocumentMetadata(
   id: string,
   input: {
     title: string;
-    businessCategory: string;
+    businessCategory?: string | null;
     scopeLevel: "common" | "city";
     cityName?: string | null;
     status?: "draft" | "published" | "archived";
@@ -905,7 +905,7 @@ export async function updateKnowledgeDocumentMetadata(
       where: { id },
       data: {
         title: input.title.trim(),
-        businessCategory: input.businessCategory.trim() || "通用",
+        businessCategory: normalizeBusinessCategory(input.businessCategory),
         scopeLevel: input.scopeLevel,
         cityName,
         status: input.status ?? existing.status,
@@ -1109,8 +1109,7 @@ async function createDocumentIngestion(input: {
   chunkingConfig: DocumentChunkingConfig;
   options?: DocumentImportOptions;
 }) {
-  const businessCategory =
-    input.options?.businessCategory ?? inferBusinessCategory({ text: input.extractedText });
+  const businessCategory = normalizeBusinessCategory(input.options?.businessCategory);
   const title = input.sourceFile.replace(/\.[^.]+$/, "");
   const contentHash = hashText(input.extractedText || `${input.sourceFile}:${Date.now()}`);
   const documentId = crypto.randomUUID();

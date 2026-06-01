@@ -72,27 +72,17 @@ function pushEvent(client: ClientMeta, event: string, data: StreamEvent) {
   }
 }
 
-const FALLBACK_DEPARTMENT_NAME = "其他部门";
-
 export async function getPendingTicketCounts(input?: {
   role?: UserRole;
   userId?: string;
   userDepartmentName?: string | null;
   userRegionId?: string | null;
 }) {
-  // "其他部门"不受区域限制
-  const isFallbackDept = input?.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
-  const regionFilter =
-    input?.role === "department" && input.userRegionId && !isFallbackDept
-      ? { regionId: input.userRegionId }
-      : {};
-
   const pendingClaimWhere =
     input?.role === "department" && input.userDepartmentName
       ? {
           status: "pending_claim" as const,
           escalatedToDept: input.userDepartmentName,
-          ...regionFilter,
         }
       : input?.role === "staff" && input.userId
         ? { createdByUserId: input.userId, status: "pending_claim" as const }
@@ -102,7 +92,6 @@ export async function getPendingTicketCounts(input?: {
       ? {
           status: "escalated" as const,
           escalatedToDept: input.userDepartmentName,
-          ...regionFilter,
         }
       : input?.role === "staff" && input.userId
         ? { createdByUserId: input.userId, status: "escalated" as const }

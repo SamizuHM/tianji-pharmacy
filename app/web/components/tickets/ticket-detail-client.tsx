@@ -14,6 +14,7 @@ import {
   Send,
   Trash2,
   Upload,
+  UserCheck,
 } from "lucide-react";
 
 import { AttachmentGallery } from "@/components/shared/attachment-gallery";
@@ -126,7 +127,7 @@ export function TicketDetailClient(props: {
     setAttachments((current) => [...current, ...data.files]);
   }
 
-  function unusedClaimTicket() {
+  function claimTicket() {
     startTransition(async () => {
       const response = await fetch(`/api/tickets/${props.ticket.id}/claim`, { method: "POST" });
       const data = await response.json();
@@ -253,11 +254,22 @@ export function TicketDetailClient(props: {
 
   const isClaimant = props.ticket.claimedBy && props.ticket.claimedByUserId === props.userId;
   const isCreator = props.ticket.createdByUserId === props.userId;
+  const isUnclaimedDepartmentTicket =
+    props.role === "department" &&
+    !props.ticket.claimedByUserId &&
+    Boolean(props.userDepartmentName) &&
+    (props.ticket.status === "pending_claim" || props.ticket.status === "escalated") &&
+    props.ticket.escalatedToDept === props.userDepartmentName;
+  const canClaim = isUnclaimedDepartmentTicket;
   const canReply =
     props.ticket.status !== "closed" &&
     ((props.role === "staff" && isCreator) || (props.role === "department" && isClaimant));
   const canEscalate =
-    props.role === "department" && Boolean(isClaimant) && props.ticket.status === "processing";
+    props.role === "department" &&
+    (Boolean(isClaimant) || isUnclaimedDepartmentTicket) &&
+    (props.ticket.status === "processing" ||
+      props.ticket.status === "pending_claim" ||
+      props.ticket.status === "escalated");
   const canSubmitResolution =
     props.role === "department" &&
     (isClaimant || props.ticket.claimedByUserId === props.userId) &&
@@ -390,26 +402,28 @@ export function TicketDetailClient(props: {
         </Card>
 
         <div className="flex flex-col gap-5">
-          {/* Claim button */}
-          {/*
-              {false ? (
-                <Card>
-                  <CardContent className="p-5">
-                    <Button className="w-full" onClick={unusedClaimTicket} disabled={pending}>
-                      {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-                      {pending ? "认领中..." : "认领工单"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : null}
-              */}
-
           {/* Quick actions */}
           <Card>
             <CardHeader>
               <CardTitle>快速操作</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
+              {canClaim ? (
+                <ActionButton
+                  title={pending ? "认领中..." : "认领工单"}
+                  description="认领后进入处理中，由你负责回复和提交解决方案"
+                  tone="blue"
+                  icon={
+                    pending ? (
+                      <Loader2 className="size-5 animate-spin" />
+                    ) : (
+                      <UserCheck className="size-5" />
+                    )
+                  }
+                  onClick={claimTicket}
+                  disabled={pending}
+                />
+              ) : null}
               {canReply ? (
                 <ActionButton
                   title="回复处理建议"
@@ -1026,12 +1040,14 @@ function ActionButton(props: {
   tone: "blue";
   icon: ReactNode;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-left text-primary transition hover:bg-blue-100 dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-secondary"
+      className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-left text-primary transition hover:bg-blue-100 disabled:opacity-60 dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-secondary"
       onClick={props.onClick}
+      disabled={props.disabled}
     >
       <span className="flex items-center gap-3">
         <span className="flex size-8 items-center justify-center rounded-full bg-blue-100 text-primary dark:border dark:border-primary/30 dark:bg-card/60">

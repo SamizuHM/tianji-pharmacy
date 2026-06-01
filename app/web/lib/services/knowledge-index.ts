@@ -84,7 +84,7 @@ type QdrantUpsertPayload = {
   answer: string;
   sourceFile: string | null;
   docType: string | null;
-  businessCategory: string;
+  businessCategory: string | null;
   scopeLevel: string;
   cityName: string | null;
   overrideScope: boolean;

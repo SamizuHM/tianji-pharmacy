@@ -23,6 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       senderDisplayName: user.displayName,
       targetDept: body.targetDept.trim(),
       targetDepartmentId: body.targetDepartmentId?.trim() || null,
+      userDepartmentName: user.department?.name ?? null,
     });
     return NextResponse.json({ ticket });
   } catch (error) {

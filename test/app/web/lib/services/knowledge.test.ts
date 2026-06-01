@@ -131,7 +131,7 @@ describe("knowledge service", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: "医保",
-            businessCategory: "医保",
+            businessCategory: null,
           }),
         })
       );

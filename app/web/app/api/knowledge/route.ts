@@ -42,9 +42,19 @@ export async function POST(request: NextRequest) {
   // 手动新增知识条目
   if (contentType.includes("application/json")) {
     const body = await request.json();
-    const { question, answer, imagePaths, status, scopeTarget, scopeLevel, cityName } = body as {
+    const {
+      question,
+      answer,
+      businessCategory,
+      imagePaths,
+      status,
+      scopeTarget,
+      scopeLevel,
+      cityName,
+    } = body as {
       question?: string;
       answer?: string;
+      businessCategory?: string | null;
       imagePaths?: string[];
       status?: "draft" | "published";
       scopeTarget?: string;
@@ -67,6 +77,7 @@ export async function POST(request: NextRequest) {
       tags: Array.from(new Set(question.split(/[，。；、\s]+/).filter(Boolean))).slice(0, 5),
       sourceType: "manual_qa",
       docType: "manual_qa",
+      businessCategory: businessCategory?.trim() || null,
       imagePaths: imagePaths ?? [],
       scopeLevel: scope.scopeLevel,
       cityName: scope.cityName,

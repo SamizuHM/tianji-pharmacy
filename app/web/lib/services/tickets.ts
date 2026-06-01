@@ -194,7 +194,6 @@ async function findAssignableDepartment(input: {
   departmentId?: string | null;
 }): Promise<{
   department: AssignableDepartment;
-  user: { id: string; displayName: string };
 } | null> {
   async function findCandidates(name: string) {
     if (input.departmentId) {
@@ -235,8 +234,7 @@ async function findAssignableDepartment(input: {
       return aLocal - bLocal;
     });
     const department = ordered.find((item) => Array.isArray(item.users) && item.users.length > 0);
-    const user = department?.users[0];
-    return department && user ? { department, user } : null;
+    return department ? { department } : null;
   }
 
   return (
@@ -273,7 +271,6 @@ export function canAccessTicket(input: {
     return false;
   }
 
-  // 区域校验：部门人员只能操作本区域的工单（"其他部门"除外）
   if (input.ticket.claimedByUserId === input.userId) {
     return true;
   }
@@ -314,7 +311,6 @@ function baseTicketWhere(
     return { id: "__no_visible_tickets__" };
   }
 
-  // "其他部门"不受区域限制，所有区域的其他部门人员都能看到
   return {
     OR: [
       { claimedByUserId: params.userId },
@@ -354,26 +350,7 @@ export async function classifyTicketDepartment(input: {
     };
   }
 
-  // 预查本区域各部门的可用用户，用于后续兜底判断
-  const regionDeptUserCounts: Record<string, number> = {};
-  if (input.regionId) {
-    const regionDepts = await prisma.department.findMany({
-      where: { regionId: input.regionId },
-      select: { id: true, name: true },
-    });
-    for (const dept of regionDepts) {
-      const count = await prisma.user.count({
-        where: { departmentId: dept.id, role: "department", enabled: true },
-      });
-      regionDeptUserCounts[dept.name] = count;
-    }
-  }
-
   function hasLocalUsers(deptName: string): boolean {
-    // "其他部门"是全局的，始终可用
-    if (deptName === FALLBACK_DEPARTMENT_NAME) return true;
-    // 没有区域限制时默认可用
-    if (!input.regionId) return true;
     return Boolean(deptName);
   }
 
@@ -386,11 +363,10 @@ export async function classifyTicketDepartment(input: {
         reason: `关键词/分类规则匹配：${input.category} → ${ruleMatch}`,
       };
     }
-    // 本区域没有该部门的用户，兜底到其他部门
     return {
       departmentName: FALLBACK_DEPARTMENT_NAME,
       confidence: 0.95,
-      reason: `关键词匹配${ruleMatch}，但本区域无可用人员，兜底到${FALLBACK_DEPARTMENT_NAME}`,
+      reason: `关键词匹配${ruleMatch}，但部门不可用，兜底到${FALLBACK_DEPARTMENT_NAME}`,
     };
   }
 
@@ -407,12 +383,11 @@ export async function classifyTicketDepartment(input: {
         reason: classified.reason || "模型置信度不足，使用兜底部门",
       };
     }
-    // 本区域没有该部门的用户，兜底到其他部门
     if (!hasLocalUsers(classified.departmentName)) {
       return {
         departmentName: FALLBACK_DEPARTMENT_NAME,
         confidence: classified.confidence,
-        reason: `模型匹配${classified.departmentName}，但本区域无可用人员，兜底到${FALLBACK_DEPARTMENT_NAME}`,
+        reason: `模型匹配${classified.departmentName}，但部门不可用，兜底到${FALLBACK_DEPARTMENT_NAME}`,
       };
     }
     return classified;
@@ -502,7 +477,7 @@ export async function createTicketFromConversation(input: {
   const ticket = await prisma.ticket.create({
     data: {
       ticketNo: buildTicketNo(),
-      status: assignment ? "processing" : "pending_claim",
+      status: "pending_claim",
       priority: deriveTicketPriority(latestUser.contentText),
       createdByUserId: input.createdByUserId,
       conversationId: input.conversationId,
@@ -519,8 +494,8 @@ export async function createTicketFromConversation(input: {
       conversationSnapshot,
       escalatedAt: new Date(),
       escalatedToDept: routedDepartmentName,
-      escalatedToUserId: assignment?.user.id ?? null,
-      claimedByUserId: assignment?.user.id ?? null,
+      escalatedToUserId: null,
+      claimedByUserId: null,
       regionId: creator?.regionId ?? null,
     },
   });
@@ -531,9 +506,7 @@ export async function createTicketFromConversation(input: {
         ticketId: ticket.id,
         senderRole: "system",
         messageType: "system",
-        content: assignment
-          ? `系统已将工单分配至${routedDepartmentName}，处理人：${assignment.user.displayName}。`
-          : `系统已将工单分发至${routedDepartmentName}，暂无可用处理人。`,
+        content: `系统已将工单分发至${routedDepartmentName}，等待部门人员认领。`,
       },
       ...messages.map((message) => {
         const attachments = getAttachmentItems(message.attachmentsJson);
@@ -565,13 +538,10 @@ export async function createTicketFromConversation(input: {
   await broadcastTicketNotification({
     type: "ticket_created",
     title: "收到新的部门工单",
-    message: assignment
-      ? `工单 ${ticket.ticketNo} 已分配至${assignment.user.displayName}：${ticket.title}`
-      : `工单 ${ticket.ticketNo} 已分发至${routedDepartmentName}：${ticket.title}`,
+    message: `工单 ${ticket.ticketNo} 已分发至${routedDepartmentName}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: assignment ? undefined : ["department"],
-    targetUserIds: assignment ? [assignment.user.id] : undefined,
+    targetRoles: ["department"],
   });
 
   return ticket;
@@ -602,17 +572,6 @@ export async function claimTicket(input: {
 
   if (existing.escalatedToDept !== input.userDepartmentName) {
     throw new Error("当前工单未分发到你的部门，不能认领");
-  }
-
-  // 区域校验：只能认领本区域的工单（"其他部门"除外）
-  const isFallbackDept = input.userDepartmentName === FALLBACK_DEPARTMENT_NAME;
-  if (
-    !isFallbackDept &&
-    input.userRegionId &&
-    existing.regionId &&
-    input.userRegionId !== existing.regionId
-  ) {
-    throw new Error("不能认领其他区域的工单");
   }
 
   const ticket = await prisma.ticket.update({
@@ -812,6 +771,7 @@ export async function escalateTicket(input: {
   senderDisplayName: string;
   targetDept: string;
   targetDepartmentId?: string | null;
+  userDepartmentName?: string | null;
 }) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: input.ticketId },
@@ -821,59 +781,38 @@ export async function escalateTicket(input: {
     throw new Error("工单不存在");
   }
 
-  if (ticket.claimedByUserId !== input.senderUserId) {
-    throw new Error("只有工单认领人才能转派工单");
+  const canTransferClaimed = ticket.claimedByUserId === input.senderUserId;
+  const canTransferUnclaimed =
+    !ticket.claimedByUserId &&
+    Boolean(input.userDepartmentName) &&
+    (ticket.status === "pending_claim" || ticket.status === "escalated") &&
+    ticket.escalatedToDept === input.userDepartmentName;
+
+  if (!canTransferClaimed && !canTransferUnclaimed) {
+    throw new Error("只有当前处理人或当前待认领部门人员才能转派工单");
   }
 
-  // 优先在本区域查找目标部门，找不到则尝试全局部门
   const assignment = await findAssignableDepartment({
     departmentName: input.targetDept,
-    preferredRegionId: ticket.regionId,
     departmentId: input.targetDepartmentId,
   });
-  const department = ticket.regionId
-    ? await prisma.department.findFirst({
-        where: {
-          name: input.targetDept,
-          OR: [{ regionId: ticket.regionId }, { regionId: null }],
-        },
-      })
-    : await prisma.department.findFirst({
-        where: { name: input.targetDept },
-      });
 
   if (!assignment) {
     throw new Error("目标部门不存在");
   }
 
-  // 检查目标部门在工单所属区域是否有可用用户，没有则兜底到"其他部门"
-  void department;
-  let actualTargetDept = assignment.department.name;
-  if (input.targetDept !== FALLBACK_DEPARTMENT_NAME && ticket.regionId) {
-    const targetRegionDept = await prisma.department.findFirst({
-      where: { name: input.targetDept, regionId: ticket.regionId },
-      select: { id: true },
-    });
-    if (targetRegionDept) {
-      const userCount = await prisma.user.count({
-        where: { departmentId: targetRegionDept.id, role: "department", enabled: true },
-      });
-      if (userCount === 0) {
-        actualTargetDept = assignment.department.name;
-      }
-    }
-  }
+  const actualTargetDept = assignment.department.name;
 
-  const targetLabel = `${actualTargetDept}（${assignment.user.displayName}）`;
+  const targetLabel = actualTargetDept;
 
   const updated = await prisma.ticket.update({
     where: { id: input.ticketId },
     data: {
-      status: "processing",
+      status: "escalated",
       escalatedAt: new Date(),
       escalatedToDept: actualTargetDept,
-      escalatedToUserId: assignment.user.id,
-      claimedByUserId: assignment.user.id,
+      escalatedToUserId: null,
+      claimedByUserId: null,
     },
   });
 
@@ -892,8 +831,7 @@ export async function escalateTicket(input: {
     message: `工单 ${ticket.ticketNo} 已转派至${targetLabel}：${ticket.title}`,
     ticketId: ticket.id,
     ticketNo: ticket.ticketNo,
-    targetRoles: undefined,
-    targetUserIds: [assignment.user.id],
+    targetRoles: ["department"],
   });
 
   return updated;

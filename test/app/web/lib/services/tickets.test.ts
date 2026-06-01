@@ -317,16 +317,23 @@ describe("tickets service", () => {
           senderDisplayName: "客服2",
           targetDept: "营运部",
         })
-      ).rejects.toThrow("只有工单认领人才能转派工单");
+      ).rejects.toThrow("只有当前处理人或当前待认领部门人员才能转派工单");
     });
 
     it("正确转派", async () => {
       prisma.ticket.findUnique.mockResolvedValue(
         buildTicket({ claimedByUserId: "agent-1", ticketNo: "TK001" })
       );
-      prisma.department.findFirst.mockResolvedValue({ id: "dept-1", name: "营运部" });
+      prisma.department.findMany.mockResolvedValue([
+        {
+          id: "dept-1",
+          name: "营运部",
+          regionId: null,
+          users: [{ id: "agent-2", displayName: "客服2" }],
+        },
+      ]);
       prisma.ticket.update.mockResolvedValue(
-        buildTicket({ status: "escalated", escalatedToDept: "营运部" })
+        buildTicket({ status: "processing", escalatedToDept: "营运部" })
       );
       prisma.ticketMessage.create.mockResolvedValue({});
 
@@ -342,11 +349,53 @@ describe("tickets service", () => {
           data: expect.objectContaining({
             status: "escalated",
             escalatedToDept: "营运部",
+            escalatedToUserId: null,
             claimedByUserId: null,
           }),
         })
       );
       expect(broadcastTicketNotification).toHaveBeenCalled();
+    });
+
+    it("未认领工单可由当前部门人员转派", async () => {
+      prisma.ticket.findUnique.mockResolvedValue(
+        buildTicket({
+          status: "pending_claim",
+          claimedByUserId: null,
+          escalatedToDept: "医保办",
+          ticketNo: "TK001",
+        })
+      );
+      prisma.department.findMany.mockResolvedValue([
+        {
+          id: "dept-1",
+          name: "营运部",
+          regionId: null,
+          users: [{ id: "agent-2", displayName: "客服2" }],
+        },
+      ]);
+      prisma.ticket.update.mockResolvedValue(
+        buildTicket({ status: "escalated", escalatedToDept: "营运部" })
+      );
+      prisma.ticketMessage.create.mockResolvedValue({});
+
+      await escalateTicket({
+        ticketId: "t-1",
+        senderUserId: "agent-1",
+        senderDisplayName: "客服1",
+        userDepartmentName: "医保办",
+        targetDept: "营运部",
+      });
+
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "escalated",
+            escalatedToDept: "营运部",
+            claimedByUserId: null,
+          }),
+        })
+      );
     });
   });
 

@@ -38,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = (await request.json()) as {
     title?: string;
-    businessCategory?: string;
+    businessCategory?: string | null;
     scopeLevel?: string;
     cityName?: string | null;
     status?: "draft" | "published" | "archived";
@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const document = await updateKnowledgeDocumentMetadata(id, {
       title: body.title,
-      businessCategory: body.businessCategory || "通用",
+      businessCategory: body.businessCategory?.trim() || null,
       scopeLevel: scope.scopeLevel,
       cityName: scope.cityName,
       status: body.status,

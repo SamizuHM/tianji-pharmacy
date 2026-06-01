@@ -8,3 +8,7 @@ DROP COLUMN "categoryL2";
 -- AlterTable
 ALTER TABLE "TicketKnowledgeDraft" DROP COLUMN "categoryL1",
 DROP COLUMN "categoryL2";
+
+-- AlterTable
+ALTER TABLE "KnowledgeDocument" ALTER COLUMN "businessCategory" DROP NOT NULL,
+ALTER COLUMN "businessCategory" DROP DEFAULT;

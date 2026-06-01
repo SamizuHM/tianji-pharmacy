@@ -19,7 +19,7 @@ type KnowledgeDocumentRow = {
   id: string;
   title: string;
   sourceFile: string | null;
-  businessCategory: string;
+  businessCategory: string | null;
   scopeLevel: "common" | "city";
   cityName: string | null;
   status: "draft" | "published" | "archived";
@@ -140,7 +140,7 @@ export function KnowledgeDocumentTable({
           if (nextDetail) {
             setMetadataForm({
               title: nextDetail.title,
-              businessCategory: nextDetail.businessCategory,
+              businessCategory: nextDetail.businessCategory ?? "",
               scopeLevel: nextDetail.scopeLevel,
               cityName: nextDetail.cityName ?? "",
               status: nextDetail.status,
@@ -343,7 +343,7 @@ export function KnowledgeDocumentTable({
                     </div>
                   </div>
                 </TD>
-                <TD>{item.businessCategory}</TD>
+                <TD>{item.businessCategory || "-"}</TD>
                 <TD>{scopeLabel(item)}</TD>
                 <TD>{item._count?.chunks ?? 0}</TD>
                 <TD>{item.hitCount}</TD>
@@ -367,7 +367,7 @@ export function KnowledgeDocumentTable({
             ))}
             {!documents.length ? (
               <tr>
-                <TD colSpan={7} className="py-10 text-center text-muted">
+                <TD colSpan={8} className="py-10 text-center text-muted">
                   暂无文档
                 </TD>
               </tr>
@@ -496,7 +496,7 @@ export function KnowledgeDocumentTable({
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
                     <div className="text-xs text-muted">业务分类</div>
-                    <div className="font-medium">{visibleDetail.businessCategory}</div>
+                    <div className="font-medium">{visibleDetail.businessCategory || "-"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted">适用范围</div>

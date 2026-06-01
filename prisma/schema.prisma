@@ -393,7 +393,7 @@ model KnowledgeDocument {
   sourceType       KnowledgeSourceType
   sourceFile       String?
   mimeType         String?
-  businessCategory String                     @default("通用")
+  businessCategory String?
   scopeLevel       KnowledgeScopeLevel        @default(common)
   cityName         String?
   effectiveFrom    DateTime?

@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     sourceFileNameByPath,
     uploadedByUserId: user.id,
     chunkingConfig,
-    businessCategory: businessCategory || undefined,
+    businessCategory: businessCategory || null,
     scopeLevel: scope.scopeLevel,
     cityName: scope.cityName,
   });

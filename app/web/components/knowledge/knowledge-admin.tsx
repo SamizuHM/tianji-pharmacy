@@ -63,7 +63,7 @@ export function KnowledgeDocumentUpload() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"general" | "parent_child" | "qa">("general");
-  const [businessCategory, setBusinessCategory] = useState("通用");
+  const [businessCategory, setBusinessCategory] = useState("");
   const [scope, setScope] = useState<KnowledgeScopeOption>("common");
   const [preview, setPreview] = useState<
     Array<{
@@ -354,6 +354,7 @@ export function KnowledgeCreateForm() {
         body: JSON.stringify({
           question: question.trim(),
           answer: answerText,
+          businessCategory: businessCategory.trim() || null,
           imagePaths,
           scopeTarget: scope,
           ...scopePayload(scope),
