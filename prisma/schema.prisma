@@ -289,8 +289,6 @@ model TicketKnowledgeDraft {
   id                     String    @id @default(cuid())
   ticketId               String
   selectedMaterialsJson  String
-  categoryL1             String
-  categoryL2             String
   question               String
   answer                 String
   tagsJson               String?
@@ -309,8 +307,6 @@ model TicketKnowledgeDraft {
 
 model KnowledgeItem {
   id             String              @id @default(cuid())
-  categoryL1     String
-  categoryL2     String
   question       String
   answer         String
   tagsJson       String?
@@ -329,7 +325,6 @@ model KnowledgeItem {
   chunks         KnowledgeChunk[]
   document       KnowledgeDocument?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
-  @@index([categoryL1, categoryL2])
   @@index([sourceType, createdAt])
   @@index([status, updatedAt])
   @@index([hitCount])
