@@ -326,6 +326,7 @@ export function KnowledgeDocumentTable({
               <TH>适用范围</TH>
               <TH>Chunks</TH>
               <TH>命中</TH>
+              <TH>更新时间</TH>
               <TH>状态</TH>
               <TH className="text-right">操作</TH>
             </tr>
@@ -346,6 +347,9 @@ export function KnowledgeDocumentTable({
                 <TD>{scopeLabel(item)}</TD>
                 <TD>{item._count?.chunks ?? 0}</TD>
                 <TD>{item.hitCount}</TD>
+                <TD className="whitespace-nowrap text-xs text-muted">
+                  {formatDateTime(item.updatedAt)}
+                </TD>
                 <TD>
                   <KnowledgeStatusBadge status={item.status} />
                 </TD>
