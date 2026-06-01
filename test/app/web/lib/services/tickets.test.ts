@@ -537,8 +537,6 @@ describe("tickets service", () => {
       const draft = {
         id: "draft-1",
         ticketId: "t-1",
-        categoryL1: "用药咨询",
-        categoryL2: null,
         question: "问题",
         answer: "答案",
         tagsJson: '["标签1"]',

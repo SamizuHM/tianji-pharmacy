@@ -39,8 +39,6 @@ describe("knowledge service", () => {
       prisma.knowledgeItem.findUniqueOrThrow.mockResolvedValue(ki);
 
       const result = await upsertKnowledgeItem({
-        categoryL1: "用药咨询",
-        categoryL2: "",
         question: "测试问题",
         answer: "测试答案",
         tags: ["标签"],
@@ -105,8 +103,6 @@ describe("knowledge service", () => {
       (parseDocument as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         items: [
           {
-            categoryL1: "医保",
-            categoryL2: "结算",
             question: "医保刷卡失败怎么办",
             answer: "检查医保网络和结算状态。",
             tags: ["医保"],

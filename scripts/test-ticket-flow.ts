@@ -196,8 +196,6 @@ async function main() {
     data: {
       ticketId,
       selectedMaterialsJson: JSON.stringify([]),
-      categoryL1: "系统操作",
-      categoryL2: "医保刷卡",
       question: "医保刷卡失败显示 E001 怎么处理？",
       answer:
         "先检查网络和读卡器连接；如确认是医保系统升级导致，请等待 30 分钟后重试，仍失败则联系医保中心技术支持。",

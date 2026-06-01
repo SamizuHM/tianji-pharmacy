@@ -180,8 +180,6 @@ describe("工单完整流转 (lifecycle)", () => {
     const draft = {
       id: "draft-1",
       ticketId: "ticket-flow",
-      categoryL1: "医保政策",
-      categoryL2: null,
       question: "医保报销比例是多少？",
       answer: "根据2025年最新政策，报销比例为70%。",
       tagsJson: '["医保","报销"]',
@@ -211,7 +209,6 @@ describe("工单完整流转 (lifecycle)", () => {
     });
     expect(upsertQaKnowledgeDocument).toHaveBeenCalledWith(
       expect.objectContaining({
-        categoryL1: "医保政策",
         question: "医保报销比例是多少？",
         answer: "根据2025年最新政策，报销比例为70%。",
         sourceType: "manual_ticket",
@@ -892,8 +889,6 @@ describe("closeTicketWithKnowledgeWriteback 补充场景", () => {
   it("admin 可以关闭任何工单", async () => {
     const draft = {
       id: "draft-1",
-      categoryL1: "用药咨询",
-      categoryL2: null,
       question: "问题",
       answer: "答案",
       tagsJson: "[]",
@@ -928,8 +923,6 @@ describe("closeTicketWithKnowledgeWriteback 补充场景", () => {
   it("认领人可以关闭工单", async () => {
     const draft = {
       id: "draft-1",
-      categoryL1: "用药咨询",
-      categoryL2: null,
       question: "问题",
       answer: "答案",
       tagsJson: "[]",

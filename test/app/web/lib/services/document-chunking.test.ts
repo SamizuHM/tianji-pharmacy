@@ -68,14 +68,14 @@ describe("document chunking", () => {
   it("QA 文档一问一答生成独立 chunk", () => {
     const chunks = chunkQaItems(
       [
-        { question: "医保怎么报销？", answer: "按当地医保规则执行。", categoryL1: "医保" },
-        { question: "药品怎么存放？", answer: "阴凉干燥处。", categoryL1: "用药" },
+        { question: "医保怎么报销？", answer: "按当地医保规则执行。" },
+        { question: "药品怎么存放？", answer: "阴凉干燥处。" },
       ],
       DEFAULT_QA_CHUNKING_CONFIG
     );
 
     expect(chunks).toHaveLength(2);
     expect(chunks[0].text).toContain("问题：医保怎么报销？");
-    expect(chunks[1].sectionPath).toBe("用药");
+    expect(chunks[1].sectionPath).toBe("QA 2");
   });
 });

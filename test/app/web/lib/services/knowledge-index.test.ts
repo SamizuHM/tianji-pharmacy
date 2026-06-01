@@ -112,8 +112,6 @@ describe("knowledge-index service", () => {
           knowledgeItem: {
             question: "安定无处方能销售吗？",
             answer: "不能无处方销售。",
-            categoryL1: "用药",
-            categoryL2: "处方管控",
           },
         },
       ]);

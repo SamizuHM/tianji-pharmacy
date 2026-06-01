@@ -202,8 +202,6 @@ describe("tickets 补全测试", () => {
         .mockResolvedValue(ticket); // getTicketKnowledgeMaterials 中查找
 
       (generateTicketKnowledgeDraftWithModel as ReturnType<typeof vi.fn>).mockResolvedValue({
-        categoryL1: "用药咨询",
-        categoryL2: null,
         question: "生成的问题",
         answer: "生成的答案",
         tags: ["标签1"],
@@ -212,7 +210,6 @@ describe("tickets 补全测试", () => {
       prisma.$transaction.mockImplementation(async (fn: Function) => fn(prisma));
       prisma.ticketKnowledgeDraft.create.mockResolvedValue({
         id: "draft-1",
-        categoryL1: "用药咨询",
         question: "生成的问题",
         answer: "生成的答案",
       });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
-import { buildKnowledgeItem } from "../../../../helpers/factories";
+import { buildKnowledgeChunk, buildKnowledgeItem } from "../../../../helpers/factories";
 
 vi.mock("@/lib/retrieval/ml-service", () => ({
   parseDocument: vi.fn(),
@@ -38,11 +38,7 @@ describe("knowledge 补全测试", () => {
       // 所有 count 和 aggregate 调用都需要 mock
       prisma.knowledgeItem.findMany
         .mockResolvedValueOnce(items) // items 查询
-        .mockResolvedValueOnce([
-          // categories 查询
-          { categoryL1: "用药咨询", categoryL2: "感冒" },
-          { categoryL1: "医保政策", categoryL2: null },
-        ]);
+        .mockResolvedValueOnce([]);
       // count 会被多次调用：list的 count + getKnowledgeSummary 的 6 个 count
       prisma.knowledgeItem.count
         .mockResolvedValueOnce(1) // list 的 total count
@@ -144,8 +140,6 @@ describe("knowledge 补全测试", () => {
 
       await expect(
         updateKnowledgeItem("nonexistent", {
-          categoryL1: "用药咨询",
-          categoryL2: "",
           question: "新问题",
           answer: "新答案",
         })
@@ -163,14 +157,49 @@ describe("knowledge 补全测试", () => {
       prisma.knowledgeItem.findUniqueOrThrow.mockResolvedValue(existing);
 
       const result = await updateKnowledgeItem("ki-1", {
-        categoryL1: "医保政策",
-        categoryL2: "报销",
         question: "更新后的问题",
         answer: "更新后的答案",
       });
 
       expect(prisma.knowledgeItem.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: "ki-1" } })
+      );
+    });
+
+    it("编辑知识项时保留文档关联", async () => {
+      const existing = buildKnowledgeItem({
+        documentId: "doc-1",
+        imagePathsJson: JSON.stringify(["/uploads/a.png"]),
+      });
+      const chunk = buildKnowledgeChunk({
+        id: "chunk-1",
+        chunkSetId: "set-1",
+        documentId: "doc-1",
+        scopeLevel: "city",
+        cityName: "武汉",
+      });
+      prisma.knowledgeItem.findUnique.mockResolvedValue({ ...existing, chunks: [chunk] });
+      prisma.knowledgeItem.findUniqueOrThrow.mockResolvedValue(existing);
+
+      await updateKnowledgeItem("ki-1", {
+        question: "更新后的问题",
+        answer: "更新后的答案",
+      });
+
+      expect(prisma.knowledgeItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ documentId: "doc-1" }),
+        })
+      );
+      expect(prisma.knowledgeChunk.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            documentId: "doc-1",
+            chunkSetId: "set-1",
+            scopeLevel: "city",
+            cityName: "武汉",
+          }),
+        })
       );
     });
   });
@@ -248,8 +277,6 @@ describe("knowledge 补全测试", () => {
       (parseDocument as ReturnType<typeof vi.fn>).mockResolvedValue({
         items: [
           {
-            categoryL1: "用药咨询",
-            categoryL2: null,
             question: "导入的问题",
             answer: "导入的答案",
             tags: ["标签"],

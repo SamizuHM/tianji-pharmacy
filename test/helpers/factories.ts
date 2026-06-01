@@ -106,8 +106,6 @@ export function buildKnowledgeItem(overrides: Record<string, unknown> = {}) {
     id: "ki-1",
     question: "测试问题",
     answer: "测试答案",
-    categoryL1: "用药咨询",
-    categoryL2: null,
     status: "published",
     tags: null,
     hitCount: 0,
