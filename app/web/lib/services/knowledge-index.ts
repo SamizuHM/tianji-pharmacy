@@ -57,8 +57,6 @@ export type KnowledgeChunkProjectionSource = {
     answer: string;
     sourceFile?: string | null;
     docType?: string | null;
-    categoryL1: string;
-    categoryL2: string;
     imagePath?: string | null;
     imagePaths?: string[];
   };
@@ -86,8 +84,6 @@ type QdrantUpsertPayload = {
   answer: string;
   sourceFile: string | null;
   docType: string | null;
-  categoryL1: string;
-  categoryL2: string;
   businessCategory: string;
   scopeLevel: string;
   cityName: string | null;
@@ -176,9 +172,7 @@ function buildQdrantPayload(chunk: ChunkRecord): QdrantUpsertPayload {
     answer: chunk.knowledgeItem.answer,
     sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile ?? null,
     docType: chunk.docType ?? chunk.knowledgeItem.docType ?? null,
-    categoryL1: chunk.knowledgeItem.categoryL1,
-    categoryL2: chunk.knowledgeItem.categoryL2,
-    businessCategory: metadata.businessCategory ?? chunk.knowledgeItem.categoryL1,
+    businessCategory: metadata.businessCategory ?? null,
     scopeLevel: metadata.scopeLevel ?? "common",
     cityName: chunk.cityName ?? metadata.cityName ?? null,
     overrideScope: chunk.overrideScope || Boolean(metadata.overrideScope),
@@ -203,9 +197,7 @@ function buildQdrantPayloadFromSource(source: KnowledgeChunkProjectionSource): Q
     answer: source.knowledgeItem.answer,
     sourceFile: source.sourceFile ?? source.knowledgeItem.sourceFile ?? null,
     docType: source.docType ?? source.knowledgeItem.docType ?? null,
-    categoryL1: source.knowledgeItem.categoryL1,
-    categoryL2: source.knowledgeItem.categoryL2,
-    businessCategory: source.businessCategory ?? source.knowledgeItem.categoryL1,
+    businessCategory: source.businessCategory ?? null,
     scopeLevel: source.scopeLevel ?? "common",
     cityName: source.cityName ?? null,
     overrideScope: false,
@@ -239,8 +231,6 @@ async function buildHypotheticalQuestions(input: {
   question: string;
   answer: string;
   chunkText: string;
-  categoryL1: string;
-  categoryL2: string;
   sourceFile?: string | null;
 }) {
   const generated = await generateHypotheticalQuestionsWithModel(input);
@@ -291,8 +281,6 @@ async function buildUpsertTaskInputs(
             question: chunk.knowledgeItem.question,
             answer: chunk.knowledgeItem.answer,
             chunkText: chunk.chunkText,
-            categoryL1: chunk.knowledgeItem.categoryL1,
-            categoryL2: chunk.knowledgeItem.categoryL2,
             sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
           }),
         }))
@@ -350,8 +338,6 @@ export async function prepareKnowledgeChunkUpsertTasks(
             question: chunk.knowledgeItem.question,
             answer: chunk.knowledgeItem.answer,
             chunkText: chunk.chunkText,
-            categoryL1: chunk.knowledgeItem.categoryL1,
-            categoryL2: chunk.knowledgeItem.categoryL2,
             sourceFile: chunk.sourceFile ?? chunk.knowledgeItem.sourceFile,
           }),
         }))

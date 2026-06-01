@@ -972,10 +972,8 @@ def build_item(
     normalized_text: str | None = None,
     chunk_texts: list[str] | None = None,
 ) -> dict[str, Any]:
-    merged_text = f"一级分类：{category_l1}\n二级分类：{category_l2}\n具体问题：{question}\n简要标准答案：{answer}"
+    merged_text = f"具体问题：{question}\n简要标准答案：{answer}"
     return {
-        "categoryL1": category_l1,
-        "categoryL2": category_l2,
         "question": question,
         "answer": answer,
         "tags": tags,
@@ -1039,8 +1037,6 @@ def describe_image_as_knowledge(target: Path) -> dict[str, Any]:
     rel_path = target.relative_to(ROOT_DIR).as_posix()
 
     return {
-        "categoryL1": "图片知识文档",
-        "categoryL2": "图片问题索引",
         "question": f"{target.stem} 图片可能对应什么问题？",
         "answer": merged_text,
         "tags": derive_tags("图片知识文档", "图片问题索引", target.stem),

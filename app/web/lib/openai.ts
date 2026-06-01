@@ -201,19 +201,13 @@ export async function generateHypotheticalQuestionsWithModel(input: {
   question: string;
   answer: string;
   chunkText: string;
-  categoryL1: string;
-  categoryL2: string;
   sourceFile?: string | null;
 }) {
   const output = await completeText({
     system:
       "你是药店 RAG 知识库 HQ（假设问题）生成器，只输出 JSON。你必须只基于给定 chunk 内容生成检索用问题，不得编造未出现的政策编号、适用范围、剂量、禁忌或结论。问题要覆盖口语化门店问法和半专业化政策/药品术语问法。",
     userContent:
-      "知识分类：" +
-      input.categoryL1 +
-      " / " +
-      input.categoryL2 +
-      "\n来源文件：" +
+      "来源文件：" +
       (input.sourceFile || "无") +
       "\n标准问题：" +
       input.question +
@@ -248,8 +242,6 @@ export type TicketKnowledgeMaterialForModel = {
 };
 
 export type GeneratedTicketKnowledgeDraft = {
-  categoryL1: string;
-  categoryL2: string;
   question: string;
   answer: string;
   tags: string[];
@@ -343,7 +335,7 @@ export async function generateTicketKnowledgeDraftWithModel(input: {
       "不要提及具体工单、具体用户、客服姓名、聊天过程或“根据对话”。" +
       "问题要改写成门店今后可能会问的标准问题；答案要清晰、可执行、适合直接进入知识库。" +
       "如素材涉及用药、疾病、儿童、孕妇、老人、处方药、不良反应或剂量风险，答案必须提示遵说明书并咨询执业药师或医生。" +
-      "输出 JSON 字段必须为 categoryL1、categoryL2、question、answer、tags；tags 为字符串数组，最多 5 个。",
+      "输出 JSON 字段必须为 question、answer、tags；tags 为字符串数组，最多 5 个。",
     userContent,
   });
 
@@ -353,8 +345,6 @@ export async function generateTicketKnowledgeDraftWithModel(input: {
   }
 
   return {
-    categoryL1: parsed.categoryL1?.trim() || "人工经验沉淀",
-    categoryL2: parsed.categoryL2?.trim() || "工单闭环新增",
     question: parsed.question.trim(),
     answer: parsed.answer.trim(),
     tags: Array.isArray(parsed.tags)

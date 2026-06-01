@@ -4,8 +4,6 @@ import { env } from "@/lib/env";
 import type { ModelChatMessage } from "@/lib/openai";
 
 export type ParsedKnowledgeItem = {
-  categoryL1: string;
-  categoryL2: string;
   question: string;
   answer: string;
   tags: string[];
@@ -165,8 +163,6 @@ export async function parseDocument(filePath: string) {
     return {
       items: [
         {
-          categoryL1: "门店知识库",
-          categoryL2: "智能问答",
           question,
           answer: normalizedText,
           tags: ["药店", "门店", "智能问答", "知识库"],

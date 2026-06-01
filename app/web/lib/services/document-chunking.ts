@@ -43,8 +43,6 @@ export type ChunkPlan = {
 export type QaInput = {
   question: string;
   answer: string;
-  categoryL1?: string;
-  categoryL2?: string | null;
   tags?: string[];
 };
 
@@ -336,8 +334,7 @@ export function chunkQaItems(items: QaInput[], config: DocumentChunkingConfig): 
     if (!question || !answer) return;
     chunks.push({
       text: `问题：${question}\n答案：${answer}`,
-      sectionPath:
-        [item.categoryL1, item.categoryL2].filter(Boolean).join(" / ") || `QA ${index + 1}`,
+      sectionPath: `QA ${index + 1}`,
       metadata: {
         question,
         answer,

@@ -1133,8 +1133,6 @@ export async function generateTicketKnowledgeDraft(input: {
       data: {
         ticketId: ticket.id,
         selectedMaterialsJson: JSON.stringify(selected.map((material) => material.id)),
-        categoryL1: generated.categoryL1,
-        categoryL2: generated.categoryL2,
         question: generated.question,
         answer: generated.answer,
         tagsJson: tags.length ? JSON.stringify(tags) : null,
@@ -1261,8 +1259,6 @@ export async function closeTicketWithKnowledgeWriteback(input: {
     ? await overwriteKnowledgeItem({
         knowledgeItemId: kbHitInfo!.knowledgeItemId,
         chunkId: kbHitInfo!.chunkId,
-        categoryL1: draft.categoryL1,
-        categoryL2: draft.categoryL2,
         question: draft.question,
         answer: draft.answer,
         tags,
@@ -1272,8 +1268,6 @@ export async function closeTicketWithKnowledgeWriteback(input: {
         imagePaths,
       })
     : await upsertQaKnowledgeDocument({
-        categoryL1: draft.categoryL1,
-        categoryL2: draft.categoryL2,
         question: draft.question,
         answer: draft.answer,
         tags,
