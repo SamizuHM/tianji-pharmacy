@@ -35,9 +35,8 @@ Qdrant = 可删除、可重建的派生向量索引
 
 - `sourceType`
 - `businessCategory`
-- `answerPolicy`
 - `scopeLevel`
-- `provinceCode` / `cityCode` / `districtCode` / `storeId`
+- `cityName`
 - `status`
 
 关联对象：
@@ -58,8 +57,6 @@ Qdrant = 可删除、可重建的派生向量索引
 
 - `question`
 - `answer`
-- `categoryL1`
-- `categoryL2`
 - `sourceType`
 - `sourceFile`
 - `documentId`
@@ -82,6 +79,23 @@ Qdrant = 可删除、可重建的派生向量索引
 - `chunkText`：用于 embedding 和检索的文本。
 - `qdrantPointId`：对应 Qdrant point id。
 - `metadataJson`：索引相关元数据快照。
+- `scopeLevel` / `cityName`：chunk 级检索范围，当前支持通用和湖北城市专属。
+- `overrideScope`：必要时绕过文档范围限制的索引投影开关。
+- `bm25SearchText` / `bm25DocLength`：BM25 关键词召回文本和长度。
+- `hypotheticalQuestionsJson`：HQ 检索投影问题。
+
+### `KnowledgeBm25Term`
+
+BM25 倒排表，记录每个 chunk 的 term frequency、文档长度和范围信息。
+
+典型字段：
+
+- `chunkId`
+- `term`
+- `termFrequency`
+- `docLength`
+- `scopeLevel`
+- `cityName`
 
 当前 Qdrant point id 由 `knowledgeChunk.id` 稳定派生：
 
@@ -98,7 +112,7 @@ buildStablePointId(chunkId);
 关键字段：
 
 - `taskType`: `upsert` 或 `delete`
-- `status`: `pending` / `processing` / `completed`
+- `status`: `pending` / `processing` / `completed` / `failed`
 - `knowledgeItemId`
 - `chunkId`
 - `pointId`
@@ -108,6 +122,8 @@ buildStablePointId(chunkId);
 - `availableAt`
 
 它的作用是把“主数据写入 数据库”和“派生索引写入 Qdrant”解耦。数据库 事务提交后，即使 Qdrant 短暂失败，也可以留下可重试任务。
+
+后台知识文档详情页会展示 chunk 对应索引任务状态，并支持对失败任务发起重试；也可以用 `pnpm kb:drain` 手动消化任务。
 
 ## 写入链路
 
@@ -195,8 +211,11 @@ payload 包含：
 - `answer`
 - `sourceFile`
 - `docType`
-- `categoryL1`
-- `categoryL2`
+- `businessCategory`
+- `scopeLevel`
+- `cityName`
+- `retrievalBasis`
+- `retrievalBasisType`
 - `imagePath`
 - `imagePaths`
 

@@ -151,20 +151,20 @@ pnpm db:reset
 - 转人工工单。
 - 查看自己提交的工单。
 
-### agent
+### department
 
 当前 `UserRole`。
 
 含义：
 
 ```text
-人工处理人员
+部门处理人员
 ```
 
 主要入口：
 
 ```text
-/agent/tickets
+/department/tickets
 ```
 
 主要能力：
@@ -172,7 +172,7 @@ pnpm db:reset
 - 查看待处理工单。
 - 认领工单。
 - 回复工单。
-- 升级工单。
+- 转派工单。
 - 提交解决方案。
 - 关闭工单。
 - 沉淀知识。
@@ -185,15 +185,15 @@ pnpm db:reset
 
 大致语义：
 
-| 历史称呼 | 当前实现对应                     |
-| -------- | -------------------------------- |
-| 人工1    | 无部门 agent，主要处理待认领工单 |
-| 人工2    | 有部门或被升级目标匹配的 agent   |
+| 历史称呼 | 当前实现对应                               |
+| -------- | ------------------------------------------ |
+| 人工1    | 目标部门的待认领处理，不再有无部门客服角色 |
+| 人工2    | 被转派到部门或具体账号的专业处理           |
 
 当前实现不是通过 `UserRole.human_l1` / `UserRole.human_l2` 区分，而是通过：
 
 ```text
-User.role = agent
+User.role = department
 User.departmentId
 Ticket.status
 Ticket.claimedByUserId
@@ -211,10 +211,14 @@ Ticket.escalatedToUserId
 
 ```text
 L1 = 一线待认领处理
-L2 = 被升级到部门或专家处理
+L2 = 被转派到部门或专家处理
 ```
 
 不要把它理解成当前数据库角色。
+
+### agent
+
+当前不再是 `UserRole`。它主要还出现在 `MessageRole.agent`、历史文档或变量名里，用于表示“人工/部门人员发出的消息”。
 
 ### human_l1 / human_l2
 
@@ -449,28 +453,28 @@ pnpm kb:drain
 
 待认领。
 
-通常是一线人工可见。
+通常由 `escalatedToDept` 指向的目标部门可见。
 
 ### processing
 
 处理中。
 
-工单已被某个 agent 认领。
+工单已被某个部门人员认领。
 
 ### escalated
 
-已升级。
+已转派。
 
-可能升级到：
+可能转派到：
 
 - 某个部门。
-- 某个具体 agent。
+- 某个具体部门人员。
 
 ### resolved
 
 已确认解决。
 
-药店工作人员已经确认人工处理方案解决了问题。进入该状态后，客服才能生成待入库知识草稿。
+药店工作人员已经确认人工处理方案解决了问题。进入该状态后，部门人员才能生成待入库知识草稿。
 
 ### closed
 

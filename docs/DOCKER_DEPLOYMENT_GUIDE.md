@@ -29,7 +29,8 @@
 - `web` 容器是系统中枢，不只是运行 Next.js，还承担数据库迁移、seed 和首次知识库导入触发。
 - `prisma/migrations` 是数据库版本历史，仍然有用，不能随便删除。
 - 当前 Dockerfile 是多阶段构建：构建阶段需要源码，最终运行镜像主要保留运行产物、初始化脚本和种子知识文件。
-- 服务器部署只使用默认 `docker-compose.yml`，通过 cloudflared 对外；线上环境不暴露 PostgreSQL、Qdrant、ML Service 或 Web 到宿主机端口。
+- 默认服务器部署使用 `docker-compose.yml`，通过 cloudflared 对外；线上环境不暴露 PostgreSQL、Qdrant、ML Service 或 Web 到宿主机端口。
+- 仓库还保留 `docker-compose.v2.yml` 和 `docker-compose.v21.yml`，用于隔离运行第二套实例或灰度验证，不能和默认 compose 的 volume/container 命名混用。
 
 ---
 
@@ -92,6 +93,24 @@ web 容器 Next.js :3000
 - `ports` 才会映射到宿主机。
 - 默认部署 compose 不把 PostgreSQL、Qdrant、ML Service 暴露到宿主机；本地开发通过 `docker-compose.dev.yml` 单独绑定到 `127.0.0.1`。
 - `web`、`ml-service`、`qdrant` 默认都不是通过宿主机端口直接访问。
+
+### 隔离编排文件
+
+当前仓库还有两个并行实例编排：
+
+| 文件                     | 主要用途                       | 端口策略                                               | 数据卷后缀 |
+| ------------------------ | ------------------------------ | ------------------------------------------------------ | ---------- |
+| `docker-compose.v2.yml`  | 本机同时跑第二套实例、人工验证 | 映射 `web:3001`、PostgreSQL `5433`、Qdrant `6335/6336` | `_v2`      |
+| `docker-compose.v21.yml` | v2.1 隔离部署或灰度验证        | 仅 `expose` 内部端口，通过独立 cloudflared 对外        | `_v21`     |
+
+使用这些文件时需要显式指定：
+
+```bash
+docker compose -f docker-compose.v2.yml up -d --build
+docker compose -f docker-compose.v21.yml up -d --build
+```
+
+不要在同一个目录里把默认 compose 和 v2/v21 compose 混合执行成同一个项目；否则容易把日志、volume、容器名和 cloudflared 隧道关系搞混。
 
 ## 常用启动命令
 

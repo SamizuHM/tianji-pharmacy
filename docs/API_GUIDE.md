@@ -19,11 +19,11 @@
 药店门店智能问答系统是一个面向药店门店的信息化支持平台，核心功能：
 
 1. **AI 智能问答** — 基于知识库的 RAG 检索 + 大模型兜底回答
-2. **人工工单流转** — AI 无法解决时转人工，支持 L1/L2 两级流转
+2. **人工工单流转** — AI 无法解决时转人工，自动分发到部门，支持未认领和已认领状态下转派到其他部门
 3. **知识库闭环** — 工单处理结果自动写入知识库，持续提升 AI 命中率
 4. **图片理解** — 支持上传图片，AI 自动提取信息用于检索与最终回答
 5. **流式聊天输出** — 聊天回答采用 SSE 打字机效果
-6. **实时通知** — 人工1 / 人工2 支持待办数量、站内通知、浏览器通知
+6. **实时通知** — 部门人员支持待认领/已转派数量、站内通知、浏览器通知
 7. **数据统计** — 问答量、知识库命中率、工单处理情况
 
 **技术栈**：Next.js 15 + TypeScript + Prisma/数据库 + Python FastAPI + Qdrant + 阿里云 DashScope
@@ -143,17 +143,24 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 **内置用户**：
 
-| 用户名               | 密码    | 角色  | 首页           |
-| -------------------- | ------- | ----- | -------------- |
-| 药店工作人员         | demo123 | staff | /staff/chat    |
-| 人工处理1            | demo123 | agent | /agent/tickets |
-| 人工处理2            | demo123 | agent | /agent/tickets |
-| 营运-张伟 等部门专家 | demo123 | agent | /agent/tickets |
+| 用户名       | 密码    | 角色       | 部门       | 首页                |
+| ------------ | ------- | ---------- | ---------- | ------------------- |
+| 药店工作人员 | demo123 | staff      | 无         | /staff/chat         |
+| 管理员       | demo123 | admin      | 无         | /admin/stats        |
+| 营运-张伟    | demo123 | department | 营运部     | /department/tickets |
+| 采购-李娜    | demo123 | department | 采购部     | /department/tickets |
+| 培训-王芳    | demo123 | department | 培训部     | /department/tickets |
+| 人事-赵敏    | demo123 | department | 人事部     | /department/tickets |
+| 财务-刘洋    | demo123 | department | 财务部     | /department/tickets |
+| 医保办-陈静  | demo123 | department | 医保办     | /department/tickets |
+| 其他-周宁    | demo123 | department | 其他部门   | /department/tickets |
+| 技术-孙鹏    | demo123 | department | 技术服务部 | /department/tickets |
 
 **角色权限**：
 
 - `staff`：发起对话、创建工单、查看自己的工单
-- `agent`：认领、回复、升级、提交处理方案、生成待入库知识、在满足条件时关闭工单
+- `department`：认领、回复、转派、提交处理方案、生成待入库知识、在满足条件时关闭工单
+- `admin`：维护区域、部门、用户、知识库和系统设置，可查看全部工单
 
 ---
 
@@ -171,49 +178,64 @@ curl -X POST http://127.0.0.1:3000/api/auth/login   # Web 登录
 
 ### Web API（端口 3000）
 
-| 方法   | 路径                                  | 说明                       | 权限               |
-| ------ | ------------------------------------- | -------------------------- | ------------------ |
-| POST   | /api/auth/login                       | 登录                       | 公开               |
-| POST   | /api/auth/logout                      | 登出                       | 已登录             |
-| GET    | /api/me                               | 当前用户信息               | 已登录             |
-| POST   | /api/uploads                          | 文件上传                   | 已登录             |
-| GET    | /api/conversations                    | 会话列表                   | staff              |
-| POST   | /api/conversations                    | 创建会话                   | staff              |
-| DELETE | /api/conversations/[id]               | 软删除会话                 | staff              |
-| GET    | /api/conversations/[id]/messages      | 消息历史                   | staff              |
-| POST   | /api/conversations/[id]/messages      | 发送消息                   | staff              |
-| GET    | /api/conversations/[id]/resume        | 查询是否有可续接的流式回复 | staff              |
-| GET    | /api/conversations/[id]/stream        | 订阅指定助手消息的续接流   | staff              |
-| POST   | /api/conversations/[id]/stop          | 停止当前生成中的回复       | staff              |
-| PATCH  | /api/messages/[id]                    | 编辑单条聊天消息           | 已登录且可访问会话 |
-| DELETE | /api/messages/[id]                    | 删除单条聊天消息           | 已登录且可访问会话 |
-| POST   | /api/messages/[id]/resend             | 编辑用户消息后重新发送     | 已登录且可访问会话 |
-| POST   | /api/messages/[id]/regenerate         | 重新生成助手消息           | 已登录且可访问会话 |
-| GET    | /api/notifications/stream             | 订阅实时通知 SSE 流        | 已登录             |
-| GET    | /api/tickets                          | 工单列表                   | 已登录             |
-| POST   | /api/tickets                          | 创建工单                   | staff              |
-| GET    | /api/tickets/[id]                     | 工单详情                   | 已登录             |
-| POST   | /api/tickets/[id]/reply               | 回复工单                   | agent              |
-| POST   | /api/tickets/[id]/escalate            | 升级工单                   | agent              |
-| POST   | /api/tickets/[id]/submit-resolution   | 提交处理方案               | agent              |
-| POST   | /api/tickets/[id]/resolve             | 员工确认问题已解决         | staff              |
-| GET    | /api/tickets/[id]/knowledge-materials | 获取待入库材料             | 已登录且可访问工单 |
-| POST   | /api/tickets/[id]/knowledge-draft     | 生成待入库知识草稿         | agent              |
-| POST   | /api/tickets/[id]/close               | 关闭并写回知识库           | staff/agent        |
-| GET    | /api/stats/summary                    | 统计摘要                   | 已登录             |
-| GET    | /api/stats/trends                     | 趋势数据                   | 已登录             |
-| GET    | /api/settings                         | 获取检索与问答参数         | 已登录             |
-| PUT    | /api/settings                         | 更新检索与问答参数         | 已登录             |
-| PUT    | /api/settings/theme                   | 更新当前用户个人偏好       | 已登录             |
-| GET    | /api/knowledge                        | 兼容知识条目查询           | 已登录             |
-| POST   | /api/knowledge                        | 手动新增 QA 文档或全量导入 | 管理员             |
-| GET    | /api/knowledge/documents              | 知识文档列表               | 管理员             |
-| GET    | /api/knowledge/documents/[id]         | 知识文档详情与 chunk       | 管理员             |
-| POST   | /api/knowledge/import-documents       | 上传文档导入               | 管理员             |
-| POST   | /api/knowledge/preview-chunks         | 上传文档切片预览           | 管理员             |
-| POST   | /api/knowledge/rebuild-index          | 全量重建索引               | 管理员             |
-| POST   | /api/knowledge/reindex/[id]           | 兼容单条重建入口（501）    | 管理员             |
-| GET    | /api/files/[...path]                  | 文件访问                   | 已登录             |
+| 方法   | 路径                                  | 说明                       | 权限                   |
+| ------ | ------------------------------------- | -------------------------- | ---------------------- |
+| POST   | /api/auth/login                       | 登录                       | 公开                   |
+| POST   | /api/auth/logout                      | 登出                       | 已登录                 |
+| GET    | /api/me                               | 当前用户信息               | 已登录                 |
+| POST   | /api/uploads                          | 文件上传                   | 已登录                 |
+| GET    | /api/conversations                    | 会话列表                   | staff                  |
+| POST   | /api/conversations                    | 创建会话                   | staff                  |
+| DELETE | /api/conversations/[id]               | 软删除会话                 | staff                  |
+| GET    | /api/conversations/[id]/messages      | 消息历史                   | staff                  |
+| POST   | /api/conversations/[id]/messages      | 发送消息                   | staff                  |
+| GET    | /api/conversations/[id]/resume        | 查询是否有可续接的流式回复 | staff                  |
+| GET    | /api/conversations/[id]/stream        | 订阅指定助手消息的续接流   | staff                  |
+| POST   | /api/conversations/[id]/stop          | 停止当前生成中的回复       | staff                  |
+| PATCH  | /api/messages/[id]                    | 编辑单条聊天消息           | 已登录且可访问会话     |
+| DELETE | /api/messages/[id]                    | 删除单条聊天消息           | 已登录且可访问会话     |
+| POST   | /api/messages/[id]/resend             | 编辑用户消息后重新发送     | 已登录且可访问会话     |
+| POST   | /api/messages/[id]/regenerate         | 重新生成助手消息           | 已登录且可访问会话     |
+| GET    | /api/notifications/stream             | 订阅实时通知 SSE 流        | 已登录                 |
+| GET    | /api/tickets                          | 工单列表                   | 已登录                 |
+| POST   | /api/tickets                          | 创建工单                   | staff                  |
+| GET    | /api/tickets/[id]                     | 工单详情                   | 已登录                 |
+| POST   | /api/tickets/[id]/reply               | 回复工单                   | department/admin       |
+| POST   | /api/tickets/[id]/escalate            | 转派工单                   | department/admin       |
+| POST   | /api/tickets/[id]/submit-resolution   | 提交处理方案               | department/admin       |
+| POST   | /api/tickets/[id]/resolve             | 员工确认问题已解决         | staff                  |
+| GET    | /api/tickets/[id]/knowledge-materials | 获取待入库材料             | 已登录且可访问工单     |
+| POST   | /api/tickets/[id]/knowledge-draft     | 生成待入库知识草稿         | department/admin       |
+| POST   | /api/tickets/[id]/close               | 关闭并写回知识库           | staff/department/admin |
+| GET    | /api/stats/summary                    | 统计摘要                   | 已登录                 |
+| GET    | /api/stats/trends                     | 趋势数据                   | 已登录                 |
+| GET    | /api/settings                         | 获取检索与问答参数         | admin                  |
+| PUT    | /api/settings                         | 更新检索与问答参数         | admin                  |
+| PUT    | /api/settings/theme                   | 更新当前用户个人偏好       | 已登录                 |
+| GET    | /api/admin/regions                    | 区域列表                   | admin                  |
+| POST   | /api/admin/regions                    | 创建区域                   | admin                  |
+| PATCH  | /api/admin/regions/[id]               | 更新区域                   | admin                  |
+| DELETE | /api/admin/regions/[id]               | 删除区域                   | admin                  |
+| GET    | /api/admin/departments                | 部门列表                   | admin                  |
+| PATCH  | /api/admin/departments/[id]           | 更新部门区域归属           | admin                  |
+| GET    | /api/admin/users                      | 用户列表                   | admin                  |
+| POST   | /api/admin/users                      | 创建用户                   | admin                  |
+| PATCH  | /api/admin/users/[id]                 | 更新用户                   | admin                  |
+| GET    | /api/auth/demo-users                  | 内置演示用户列表           | 公开                   |
+| GET    | /api/knowledge                        | 兼容知识条目查询           | 已登录                 |
+| POST   | /api/knowledge                        | 手动新增 QA 文档或全量导入 | 管理员                 |
+| GET    | /api/knowledge/documents              | 知识文档列表               | 管理员                 |
+| GET    | /api/knowledge/documents/[id]         | 知识文档详情与 chunk       | 管理员                 |
+| PATCH  | /api/knowledge/documents/[id]         | 更新知识文档元数据         | 管理员                 |
+| DELETE | /api/knowledge/documents/[id]         | 删除知识文档               | 管理员                 |
+| POST   | /api/knowledge/import-documents       | 上传文档导入               | 管理员                 |
+| POST   | /api/knowledge/preview-chunks         | 上传文档切片预览           | 管理员                 |
+| GET    | /api/knowledge/chunks/[id]            | 查看单个 chunk             | 已登录且范围可见       |
+| GET    | /api/knowledge/index-tasks            | 查询索引任务               | 管理员                 |
+| POST   | /api/knowledge/index-tasks/retry      | 重试失败索引任务           | 管理员                 |
+| POST   | /api/knowledge/rebuild-index          | 全量重建索引               | 管理员                 |
+| POST   | /api/knowledge/reindex/[id]           | 兼容单条重建入口（501）    | 管理员                 |
+| GET    | /api/files/[...path]                  | 文件访问                   | 已登录                 |
 
 ---
 
@@ -312,8 +334,6 @@ curl -s -X POST http://127.0.0.1:8001/rerank \
 {
   "items": [
     {
-      "categoryL1": "知识文档",
-      "categoryL2": "未分类",
       "question": "医保卡怎么使用",
       "answer": "持卡到药店...",
       "tags": ["医保卡", "使用"],
@@ -760,7 +780,9 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
     "retrievalTopK": 8,
     "rerankTopN": 5,
     "kbHitThreshold": 0.72,
-    "maxContextTurns": 6
+    "maxContextTurns": 6,
+    "cityScopeWeight": 1.3,
+    "rerankAlpha": 0.7
   }
 }
 ```
@@ -776,7 +798,9 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
   "retrievalTopK": 8,
   "rerankTopN": 5,
   "kbHitThreshold": 0.72,
-  "maxContextTurns": 6
+  "maxContextTurns": 6,
+  "cityScopeWeight": 1.3,
+  "rerankAlpha": 0.7
 }
 ```
 
@@ -785,6 +809,8 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 - `retrievalTopK`、`rerankTopN` 范围为 1 到 50。
 - `kbHitThreshold` 范围为 0 到 1。
 - `maxContextTurns` 范围为 1 到 20。
+- `cityScopeWeight` 范围为 1 到 3，用于城市专属知识的召回加权。
+- `rerankAlpha` 范围为 0 到 1，用于控制 rerank 分与 RRF 分的融合权重。
 - `rerankTopN` 不能大于 `retrievalTopK`。
 
 ### PUT /api/settings/theme
@@ -820,7 +846,7 @@ data: {"assistantMessageId":"cmobs4kx...","answer":"根据知识库：..."}
 **事件类型**：
 
 - `snapshot`：初次连接时返回当前待办数量
-- `ticket`：工单新建、升级、回复、关闭通知
+- `ticket`：工单新建、转派、回复、关闭通知
 - `ping`：保活心跳
 
 **示例**：
@@ -864,6 +890,14 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 获取工单列表，按角色过滤。
 
+角色过滤规则：
+
+- `staff` 只能看到自己创建的工单。
+- `department` 可以看到自己已认领的工单、分发/转派到本部门且未认领的工单，以及本部门已关闭工单。
+- `admin` 可以查看全部工单。
+
+当前 `pending_claim` 和 `escalated` 都表示“已经到达某个部门，但尚未被具体人员认领”。区别是前者来自系统自动分发，后者来自人工转派。
+
 **查询参数**：
 
 - `status`：`pending_claim` | `processing` | `escalated` | `resolved` | `closed` | `all`
@@ -879,6 +913,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
       "ticketNo": "TK20260424357323",
       "status": "pending_claim",
       "title": "药店收银系统怎么操作？",
+      "escalatedToDept": "技术服务部",
       "createdBy": { "username": "药店工作人员", "role": "staff" },
       "createdAt": "2026-04-23T17:53:00.321Z"
     }
@@ -904,7 +939,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
       {"senderRole": "system", "content": "系统已创建工单..."},
       {"senderRole": "user", "content": "药店收银系统怎么操作？"},
       {"senderRole": "agent", "content": "请问是哪个品牌？"},
-      {"senderRole": "system", "content": "人工处理1 已将工单升级至营运部。"}
+      {"senderRole": "system", "content": "营运-张伟 已将工单转派至营运部。"}
     ]
   }
 }
@@ -939,7 +974,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### POST /api/tickets/[id]/escalate
 
-将工单升级到目标部门或目标人员（`agent` 可用）。
+将工单转派到目标部门或目标人员（`department` / `admin` 可用）。
 
 **请求**：
 
@@ -961,7 +996,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### POST /api/tickets/[id]/submit-resolution
 
-当前认领客服提交处理方案。
+当前认领部门人员提交处理方案。
 
 **请求**：
 
@@ -986,7 +1021,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 前置条件：
 
-- 已有客服提交的 `resolutionText`。
+- 已有部门人员提交的 `resolutionText`。
 - 当前用户必须是该工单创建人。
 
 **响应**：
@@ -1036,7 +1071,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### POST /api/tickets/[id]/knowledge-draft
 
-客服在工单已 `resolved` 后选择材料生成待入库知识草稿。
+部门人员在工单已 `resolved` 后选择材料生成待入库知识草稿。
 
 **请求**：
 
@@ -1052,7 +1087,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 - 工单状态为 `resolved`。
 - 已生成待入库知识草稿，且 `knowledgeStatus=pending_writeback`。
-- 当前用户是提交工单的员工、当前处理客服或管理员。
+- 当前用户是提交工单的员工、当前处理部门人员或管理员。
 
 **响应**：
 
@@ -1069,7 +1104,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 > 关闭工单时，系统会把已生成的待入库知识草稿写入知识库，后续相同问题将被 AI 直接命中。
 
-流程上应先由客服在 `resolved` 状态下选择材料生成知识草稿，再由允许的关闭人执行关闭写回。没有草稿时，关闭接口会拒绝执行。
+流程上应先由部门人员在 `resolved` 状态下选择材料生成知识草稿，再由允许的关闭人执行关闭写回。没有草稿时，关闭接口会拒绝执行。
 
 ### GET /api/stats/summary
 
@@ -1122,8 +1157,6 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
   "items": [
     {
       "id": "cmobs52u...",
-      "categoryL1": "人工经验沉淀",
-      "categoryL2": "工单闭环新增",
       "question": "药店收银系统怎么操作？",
       "answer": "已确认为智云系统...",
       "sourceType": "manual_ticket",
@@ -1146,8 +1179,7 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ```json
 {
-  "categoryL1": "医保政策",
-  "categoryL2": "刷卡结算",
+  "businessCategory": "医保",
   "question": "医保卡消磁了怎么处理？",
   "answer": "引导顾客到当地医保经办机构或发卡银行处理。",
   "imagePaths": []
@@ -1181,7 +1213,21 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 ### GET /api/knowledge/documents/[id]
 
-获取单个知识文档详情，包括版本、解析记录、chunk set 和 active chunks。
+获取单个知识文档详情，包括版本、解析记录、chunk set、active chunks、BM25/HQ 元数据和索引任务状态。
+
+### PATCH /api/knowledge/documents/[id]
+
+更新知识文档元数据。当前支持更新：
+
+- `businessCategory`
+- `scopeLevel`
+- `cityName`
+
+更新范围后会同步 active chunk 的范围字段，并为受影响 chunk 写入 upsert 索引任务。
+
+### DELETE /api/knowledge/documents/[id]
+
+删除知识文档及其 chunk，并为相关 Qdrant point 写入 delete 索引任务。
 
 ### POST /api/knowledge/import-documents
 
@@ -1189,13 +1235,31 @@ curl -N -b cookies.txt http://127.0.0.1:3000/api/notifications/stream
 
 - `files`：一个或多个文件。
 - `chunkingConfig`：切片配置 JSON。
-- `businessCategory`：业务分类。
-- `answerPolicy`：`allow_llm_fallback` 或 `kb_only`。
-- `scopeLevel`：`national/province/city/district/store`。
+- `businessCategory`：业务分类，可空；手动填写时保存用户输入，自动写回或未填写时为 `null`。
+- `scopeTarget` / `scopeLevel`：适用范围。当前支持 `common` 和湖北城市专属。
+- `cityName`：城市专属知识的城市名，必须是湖北省内城市。
 
 ### POST /api/knowledge/preview-chunks
 
 上传文件并返回前几个切片预览，不写入知识库。
+
+### GET /api/knowledge/chunks/[id]
+
+查看单个 chunk 详情。普通登录用户只能访问通用知识或与自己所属城市匹配的城市专属 chunk；管理员可查看全部。
+
+### GET /api/knowledge/index-tasks
+
+查询知识索引任务，可按 `chunkId`、`status` 等条件过滤，用于后台展示 chunk 对应的索引投影状态。
+
+### POST /api/knowledge/index-tasks/retry
+
+重试失败索引任务。
+
+**请求**：
+
+```json
+{ "taskIds": ["cm..."] }
+```
 
 ### POST /api/knowledge/reindex/[id]
 
@@ -1267,43 +1331,43 @@ curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/tickets \
 # → {"ticket":{"id":"ticket-001","ticketNo":"TK20260424001","status":"pending_claim"}}
 ```
 
-### 第三步：人工客服处理
+### 第三步：部门人员处理
 
 ```bash
-# 5. 人工客服登录
-curl -s -c agent.txt -X POST http://127.0.0.1:3000/api/auth/login \
+# 5. 部门人员登录
+curl -s -c dept.txt -X POST http://127.0.0.1:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"人工处理1","password":"demo123"}'
+  -d '{"username":"营运-张伟","password":"demo123"}'
 
 # 6. 查看待处理工单
-curl -s -b agent.txt "http://127.0.0.1:3000/api/tickets?statusGroup=pending"
+curl -s -b dept.txt "http://127.0.0.1:3000/api/tickets?statusGroup=pending"
 # → {"tickets":[...]}
 
 # 7. 回复工单
-curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/reply \
+curl -s -b dept.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/reply \
   -H "Content-Type: application/json" \
   -d '{"content":"请问您使用的是哪个品牌的收银系统？"}'
 
 # 8. 提交处理方案
-curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/submit-resolution \
+curl -s -b dept.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/submit-resolution \
   -H "Content-Type: application/json" \
   -d '{"resolutionText":"已确认为智云系统，远程指导完成收银模块配置。"}'
 ```
 
-### 第四步：员工确认解决，客服写回知识库
+### 第四步：员工确认解决，部门人员写回知识库
 
 ```bash
 # 9. 员工确认问题已解决
 curl -s -b staff.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/resolve
 # → {"ticket":{"status":"resolved",...}}
 
-# 10. 客服选择材料生成待入库知识
-curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/knowledge-draft \
+# 10. 部门人员选择材料生成待入库知识
+curl -s -b dept.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/knowledge-draft \
   -H "Content-Type: application/json" \
   -d '{"selectedMaterialIds":["ticketMessage:..."]}'
 
 # 11. 关闭工单并写回知识库
-curl -s -b agent.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/close \
+curl -s -b dept.txt -X POST http://127.0.0.1:3000/api/tickets/ticket-001/close \
   -H "Content-Type: application/json" \
   -d '{}'
 # → {"ticket":{"status":"closed",...}}

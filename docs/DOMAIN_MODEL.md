@@ -21,6 +21,7 @@
 
 ```text
 账号域：
+  Region
   Department
   User
   Session
@@ -79,18 +80,31 @@ KnowledgeIndexTask
 
 ## 账号域
 
+### Region
+
+区域。
+
+当前 seed 区域以湖北城市为主，用于：
+
+- 用户所属城市。
+- 部门所属区域。
+- 工单创建时记录提问用户区域。
+- 城市专属知识检索过滤。
+
 ### Department
 
 部门。
 
 典型用途：
 
-- 专家或人工处理人员所属部门。
-- 工单升级时可以指定目标部门。
+- 部门处理人员所属部门。
+- 工单转派时可以指定目标部门。
 
 重要关系：
 
 ```text
+Region 1 -> N Department
+Region 1 -> N User
 Department 1 -> N User
 ```
 
@@ -103,22 +117,24 @@ Department 1 -> N User
 ```prisma
 enum UserRole {
   staff
-  agent
+  department
+  admin
 }
 ```
 
 含义：
 
-| 角色    | 说明                                                                               |
-| ------- | ---------------------------------------------------------------------------------- |
-| `staff` | 门店员工，主要使用问答和查看自己工单                                               |
-| `agent` | 人工处理人员，处理待认领或升级工单，也可访问管理能力，具体权限由页面和服务逻辑控制 |
+| 角色         | 说明                                           |
+| ------------ | ---------------------------------------------- |
+| `staff`      | 药店工作人员，主要使用问答和查看自己创建的工单 |
+| `department` | 部门人员，处理分发到本部门或已由自己认领的工单 |
+| `admin`      | 管理员，维护用户、区域、部门、知识库和统计后台 |
 
 历史说明：
 
-- 旧文档里可能出现 `人工1`、`人工2`、`L1`、`L2`、`human_l1`、`human_l2`。
-- 当前数据库角色已经统一为 `staff` / `agent`。
-- 工单是否属于“一线待认领”或“升级到某部门/某人”，由 `Ticket.status`、`claimedByUserId`、`escalatedToDept`、`escalatedToUserId` 表达。
+- 旧文档里可能出现 `人工1`、`人工2`、`L1`、`L2`、`human_l1`、`human_l2` 或 `agent`。
+- 当前数据库角色已经统一为 `staff` / `department` / `admin`。
+- 工单是否属于“部门待认领”“已转派”“处理中”，由 `Ticket.status`、`claimedByUserId`、`escalatedToDept`、`escalatedToUserId` 表达。
 
 关键字段：
 
@@ -130,6 +146,7 @@ role
 sidebarTheme
 colorMode
 departmentId
+regionId
 ```
 
 `sidebarTheme` 保存用户侧边栏主题偏好，当前由前端约束为 `blue` 或 `light`。
@@ -224,12 +241,12 @@ status
 
 `role`：
 
-| 值          | 含义     |
-| ----------- | -------- |
-| `user`      | 员工问题 |
-| `assistant` | 系统回答 |
-| `agent`     | 人工回复 |
-| `system`    | 系统消息 |
+| 值          | 含义                                                         |
+| ----------- | ------------------------------------------------------------ |
+| `user`      | 员工问题                                                     |
+| `assistant` | 系统回答                                                     |
+| `agent`     | 部门人员/人工回复消息。注意这是消息角色，不是当前 `UserRole` |
+| `system`    | 系统消息                                                     |
 
 `sourceType`：
 
@@ -351,13 +368,13 @@ closedAt
 
 `status`：
 
-| 状态            | 含义                           |
-| --------------- | ------------------------------ |
-| `pending_claim` | 待认领                         |
-| `processing`    | 处理中                         |
-| `escalated`     | 已升级                         |
-| `resolved`      | 已确认解决，等待生成待入库知识 |
-| `closed`        | 已关闭                         |
+| 状态            | 含义                                                         |
+| --------------- | ------------------------------------------------------------ |
+| `pending_claim` | 已自动分发到部门，尚未被具体部门人员认领                     |
+| `escalated`     | 已从一个部门流转到另一个部门，仍处于目标部门未认领状态       |
+| `processing`    | 已被某个部门人员认领，当前处理人可回复、转派和提交处理方案   |
+| `resolved`      | 药店工作人员已确认问题解决，等待部门人员整理待入库知识并关闭 |
+| `closed`        | 已关闭，必要时完成知识写回                                   |
 
 `knowledgeStatus`：
 
@@ -372,9 +389,15 @@ closedAt
 ```text
 pending_claim
   -> processing
-  -> escalated
   -> resolved
   -> closed
+
+pending_claim
+  -> escalated
+  -> processing
+
+processing
+  -> escalated
 ```
 
 写回链路：
@@ -425,8 +448,6 @@ createdAt
 ```text
 ticketId
 selectedMaterialsJson
-categoryL1
-categoryL2
 question
 answer
 tagsJson
@@ -480,10 +501,10 @@ app/web/lib/services/tickets.ts
 app/web/app/api/tickets/route.ts
 ```
 
-### 人工处理
+### 部门处理
 
 ```text
-agent 打开工单
+department 打开工单
   -> claim
   -> reply
   -> 可 escalate
@@ -553,9 +574,9 @@ title
 sourceType
 sourceFile
 businessCategory
-answerPolicy
 scopeLevel
-provinceCode/cityCode/districtCode/storeId
+cityName
+effectiveFrom/effectiveTo
 status
 ```
 
@@ -576,8 +597,6 @@ status
 关键字段：
 
 ```text
-categoryL1
-categoryL2
 question
 answer
 tagsJson
@@ -588,6 +607,7 @@ sourceFile
 docType
 imagePath
 imagePathsJson
+documentId
 hitCount
 lastHitAt
 ```

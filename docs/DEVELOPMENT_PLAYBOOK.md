@@ -399,8 +399,8 @@ pnpm kb:reconcile
 ```text
 app/web/app/staff/tickets/page.tsx
 app/web/app/staff/tickets/[id]/page.tsx
-app/web/app/agent/tickets/page.tsx
-app/web/app/agent/tickets/[id]/page.tsx
+app/web/app/department/tickets/page.tsx
+app/web/app/department/tickets/[id]/page.tsx
 ```
 
 组件：
@@ -428,26 +428,26 @@ app/web/lib/services/tickets.ts
 - 修改工单状态流转。
 - 修改列表筛选。
 - 修改认领逻辑。
-- 修改升级逻辑。
+- 修改转派逻辑。
 - 修改关闭逻辑。
 - 修改知识草稿生成。
 
 验证：
 
 1. 员工转人工。
-2. agent 能看到待认领工单。
-3. agent 认领后状态变为 processing。
-4. agent 回复。
-5. agent 升级到部门或人员。
-6. agent 提交解决方案。
+2. department 能看到本部门待认领工单。
+3. department 认领后状态变为 processing。
+4. department 回复。
+5. department 转派到部门或人员。
+6. department 提交解决方案。
 7. staff 确认已解决。
-8. agent 生成待入库草稿。
+8. department 生成待入库草稿。
 9. 关闭工单并写回知识库。
 
 注意：
 
 - `canAccessTicket()` 是权限判断关键函数。
-- 改权限一定要同时验证 staff 和 agent。
+- 改权限一定要同时验证 staff、department 和 admin。
 - 工单事件会触发 SSE 通知。
 
 ---
@@ -471,9 +471,9 @@ docs/NOTIFICATION_WS_TO_SSE.md
 
 验证：
 
-1. 打开 agent 工单页。
+1. 打开 部门工单页。
 2. 员工创建工单。
-3. agent 页面待办数量更新。
+3. 部门人员页面待办数量更新。
 4. 工单回复/关闭后通知变化正常。
 
 注意：
@@ -499,7 +499,7 @@ prisma/schema.prisma
 
 ```text
 UserRole.staff
-UserRole.agent
+UserRole.department
 ```
 
 如果要新增角色：

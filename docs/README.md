@@ -14,7 +14,7 @@
 | [GLOSSARY.md](./GLOSSARY.md)                         | 名词表，解释当前术语和历史表述差异                             |
 | [DEVELOPMENT_PLAYBOOK.md](./DEVELOPMENT_PLAYBOOK.md) | 开发任务手册，说明常见需求应该改哪些文件、如何验证             |
 | [ACCEPTANCE_CHECKLIST.md](./ACCEPTANCE_CHECKLIST.md) | 接手验收清单和回归测试清单                                     |
-| [USER_MANUAL.md](./USER_MANUAL.md)                   | 用户视角操作手册，用完整案例说明问答、工单、升级、知识回写闭环 |
+| [USER_MANUAL.md](./USER_MANUAL.md)                   | 用户视角操作手册，用完整案例说明问答、工单、转派、知识回写闭环 |
 
 ### 2. 启动、部署、运维
 

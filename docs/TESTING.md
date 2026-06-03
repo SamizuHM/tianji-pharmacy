@@ -135,7 +135,7 @@ import { buildUser, buildTicket } from "../../helpers/factories";
 const user = buildUser();
 
 // 覆盖部分字段
-const agent = buildUser({ role: "agent", departmentId: "dept-1" });
+const departmentUser = buildUser({ role: "department", departmentId: "dept-1" });
 ```
 
 ### 4. API 路由测试

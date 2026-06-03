@@ -7,7 +7,7 @@
 - 检索阶段不使用完整会话上下文，避免上一轮助手回答污染当前轮召回。
 - 生成阶段继续使用会话上下文，用于承接多轮对话语义。
 - `enable_thinking` 只用于最终大模型生成链路，不用于 embedding / rerank。
-- 检索阶段会做 query planning、多 query 向量召回、关键词召回、RRF 合并、rerank、地域过滤和回答策略决策。
+- 检索阶段会做 query planning、多 query 向量召回、BM25 关键词召回、RRF 合并、城市范围加权、rerank 和回答策略决策。
 - 医保、用药等强约束分类默认 `kb_only`，知识库未命中时拒答，不走大模型兜底。
 
 ## 总体原则
@@ -94,21 +94,15 @@ queryText = 多模态模型基于“当前用户问题 + 当前轮全部图片�
 - `app/web/lib/services/retrieval.ts`
 - `buildQueryPlan(...)`
 
-系统会从 query text 中推断：
+系统会调用大模型把当前问题和最近少量历史对话改写为结构化检索计划：
 
 - `businessCategory`
-- 默认 `answerPolicy`
+- `vectorQueries`
+- `keywordQueries`
 - `mustTerms`
-- `queryVariants`
+- `normalizedQuery`
 
-当前规则型分类：
-
-- 医保、统筹、报销、结算、刷卡、医保卡 → `医保`
-- 用药、药品、处方、剂量、不良反应、禁忌等 → `用药`
-- 小票、打印、收银、票据、打印机 → `收银打印`
-- 其他 → `通用`
-
-`医保`、`用药` 默认 `kb_only`。
+服务层会把 `医保`、`用药` 归为强约束业务，默认 `kb_only`。此外，`sensitive-words.ts` 中维护了医保、监管、报销、用药等敏感词命中规则，敏感问题未命中可靠知识时会返回拒答，避免模型自由编造政策口径。
 
 ### 5. 混合召回
 
@@ -146,16 +140,17 @@ ML Service 侧使用：
 
 #### 关键词召回
 
-同一轮会用 `mustTerms + businessCategory` 在 PostgreSQL `KnowledgeChunk.chunkText`、`KnowledgeItem.question`、`KnowledgeItem.answer` 中做关键词召回。
+同一轮会用 `keywordQueries + mustTerms` 查询 PostgreSQL 中的 `KnowledgeBm25Term` 倒排表，再按 BM25 公式计算候选 chunk 分数。
 
-关键词召回会同步应用文档地域过滤：
+关键词召回会同步应用知识范围过滤：
 
-- 无门店地域时只召回全国文档。
-- 有门店地域时召回全国、省、市、区县、门店匹配文档。
+- `scopeLevel=common` 的文档对所有用户可见。
+- `scopeLevel=city` 的文档只在用户所在城市匹配时可见。
+- `overrideScope=true` 的 chunk 可绕过文档范围限制，用于必要的全局索引投影。
 
 #### RRF 合并
 
-向量召回和关键词召回用 RRF 合并，候选来源记录为 `vector` / `keyword`。
+向量召回和关键词召回用 RRF 合并，候选来源记录为 `vector` / `keyword`。城市专属知识在用户所属城市匹配时会应用 `cityScopeWeight` 加权，默认值来自运行时设置。
 
 ### 6. Rerank 重排
 
@@ -182,7 +177,7 @@ ML Service 侧使用：
 }
 ```
 
-系统将 rerank 分数写入 `retrievalDebug`，并按 `rerankScore` 降序排序。
+系统会将 rerank 分与 RRF 分按 `rerankAlpha` 融合用于候选排序，写入 `retrievalDebug`，并记录 `vectorScore`、`keywordScore`、`rrfScore`、`finalScore`、`sources`、`scopeLevel` 和 `cityName`。
 
 命中规则：
 
@@ -204,14 +199,14 @@ rerankScore >= KB_HIT_THRESHOLD
 如果存在超过阈值的候选：
 
 - 回表校验 `knowledgeChunk` / `knowledgeItem`
-- 校验 `KnowledgeDocument` 地域范围
+- 校验 `KnowledgeDocument` 或 chunk 的城市范围
 - 校验通过后走知识库答案整理
 - 校验失败则投递脏 point 清理任务
 
 如果没有超过阈值的候选：
 
-- `answerPolicy=kb_only` 时返回 refusal，不调用通用大模型兜底
-- `answerPolicy=allow_llm_fallback` 时走大模型保守兜底回答
+- 当查询规划判断为医保、用药等强约束业务分类，或命中敏感词策略时，走 `kb_only`：没有可靠知识库证据则拒答。
+- 其他业务分类默认允许大模型保守兜底回答。
 
 ### 8. 最终生成
 
@@ -243,7 +238,7 @@ rerankScore >= KB_HIT_THRESHOLD
 - `KnowledgeChunkSet`
 - `KnowledgeChunk`
 
-`KnowledgeItem` 仍存在，用于保存标准问答字段、统计命中和兼容索引 payload。后台管理以文档为准。
+`KnowledgeItem` 仍存在，用于保存标准问答字段、统计命中和兼容索引 payload。后台管理以 `KnowledgeDocument` 文档视图为准，一级/二级分类字段已经删除。
 
 入库来源：
 
@@ -251,6 +246,12 @@ rerankScore >= KB_HIT_THRESHOLD
 - 导入前预览：`/api/knowledge/preview-chunks`
 - 手动 QA：`/api/knowledge` JSON POST
 - 工单写回：`closeTicketWithKnowledgeWriteback -> upsertQaKnowledgeDocument`
+
+业务分类规则：
+
+- 上传文档和手动 QA 使用用户手填的 `businessCategory`。
+- 未填写、自动生成、工单回写等场景默认 `businessCategory = null`。
+- 系统不再根据问题文本自动推断业务分类。
 
 切片实现：
 

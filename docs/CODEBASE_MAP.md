@@ -116,21 +116,21 @@ app/web/components/tickets/ticket-list.tsx
 app/web/components/tickets/ticket-detail-client.tsx
 ```
 
-### 人工处理端
+### 部门工单端
 
-| 路径                  | 文件                                      | 说明             |
-| --------------------- | ----------------------------------------- | ---------------- |
-| `/agent/tickets`      | `app/web/app/agent/tickets/page.tsx`      | 人工处理工单列表 |
-| `/agent/tickets/[id]` | `app/web/app/agent/tickets/[id]/page.tsx` | 人工工单详情     |
-| `/agent/*` layout     | `app/web/app/agent/layout.tsx`            | 人工端布局       |
+| 路径                       | 文件                                           | 说明                       |
+| -------------------------- | ---------------------------------------------- | -------------------------- |
+| `/department/tickets`      | `app/web/app/department/tickets/page.tsx`      | 部门工单列表               |
+| `/department/tickets/[id]` | `app/web/app/department/tickets/[id]/page.tsx` | 部门工单详情               |
+| `/agent/*` layout          | `app/web/app/agent/layout.tsx`                 | 旧入口兼容重定向到部门工单 |
 
-人工角色当前在 Prisma 中统一为：
+部门处理角色当前在 Prisma 中统一为：
 
 ```text
-UserRole.agent
+UserRole.department
 ```
 
-历史文档里的人工1、人工2、L1、L2 是业务分层称呼，不是当前数据库 enum。
+历史文档里的人工1、人工2、L1、L2 是业务分层称呼，不是当前数据库 enum。新代码不要再新增 `UserRole.agent` 判断。
 
 ### 管理端
 
@@ -250,7 +250,7 @@ app/web/app/api/tickets/[id]/close/route.ts
 - 工单列表和详情。
 - 认领。
 - 回复。
-- 升级。
+- 转派。
 - 提交处理方案。
 - 员工确认已解决。
 - 生成待入库知识草稿。
@@ -464,7 +464,7 @@ docs/INCIDENT_2026-04-28_QDRANT_INDEX_DELETION.md
 - 从会话创建工单。
 - 判断工单访问权限。
 - 列表筛选。
-- 认领、回复、升级、关闭。
+- 认领、回复、转派、关闭。
 - 生成知识草稿。
 - 写回知识库。
 - 广播通知。
@@ -854,6 +854,7 @@ app/web/components/tickets/ticket-detail-client.tsx
 ```text
 app/web/components/layout/app-shell.tsx
 app/web/app/staff/layout.tsx
+app/web/app/department/layout.tsx
 app/web/app/agent/layout.tsx
 app/web/app/admin/layout.tsx
 ```

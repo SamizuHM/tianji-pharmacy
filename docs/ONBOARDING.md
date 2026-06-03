@@ -26,7 +26,8 @@
 - 命中知识库时返回标准答案。
 - 未命中时走大模型兜底。
 - 员工可以把会话转成人工工单。
-- 人工客服/专家在 `/agent/tickets` 处理工单。
+- 部门人员在 `/department/tickets` 处理分发或转派到本部门的工单。
+- 管理员在 `/admin/*` 维护区域、部门、用户、知识库和系统设置。
 - 工单解决后可以沉淀为新知识。
 - 知识主数据在 PostgreSQL，向量索引在 Qdrant。
 - 多模态 embedding、rerank、图片理解由 Python `ml-service` 提供。
@@ -141,7 +142,7 @@ http://127.0.0.1:3000
 4. 看是否知识库命中。
 5. 未解决时转人工。
 6. 登录人工账号。
-7. 认领/回复/升级/提交处理方案。
+7. 认领/回复/转派/提交处理方案。
 8. 员工确认已解决后，生成待入库知识草稿，再关闭工单写回知识库。
 9. 到知识库管理页确认数据。
 10. 重建索引后再问一次。
@@ -278,7 +279,8 @@ app/web/lib/auth/session.ts
 
 ```text
 staff
-agent
+department
+admin
 ```
 
 历史文档里可能出现：
@@ -292,7 +294,7 @@ human_l1
 human_l2
 ```
 
-这些是历史称呼或业务分层称呼。当前数据库角色已经统一为 `agent`，具体可见 `docs/GLOSSARY.md`。
+这些是历史称呼或业务分层称呼。当前数据库角色已经统一为 `staff` / `department` / `admin`，具体可见 `docs/GLOSSARY.md`。
 
 ### 2. 员工问答
 
@@ -336,9 +338,10 @@ app/web/lib/openai.ts
 ```text
 用户问题
   -> 多模态 query rewrite
-  -> embed
-  -> Qdrant search
-  -> rerank
+  -> 多 query 向量召回
+  -> BM25 关键词召回
+  -> RRF 合并并按城市范围加权
+  -> 多模态 rerank
   -> 读取 PostgreSQL knowledgeChunk / knowledgeItem 校验
   -> 分数超过阈值则用知识库
   -> 否则走大模型兜底
@@ -349,6 +352,7 @@ app/web/lib/openai.ts
 - Qdrant 不是权威数据。
 - Qdrant 命中后仍要回 PostgreSQL 校验 chunk 是否存在。
 - 如果 Qdrant point 已陈旧，会创建删除任务清理。
+- 医保、用药等强约束问题未命中可靠知识时会拒答，不让大模型自由编造。
 
 ### 4. 工单
 
@@ -356,7 +360,7 @@ app/web/lib/openai.ts
 
 ```text
 /staff/tickets
-/agent/tickets
+/department/tickets
 ```
 
 核心文件：
@@ -374,10 +378,11 @@ app/web/app/api/tickets/*
 员工会话
   -> 转人工
   -> 创建 Ticket
-  -> agent 认领/处理/升级
-  -> agent 提交处理方案
+  -> 自动分发到部门
+  -> department 认领/处理/转派
+  -> department 提交处理方案
   -> staff 确认问题已解决
-  -> agent 生成知识草稿
+  -> department 生成知识草稿
   -> 关闭并写回 QA 知识文档
 ```
 

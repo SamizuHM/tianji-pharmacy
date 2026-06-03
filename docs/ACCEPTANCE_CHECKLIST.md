@@ -123,7 +123,8 @@ http://127.0.0.1:3000
 预期：
 
 - staff 能进入员工端。
-- agent 能进入人工端。
+- department 能进入部门工单端。
+- admin 能进入管理端。
 - 管理入口按当前权限策略显示。
 
 如果不知道账号，查看：
@@ -249,14 +250,14 @@ POST /api/auth/logout
 - 员工能在 `/staff/tickets` 看到该工单。
 - 工单状态为 `pending_claim`。
 
-### agent 查看待认领
+### department 查看待认领
 
-登录 agent。
+登录目标部门人员账号。
 
 打开：
 
 ```text
-/agent/tickets
+/department/tickets
 ```
 
 预期：
@@ -271,7 +272,7 @@ POST /api/auth/logout
 预期：
 
 - 工单状态变为 `processing`。
-- `claimedByUserId` 指向当前 agent。
+- `claimedByUserId` 指向当前 department 用户。
 
 ### 回复
 
@@ -283,19 +284,19 @@ POST /api/auth/logout
 - 员工侧能看到回复。
 - 通知流更新。
 
-### 升级
+### 转派
 
-如果页面支持升级，选择部门或人员升级。
+如果页面支持转派，选择部门或人员转派。
 
 预期：
 
 - 工单状态变为 `escalated`。
 - `escalatedToDept` 或 `escalatedToUserId` 正确。
-- 目标 agent 可见。
+- 目标部门人员可见。
 
 ### 提交解决方案并确认解决
 
-人工客服填写解决方案，员工确认问题已解决。
+部门人员填写解决方案，员工确认问题已解决。
 
 预期：
 
@@ -310,7 +311,7 @@ POST /api/auth/logout
 
 ### 生成知识草稿
 
-在工单进入 `resolved` 后，由客服在工单详情中选择材料生成知识草稿。
+在工单进入 `resolved` 后，由部门人员在工单详情中选择材料生成知识草稿。
 
 预期：
 
@@ -326,7 +327,7 @@ POST /api/auth/logout
 - `closedAt` 存在。
 - 状态为 `closed`。
 - `knowledgeStatus` 为 `written`。
-- 只有提交工单的员工、当前处理客服或管理员可以关闭。
+- 只有提交工单的员工、当前处理部门人员或管理员可以关闭。
 - 管理端「知识文档」列表出现工单 QA 文档。
 - 生成或更新 `KnowledgeItem` 检索投影。
 - 生成或更新 `KnowledgeDocument`、`KnowledgeDocumentVersion`、`KnowledgeParseRun`、`KnowledgeChunkSet`。
@@ -430,11 +431,11 @@ pnpm kb:rebuild
 
 当前通知使用 SSE。
 
-打开 agent 工单页，同时在员工端创建/更新工单。
+打开 部门工单页，同时在员工端创建/更新工单。
 
 预期：
 
-- agent 页面待办数更新。
+- 部门人员页面待办数更新。
 - 不需要浏览器连接 `3001` 端口。
 - 网络请求中应看到 `/api/notifications/stream`。
 
@@ -609,7 +610,7 @@ docs/DOCKER_DEPLOYMENT_GUIDE.md
 满足以下条件，可以认为已经具备继续开发的基本上下文：
 
 - 能本地启动 Web 和 ML Service。
-- 能登录 staff 和 agent。
+- 能登录 staff、department 和 admin。
 - 能完成一次问答。
 - 能转人工、提交处理方案、确认解决并关闭工单。
 - 能解释 KnowledgeDocument、KnowledgeItem 投影、KnowledgeChunk、Qdrant point 的关系。
